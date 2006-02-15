@@ -55,7 +55,7 @@
 
 static int  dma_bytes_sent(struct NCR_ESP *esp, int fifo_count);
 static void dma_drain(struct NCR_ESP *esp);
-static int  dma_can_transfer(struct NCR_ESP *esp, Scsi_Cmnd * sp);
+static int  dma_can_transfer(struct NCR_ESP *esp, struct scsi_cmnd * sp);
 static void dma_dump_state(struct NCR_ESP *esp);
 static void dma_init_read(struct NCR_ESP *esp, u32 vaddress, int length);
 static void dma_init_write(struct NCR_ESP *esp, u32 vaddress, int length);
@@ -64,9 +64,9 @@ static void dma_ints_on(struct NCR_ESP *esp);
 static int  dma_irq_p(struct NCR_ESP *esp);
 static int  dma_ports_p(struct NCR_ESP *esp);
 static void dma_setup(struct NCR_ESP *esp, u32 addr, int count, int write);
-static void dma_mmu_get_scsi_one(struct NCR_ESP *esp, Scsi_Cmnd * sp);
-static void dma_mmu_get_scsi_sgl(struct NCR_ESP *esp, Scsi_Cmnd * sp);
-static void dma_advance_sg(Scsi_Cmnd * sp);
+static void dma_mmu_get_scsi_one(struct NCR_ESP *esp, struct scsi_cmnd * sp);
+static void dma_mmu_get_scsi_sgl(struct NCR_ESP *esp, struct scsi_cmnd * sp);
+static void dma_advance_sg(struct scsi_cmnd * sp);
 
 static void pmaz_dma_drain(struct NCR_ESP *esp);
 static void pmaz_dma_init_read(struct NCR_ESP *esp, u32 vaddress, int length);
@@ -74,7 +74,7 @@ static void pmaz_dma_init_write(struct NCR_ESP *esp, u32 vaddress, int length);
 static void pmaz_dma_ints_off(struct NCR_ESP *esp);
 static void pmaz_dma_ints_on(struct NCR_ESP *esp);
 static void pmaz_dma_setup(struct NCR_ESP *esp, u32 addr, int count, int write);
-static void pmaz_dma_mmu_get_scsi_one(struct NCR_ESP *esp, Scsi_Cmnd * sp);
+static void pmaz_dma_mmu_get_scsi_one(struct NCR_ESP *esp, struct scsi_cmnd * sp);
 
 #define TC_ESP_RAM_SIZE 0x20000
 #define ESP_TGT_DMA_SIZE ((TC_ESP_RAM_SIZE/7) & ~(sizeof(int)-1))
@@ -379,7 +379,7 @@ static void dma_drain(struct NCR_ESP *esp)
 	}
 }
 
-static int dma_can_transfer(struct NCR_ESP *esp, Scsi_Cmnd * sp)
+static int dma_can_transfer(struct NCR_ESP *esp, struct scsi_cmnd * sp)
 {
 	return sp->SCp.this_residual;
 }
@@ -491,12 +491,12 @@ static void dma_setup(struct NCR_ESP *esp, u32 addr, int count, int write)
 		dma_init_write(esp, addr, count);
 }
 
-static void dma_mmu_get_scsi_one(struct NCR_ESP *esp, Scsi_Cmnd * sp)
+static void dma_mmu_get_scsi_one(struct NCR_ESP *esp, struct scsi_cmnd * sp)
 {
 	sp->SCp.ptr = (char *)virt_to_phys(sp->request_buffer);
 }
 
-static void dma_mmu_get_scsi_sgl(struct NCR_ESP *esp, Scsi_Cmnd * sp)
+static void dma_mmu_get_scsi_sgl(struct NCR_ESP *esp, struct scsi_cmnd * sp)
 {
 	int sz = sp->SCp.buffers_residual;
 	struct scatterlist *sg = sp->SCp.buffer;
@@ -508,7 +508,7 @@ static void dma_mmu_get_scsi_sgl(struct NCR_ESP *esp, Scsi_Cmnd * sp)
 	sp->SCp.ptr = (char *)(sp->SCp.buffer->dma_address);
 }
 
-static void dma_advance_sg(Scsi_Cmnd * sp)
+static void dma_advance_sg(struct scsi_cmnd * sp)
 {
 	sp->SCp.ptr = (char *)(sp->SCp.buffer->dma_address);
 }
@@ -572,7 +572,7 @@ static void pmaz_dma_setup(struct NCR_ESP *esp, u32 addr, int count, int write)
 		pmaz_dma_init_write(esp, addr, count);
 }
 
-static void pmaz_dma_mmu_get_scsi_one(struct NCR_ESP *esp, Scsi_Cmnd * sp)
+static void pmaz_dma_mmu_get_scsi_one(struct NCR_ESP *esp, struct scsi_cmnd * sp)
 {
 	sp->SCp.ptr = (char *)virt_to_phys(sp->request_buffer);
 }
