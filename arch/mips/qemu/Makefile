@@ -3,4 +3,4 @@
 #
 
 obj-y		= q-firmware.o q-int.o q-irq.o q-mem.o q-setup.o
-obj-$(CONFIG_VT) = q-vga.o
+obj-$(CONFIG_VT) += q-vga.o
