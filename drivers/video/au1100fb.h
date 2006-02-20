@@ -78,7 +78,7 @@ struct au1100fb_panel
 	u32 	bpp;		/* Maximum depth supported */
 };
 
-struct au1100fb_regs 
+struct au1100fb_regs
 {
 	u32  lcd_control;
 	u32  lcd_intstatus;
@@ -255,7 +255,7 @@ struct au1100fb_device {
 
 /* List of panels known to work with the AU1100 LCD controller.
  * To add a new panel, enter the same specifications as the
- * Generic_TFT one, and MAKE SURE that it doesn't conflicts 
+ * Generic_TFT one, and MAKE SURE that it doesn't conflicts
  * with the controller restrictions. Restrictions are:
  *
  * STN color panels: max_bpp <= 12
@@ -272,7 +272,7 @@ static struct au1100fb_panel known_lcd_panels[] =
 		.xres = 800,
 		.yres = 600,
 		.bpp = 16,
-		.control_base =	0x0004886A | 
+		.control_base =	0x0004886A |
 			LCD_CONTROL_DEFAULT_PO | LCD_CONTROL_DEFAULT_SBPPF |
 			LCD_CONTROL_BPP_16,
 		.clkcontrol_base = 0x00020000,

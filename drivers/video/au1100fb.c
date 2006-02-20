@@ -3,7 +3,7 @@
  *	Au1100 LCD Driver.
  *
  * Rewritten for 2.6 by Embedded Alley Solutions
- * 	<source@embeddedalley.com>, based on submissions by 
+ * 	<source@embeddedalley.com>, based on submissions by
  *  	Karl Lessard <klessard@sunrisetelecom.com>
  *  	<c.pellegrin@exadron.com>
  *
@@ -57,7 +57,7 @@
 
 #include "au1100fb.h"
 
-/* 
+/*
  * Sanity check. If this is a new Au1100 based board, search for
  * the PB1100 ifdefs to make sure you modify the code accordingly.
  */
@@ -75,11 +75,11 @@
 #define to_au1100fb_device(_info) \
 	  (_info ? container_of(_info, struct au1100fb_device, info) : NULL);
 
-/* Bitfields format supported by the controller. Note that the order of formats 
+/* Bitfields format supported by the controller. Note that the order of formats
  * SHOULD be the same as in the LCD_CONTROL_SBPPF field, so we can retrieve the
  * right pixel format by doing rgb_bitfields[LCD_CONTROL_SBPPF_XXX >> LCD_CONTROL_SBPPF]
  */
-struct fb_bitfield rgb_bitfields[][4] = 
+struct fb_bitfield rgb_bitfields[][4] =
 {
   	/*     Red, 	   Green, 	 Blue, 	     Transp   */
 	{ { 10, 6, 0 }, { 5, 5, 0 }, { 0, 5, 0 }, { 0, 0, 0 } },
@@ -143,7 +143,7 @@ int au1100fb_setmode(struct au1100fb_device *fbdev)
 			info->var.transp.msb_right = 0;
 
 			info->fix.visual = FB_VISUAL_PSEUDOCOLOR;
-			info->fix.line_length = info->var.xres_virtual / 
+			info->fix.line_length = info->var.xres_virtual /
 							(8/info->var.bits_per_pixel);
 		} else {
 			/* non-palettized */
@@ -163,7 +163,7 @@ int au1100fb_setmode(struct au1100fb_device *fbdev)
 	}
 
 	info->screen_size = info->fix.line_length * info->var.yres_virtual;
-	
+
 	/* Determine BPP mode and format */
 	fbdev->regs->lcd_control = fbdev->panel->control_base |
 			    ((info->var.rotate/90) << LCD_CONTROL_SM_BIT);
@@ -184,7 +184,7 @@ int au1100fb_setmode(struct au1100fb_device *fbdev)
 		 * otherwise display the same as the first panel */
 		if (info->var.yres_virtual >= (info->var.yres << 1)) {
 			fbdev->regs->lcd_dmaaddr1 = LCD_DMA_SA_N(fbdev->fb_phys +
-							  (info->fix.line_length * 
+							  (info->fix.line_length *
 						          (info->var.yres_virtual >> 1)));
 		} else {
 			fbdev->regs->lcd_dmaaddr1 = LCD_DMA_SA_N(fbdev->fb_phys);
@@ -202,7 +202,7 @@ int au1100fb_setmode(struct au1100fb_device *fbdev)
 
 	fbdev->regs->lcd_pwmdiv = 0;
 	fbdev->regs->lcd_pwmhi = 0;
-   
+
 	/* Resume controller */
 	fbdev->regs->lcd_control |= LCD_CONTROL_GO;
 
@@ -223,22 +223,22 @@ int au1100fb_fb_setcolreg(unsigned regno, unsigned red, unsigned green, unsigned
 
 	if (fbi->var.grayscale) {
 		/* Convert color to grayscale */
-		red = green = blue = 
+		red = green = blue =
 			(19595 * red + 38470 * green + 7471 * blue) >> 16;
 	}
-   
+
 	if (fbi->fix.visual == FB_VISUAL_TRUECOLOR) {
 		/* Place color in the pseudopalette */
 		if (regno > 16)
 			return -EINVAL;
-   
+
 		palette = (u32*)fbi->pseudo_palette;
 
 		red   >>= (16 - fbi->var.red.length);
 		green >>= (16 - fbi->var.green.length);
 		blue  >>= (16 - fbi->var.blue.length);
-	
-		value = (red   << fbi->var.red.offset) 	|	
+
+		value = (red   << fbi->var.red.offset) 	|
 			(green << fbi->var.green.offset)|
 			(blue  << fbi->var.blue.offset);
 		value &= 0xFFFF;
@@ -250,8 +250,8 @@ int au1100fb_fb_setcolreg(unsigned regno, unsigned red, unsigned green, unsigned
 
 	} else if (panel_is_color(fbdev->panel)) {
 		/* COLOR STN MODE */
-		value = (((panel_swap_rgb(fbdev->panel) ? blue : red) >> 12) & 0x000F) | 
-			((green >> 8) & 0x00F0) | 
+		value = (((panel_swap_rgb(fbdev->panel) ? blue : red) >> 12) & 0x000F) |
+			((green >> 8) & 0x00F0) |
 			(((panel_swap_rgb(fbdev->panel) ? red : blue) >> 4) & 0x0F00);
 		value &= 0xFFF;
 	} else {
@@ -261,7 +261,7 @@ int au1100fb_fb_setcolreg(unsigned regno, unsigned red, unsigned green, unsigned
 	}
 
 	palette[regno] = value;
-	
+
 	return 0;
 }
 
@@ -282,8 +282,8 @@ int au1100fb_fb_blank(int blank_mode, struct fb_info *fbi)
 			fbdev->regs->lcd_control |= LCD_CONTROL_GO;
 #ifdef CONFIG_MIPS_PB1100
 			if (drv_info.panel_idx == 1) {
-				au_writew(au_readw(PB1100_G_CONTROL) 
-					  | (PB1100_G_CONTROL_BL | PB1100_G_CONTROL_VDD), 
+				au_writew(au_readw(PB1100_G_CONTROL)
+					  | (PB1100_G_CONTROL_BL | PB1100_G_CONTROL_VDD),
 			PB1100_G_CONTROL);
 			}
 #endif
@@ -297,14 +297,14 @@ int au1100fb_fb_blank(int blank_mode, struct fb_info *fbi)
 			fbdev->regs->lcd_control &= ~LCD_CONTROL_GO;
 #ifdef CONFIG_MIPS_PB1100
 			if (drv_info.panel_idx == 1) {
-				au_writew(au_readw(PB1100_G_CONTROL) 
+				au_writew(au_readw(PB1100_G_CONTROL)
 				  	  & ~(PB1100_G_CONTROL_BL | PB1100_G_CONTROL_VDD),
 			PB1100_G_CONTROL);
 			}
 #endif
 		au_sync();
 		break;
-	default: 
+	default:
 		break;
 
 	}
@@ -329,7 +329,7 @@ int au1100fb_fb_pan_display(struct fb_var_screeninfo *var, struct fb_info *fbi)
 		/* No support for X panning for now! */
 		return -EINVAL;
 	}
-			
+
 	print_dbg("fb_pan_display 2 %p %p", var, fbi);
 	dy = var->yoffset - fbi->var.yoffset;
 	if (dy) {
@@ -389,7 +389,7 @@ int au1100fb_fb_mmap(struct fb_info *fbi, struct vm_area_struct *vma)
 	if (vma->vm_pgoff > (~0UL >> PAGE_SHIFT)) {
 		return -EINVAL;
 	}
-    
+
 	start = fbdev->fb_phys & PAGE_MASK;
 	len = PAGE_ALIGN((start & ~PAGE_MASK) + fbdev->fb_len);
 
@@ -406,7 +406,7 @@ int au1100fb_fb_mmap(struct fb_info *fbi, struct vm_area_struct *vma)
 	pgprot_val(vma->vm_page_prot) |= (6 << 9); //CCA=6
 
 	vma->vm_flags |= VM_IO;
-    
+
 	if (io_remap_page_range(vma, vma->vm_start, off,
 				vma->vm_end - vma->vm_start,
 				vma->vm_page_prot)) {
@@ -416,7 +416,7 @@ int au1100fb_fb_mmap(struct fb_info *fbi, struct vm_area_struct *vma)
 	return 0;
 }
 
-static struct fb_ops au1100fb_ops = 
+static struct fb_ops au1100fb_ops =
 {
 	.owner			= THIS_MODULE,
 	.fb_setcolreg		= au1100fb_fb_setcolreg,
@@ -456,7 +456,7 @@ int au1100fb_drv_probe(struct device *dev)
 	dev_set_drvdata(dev, (void*)fbdev);
 
 	/* Allocate region for our registers and map them */
-	if (!(regs_res = platform_get_resource(to_platform_device(dev), 
+	if (!(regs_res = platform_get_resource(to_platform_device(dev),
 					IORESOURCE_MEM, 0))) {
 		print_err("fail to retrieve registers resource");
 		return -EFAULT;
@@ -465,9 +465,9 @@ int au1100fb_drv_probe(struct device *dev)
 	au1100fb_fix.mmio_start = regs_res->start;
 	au1100fb_fix.mmio_len = regs_res->end - regs_res->start + 1;
 
-	if (!request_mem_region(au1100fb_fix.mmio_start, au1100fb_fix.mmio_len, 
+	if (!request_mem_region(au1100fb_fix.mmio_start, au1100fb_fix.mmio_len,
 				DRIVER_NAME)) {
-		print_err("fail to lock memory region at 0x%08x", 
+		print_err("fail to lock memory region at 0x%08x",
 				au1100fb_fix.mmio_start);
 		return -EBUSY;
 	}
@@ -482,11 +482,11 @@ int au1100fb_drv_probe(struct device *dev)
 	/* Allocate the framebuffer to the maximum screen size * nbr of video buffers */
 	fbdev->fb_len = fbdev->panel->xres * fbdev->panel->yres *
 		  	(fbdev->panel->bpp >> 3) * AU1100FB_NBR_VIDEO_BUFFERS;
-	
-	fbdev->fb_mem = dma_alloc_coherent(dev, PAGE_ALIGN(fbdev->fb_len), 
+
+	fbdev->fb_mem = dma_alloc_coherent(dev, PAGE_ALIGN(fbdev->fb_len),
 					&fbdev->fb_phys, GFP_KERNEL);
 	if (!fbdev->fb_mem) {
-		print_err("fail to allocate frambuffer (size: %dK))", 
+		print_err("fail to allocate frambuffer (size: %dK))",
 			  fbdev->fb_len / 1024);
 		return -ENOMEM;
 	}
@@ -499,7 +499,7 @@ int au1100fb_drv_probe(struct device *dev)
 	 * since we'll be remapping normal memory.
 	 */
 	for (page = (unsigned long)fbdev->fb_mem;
-	     page < PAGE_ALIGN((unsigned long)fbdev->fb_mem + fbdev->fb_len); 
+	     page < PAGE_ALIGN((unsigned long)fbdev->fb_mem + fbdev->fb_len);
 	     page += PAGE_SIZE) {
 #if CONFIG_DMA_NONCOHERENT
 		SetPageReserved(virt_to_page(CAC_ADDR(page)));
@@ -616,11 +616,11 @@ static struct device_driver au1100fb_driver = {
 	.suspend	= au1100fb_drv_suspend,
         .resume		= au1100fb_drv_resume,
 };
-    
+
 /*-------------------------------------------------------------------------*/
 
 /* Kernel driver */
-    
+
 int au1100fb_setup(char *options)
 {
 	char* this_opt;
@@ -641,7 +641,7 @@ int au1100fb_setup(char *options)
 				this_opt += 6;
 				for (i = 0; i < num_panels; i++) {
 					if (!strncmp(this_opt,
-					      	     known_lcd_panels[i].name, 
+					      	     known_lcd_panels[i].name,
 							strlen(this_opt))) {
 						panel_idx = i;
 					break;
@@ -661,7 +661,7 @@ int au1100fb_setup(char *options)
 				print_warn("Unsupported option \"%s\"", this_opt);
 		}
 		}
-	} 
+	}
 
 	drv_info.panel_idx = panel_idx;
 	drv_info.opt_mode = mode;
@@ -677,9 +677,9 @@ int __init au1100fb_init(void)
 {
 	char* options;
 	int ret;
-	
+
 	print_info("" DRIVER_DESC "");
-	
+
 	memset(&drv_info, 0, sizeof(drv_info));
 
 	if (fb_get_options(DRIVER_NAME, &options))
