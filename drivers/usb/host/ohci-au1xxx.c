@@ -94,7 +94,7 @@ int usb_hcd_au1xxx_probe (const struct hc_driver *driver,
 
 	if (dev->resource[1].flags != IORESOURCE_IRQ) {
 		pr_debug ("resource[1] is not IORESOURCE_IRQ");
-		retval -ENOMEM;
+		return -ENOMEM;
 	}
 
 	hcd = usb_create_hcd(driver, &dev->dev, "Au1xxx");
