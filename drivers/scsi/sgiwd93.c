@@ -14,6 +14,7 @@
 #include <linux/interrupt.h>
 #include <linux/types.h>
 #include <linux/mm.h>
+#include <linux/module.h>
 #include <linux/blkdev.h>
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
@@ -197,6 +198,7 @@ void sgiwd93_reset(unsigned long base)
 	udelay(50);
 	hregs->ctrl = 0;
 }
+EXPORT_SYMBOL_GPL(sgiwd93_reset);
 
 static inline void init_hpc_chain(struct hpc_data *hd)
 {
