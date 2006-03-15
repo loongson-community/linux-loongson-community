@@ -114,7 +114,7 @@ extern const unsigned long mips_io_port_base;
  */
 static inline void set_io_port_base(unsigned long base)
 {
-	* (unsigned long *) &mips_io_port_base;
+	* (unsigned long *) &mips_io_port_base = base;
 	barrier();
 }
 
