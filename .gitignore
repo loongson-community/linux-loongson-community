@@ -31,6 +31,9 @@ include/linux/compile.h
 include/linux/version.h
 include/asm-*/asm-offsets.h
 
+# stgit generated dirs
+patches-*
+
 #
 # Quilt
 #
