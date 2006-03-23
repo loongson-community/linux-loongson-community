@@ -962,6 +962,8 @@ ata_exec_internal(struct ata_port *ap, struct ata_device *dev,
 	spin_unlock_irqrestore(&ap->host_set->lock, flags);
 
 	if (!wait_for_completion_timeout(&wait, ATA_TMOUT_INTERNAL)) {
+		ata_port_flush_task(ap);
+
 		spin_lock_irqsave(&ap->host_set->lock, flags);
 
 		/* We're racing with irq here.  If we lose, the
@@ -1218,13 +1220,6 @@ static int ata_dev_configure(struct ata_port *ap, struct ata_device *dev,
 	/*
 	 * common ATA, ATAPI feature tests
 	 */
-
-	/* we require DMA support (bits 8 of word 49) */
-	if (!ata_id_has_dma(id)) {
-		printk(KERN_DEBUG "ata%u: no dma\n", ap->id);
-		rc = -EINVAL;
-		goto err_out_nosup;
-	}
 
 	/* find max transfer mode; for printk only */
 	xfer_mask = ata_id_xfermask(id);
@@ -1737,7 +1732,7 @@ static int ata_host_set_pio(struct ata_port *ap)
 			continue;
 
 		if (!dev->pio_mode) {
-			printk(KERN_WARNING "ata%u: no PIO support\n", ap->id);
+			printk(KERN_WARNING "ata%u: no PIO support for device %d.\n", ap->id, i);
 			return -1;
 		}
 
@@ -1999,8 +1994,18 @@ static unsigned int ata_bus_softreset(struct ata_port *ap,
 	 * status is checked.  Because waiting for "a while" before
 	 * checking status is fine, post SRST, we perform this magic
 	 * delay here as well.
+	 *
+	 * Old drivers/ide uses the 2mS rule and then waits for ready
 	 */
 	msleep(150);
+
+	
+	/* Before we perform post reset processing we want to see if 
+	   the bus shows 0xFF because the odd clown forgets the D7 pulldown
+	   resistor */
+	
+	if (ata_check_status(ap) == 0xFF)
+		return 1;	/* Positive is failure for some reason */
 
 	ata_bus_post_reset(ap, devmask);
 
@@ -2551,48 +2556,72 @@ int ata_dev_revalidate(struct ata_port *ap, struct ata_device *dev,
 }
 
 static const char * const ata_dma_blacklist [] = {
-	"WDC AC11000H",
-	"WDC AC22100H",
-	"WDC AC32500H",
-	"WDC AC33100H",
-	"WDC AC31600H",
-	"WDC AC32100H",
-	"WDC AC23200L",
-	"Compaq CRD-8241B",
-	"CRD-8400B",
-	"CRD-8480B",
-	"CRD-8482B",
- 	"CRD-84",
-	"SanDisk SDP3B",
-	"SanDisk SDP3B-64",
-	"SANYO CD-ROM CRD",
-	"HITACHI CDR-8",
-	"HITACHI CDR-8335",
-	"HITACHI CDR-8435",
-	"Toshiba CD-ROM XM-6202B",
-	"TOSHIBA CD-ROM XM-1702BC",
-	"CD-532E-A",
-	"E-IDE CD-ROM CR-840",
-	"CD-ROM Drive/F5A",
-	"WPI CDD-820",
-	"SAMSUNG CD-ROM SC-148C",
-	"SAMSUNG CD-ROM SC",
-	"SanDisk SDP3B-64",
-	"ATAPI CD-ROM DRIVE 40X MAXIMUM",
-	"_NEC DV5800A",
+	"WDC AC11000H", NULL,
+	"WDC AC22100H", NULL,
+	"WDC AC32500H", NULL,
+	"WDC AC33100H", NULL,
+	"WDC AC31600H", NULL,
+	"WDC AC32100H", "24.09P07",
+	"WDC AC23200L", "21.10N21",
+	"Compaq CRD-8241B",  NULL,
+	"CRD-8400B", NULL,
+	"CRD-8480B", NULL,
+	"CRD-8482B", NULL,
+ 	"CRD-84", NULL,
+	"SanDisk SDP3B", NULL,
+	"SanDisk SDP3B-64", NULL,
+	"SANYO CD-ROM CRD", NULL,
+	"HITACHI CDR-8", NULL,
+	"HITACHI CDR-8335", NULL, 
+	"HITACHI CDR-8435", NULL,
+	"Toshiba CD-ROM XM-6202B", NULL, 
+	"TOSHIBA CD-ROM XM-1702BC", NULL, 
+	"CD-532E-A", NULL, 
+	"E-IDE CD-ROM CR-840", NULL, 
+	"CD-ROM Drive/F5A", NULL, 
+	"WPI CDD-820", NULL, 
+	"SAMSUNG CD-ROM SC-148C", NULL,
+	"SAMSUNG CD-ROM SC", NULL, 
+	"SanDisk SDP3B-64", NULL,
+	"ATAPI CD-ROM DRIVE 40X MAXIMUM",NULL,
+	"_NEC DV5800A", NULL,
+	"SAMSUNG CD-ROM SN-124", "N001"
 };
+ 
+static int ata_strim(char *s, size_t len)
+{
+	len = strnlen(s, len);
+
+	/* ATAPI specifies that empty space is blank-filled; remove blanks */
+	while ((len > 0) && (s[len - 1] == ' ')) {
+		len--;
+		s[len] = 0;
+	}
+	return len;
+}
 
 static int ata_dma_blacklisted(const struct ata_device *dev)
 {
-	unsigned char model_num[41];
+	unsigned char model_num[40];
+	unsigned char model_rev[16];
+	unsigned int nlen, rlen;
 	int i;
 
-	ata_id_c_string(dev->id, model_num, ATA_ID_PROD_OFS, sizeof(model_num));
+	ata_id_string(dev->id, model_num, ATA_ID_PROD_OFS,
+			  sizeof(model_num));
+	ata_id_string(dev->id, model_rev, ATA_ID_FW_REV_OFS,
+			  sizeof(model_rev));
+	nlen = ata_strim(model_num, sizeof(model_num));
+	rlen = ata_strim(model_rev, sizeof(model_rev));
 
-	for (i = 0; i < ARRAY_SIZE(ata_dma_blacklist); i++)
-		if (!strcmp(ata_dma_blacklist[i], model_num))
-			return 1;
-
+	for (i = 0; i < ARRAY_SIZE(ata_dma_blacklist); i += 2) {
+		if (!strncmp(ata_dma_blacklist[i], model_num, nlen)) {
+			if (ata_dma_blacklist[i+1] == NULL)
+				return 1;
+			if (!strncmp(ata_dma_blacklist[i], model_rev, rlen))
+				return 1;
+		}
+	}
 	return 0;
 }
 
@@ -2862,6 +2891,8 @@ void ata_qc_prep(struct ata_queued_cmd *qc)
 
 	ata_fill_sg(qc);
 }
+
+void ata_noop_qc_prep(struct ata_queued_cmd *qc) { }
 
 /**
  *	ata_sg_init_one - Associate command with memory buffer
@@ -3907,7 +3938,6 @@ static inline int ata_should_dma_map(struct ata_queued_cmd *qc)
 
 	case ATA_PROT_ATAPI:
 	case ATA_PROT_PIO:
-	case ATA_PROT_PIO_MULT:
 		if (ap->flags & ATA_FLAG_PIO_DMA)
 			return 1;
 
@@ -4199,14 +4229,17 @@ void ata_bmdma_setup(struct ata_queued_cmd *qc)
 
 void ata_bmdma_irq_clear(struct ata_port *ap)
 {
-    if (ap->flags & ATA_FLAG_MMIO) {
-        void __iomem *mmio = ((void __iomem *) ap->ioaddr.bmdma_addr) + ATA_DMA_STATUS;
-        writeb(readb(mmio), mmio);
-    } else {
-        unsigned long addr = ap->ioaddr.bmdma_addr + ATA_DMA_STATUS;
-        outb(inb(addr), addr);
-    }
+	if (!ap->ioaddr.bmdma_addr)
+		return;
 
+	if (ap->flags & ATA_FLAG_MMIO) {
+		void __iomem *mmio =
+		      ((void __iomem *) ap->ioaddr.bmdma_addr) + ATA_DMA_STATUS;
+		writeb(readb(mmio), mmio);
+	} else {
+		unsigned long addr = ap->ioaddr.bmdma_addr + ATA_DMA_STATUS;
+		outb(inb(addr), addr);
+	}
 }
 
 
@@ -4337,9 +4370,9 @@ idle_irq:
 
 #ifdef ATA_IRQ_TRAP
 	if ((ap->stats.idle_irq % 1000) == 0) {
-		handled = 1;
 		ata_irq_ack(ap, 0); /* debug trap */
 		printk(KERN_WARNING "ata%d: irq trap\n", ap->id);
+		return 1;
 	}
 #endif
 	return 0;	/* irq not handled */
@@ -4652,6 +4685,8 @@ static struct ata_port * ata_host_add(const struct ata_probe_ent *ent,
 	host = scsi_host_alloc(ent->sht, sizeof(struct ata_port));
 	if (!host)
 		return NULL;
+
+	host->transportt = &ata_scsi_transport_template;
 
 	ap = (struct ata_port *) &host->hostdata[0];
 
@@ -5062,6 +5097,7 @@ EXPORT_SYMBOL_GPL(ata_port_stop);
 EXPORT_SYMBOL_GPL(ata_host_stop);
 EXPORT_SYMBOL_GPL(ata_interrupt);
 EXPORT_SYMBOL_GPL(ata_qc_prep);
+EXPORT_SYMBOL_GPL(ata_noop_qc_prep);
 EXPORT_SYMBOL_GPL(ata_bmdma_setup);
 EXPORT_SYMBOL_GPL(ata_bmdma_start);
 EXPORT_SYMBOL_GPL(ata_bmdma_irq_clear);
@@ -5084,7 +5120,6 @@ EXPORT_SYMBOL_GPL(ata_busy_sleep);
 EXPORT_SYMBOL_GPL(ata_port_queue_task);
 EXPORT_SYMBOL_GPL(ata_scsi_ioctl);
 EXPORT_SYMBOL_GPL(ata_scsi_queuecmd);
-EXPORT_SYMBOL_GPL(ata_scsi_timed_out);
 EXPORT_SYMBOL_GPL(ata_scsi_error);
 EXPORT_SYMBOL_GPL(ata_scsi_slave_config);
 EXPORT_SYMBOL_GPL(ata_scsi_release);
@@ -5108,6 +5143,8 @@ EXPORT_SYMBOL_GPL(ata_pci_init_one);
 EXPORT_SYMBOL_GPL(ata_pci_remove_one);
 EXPORT_SYMBOL_GPL(ata_pci_device_suspend);
 EXPORT_SYMBOL_GPL(ata_pci_device_resume);
+EXPORT_SYMBOL_GPL(ata_pci_default_filter);
+EXPORT_SYMBOL_GPL(ata_pci_clear_simplex);
 #endif /* CONFIG_PCI */
 
 EXPORT_SYMBOL_GPL(ata_device_suspend);
