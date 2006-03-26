@@ -325,10 +325,13 @@ static struct dentry * __d_find_alias(struct inode *inode, int want_discon)
 
 struct dentry * d_find_alias(struct inode *inode)
 {
-	struct dentry *de;
-	spin_lock(&dcache_lock);
-	de = __d_find_alias(inode, 0);
-	spin_unlock(&dcache_lock);
+	struct dentry *de = NULL;
+
+	if (!list_empty(&inode->i_dentry)) {
+		spin_lock(&dcache_lock);
+		de = __d_find_alias(inode, 0);
+		spin_unlock(&dcache_lock);
+	}
 	return de;
 }
 
@@ -486,6 +489,7 @@ repeat:
 			continue;
 		}
 		prune_one_dentry(dentry);
+		cond_resched_lock(&dcache_lock);
 		goto repeat;
 	}
 	spin_unlock(&dcache_lock);
@@ -799,6 +803,7 @@ void d_instantiate(struct dentry *entry, struct inode * inode)
 	if (inode)
 		list_add(&entry->d_alias, &inode->i_dentry);
 	entry->d_inode = inode;
+	fsnotify_d_instantiate(entry, inode);
 	spin_unlock(&dcache_lock);
 	security_d_instantiate(entry, inode);
 }
@@ -850,6 +855,7 @@ struct dentry *d_instantiate_unique(struct dentry *entry, struct inode *inode)
 	list_add(&entry->d_alias, &inode->i_dentry);
 do_negative:
 	entry->d_inode = inode;
+	fsnotify_d_instantiate(entry, inode);
 	spin_unlock(&dcache_lock);
 	security_d_instantiate(entry, inode);
 	return NULL;
@@ -980,6 +986,7 @@ struct dentry *d_splice_alias(struct inode *inode, struct dentry *dentry)
 		new = __d_find_alias(inode, 1);
 		if (new) {
 			BUG_ON(!(new->d_flags & DCACHE_DISCONNECTED));
+			fsnotify_d_instantiate(new, inode);
 			spin_unlock(&dcache_lock);
 			security_d_instantiate(new, inode);
 			d_rehash(dentry);
@@ -989,6 +996,7 @@ struct dentry *d_splice_alias(struct inode *inode, struct dentry *dentry)
 			/* d_instantiate takes dcache_lock, so we do it by hand */
 			list_add(&dentry->d_alias, &inode->i_dentry);
 			dentry->d_inode = inode;
+			fsnotify_d_instantiate(dentry, inode);
 			spin_unlock(&dcache_lock);
 			security_d_instantiate(dentry, inode);
 			d_rehash(dentry);
@@ -1173,6 +1181,9 @@ void d_delete(struct dentry * dentry)
 	spin_lock(&dentry->d_lock);
 	isdir = S_ISDIR(dentry->d_inode->i_mode);
 	if (atomic_read(&dentry->d_count) == 1) {
+		/* remove this and other inotify debug checks after 2.6.18 */
+		dentry->d_flags &= ~DCACHE_INOTIFY_PARENT_WATCHED;
+
 		dentry_iput(dentry);
 		fsnotify_nameremove(dentry, isdir);
 		return;
@@ -1339,6 +1350,7 @@ already_unhashed:
 
 	list_add(&dentry->d_u.d_child, &dentry->d_parent->d_subdirs);
 	spin_unlock(&target->d_lock);
+	fsnotify_d_move(dentry);
 	spin_unlock(&dentry->d_lock);
 	write_sequnlock(&rename_lock);
 	spin_unlock(&dcache_lock);

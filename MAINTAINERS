@@ -147,6 +147,18 @@ M:	p_gortmaker@yahoo.com
 L:	netdev@vger.kernel.org
 S:	Maintained
 
+9P FILE SYSTEM
+P:      Eric Van Hensbergen
+M:      ericvh@gmail.com
+P:      Ron Minnich
+M:      rminnich@lanl.gov
+P:      Latchesar Ionkov
+M:      lucho@ionkov.net
+L:      v9fs-developer@lists.sourceforge.net
+W:      http://v9fs.sf.net
+T:      git kernel.org:/pub/scm/linux/kernel/ericvh/v9fs.git
+S:      Maintained
+
 A2232 SERIAL BOARD DRIVER
 P:	Enver Haase
 M:	ehaase@inf.fu-berlin.de
@@ -2013,12 +2025,6 @@ L:	parisc-linux@parisc-linux.org
 W:	http://www.parisc-linux.org/
 S:	Maintained
 
-PERSONALITY HANDLING
-P:	Christoph Hellwig
-M:	hch@infradead.org
-L:	linux-abi-devel@lists.sourceforge.net
-S:	Maintained
-
 PCI ERROR RECOVERY
 P:	Linas Vepstas
 M:	linas@austin.ibm.com
@@ -2067,6 +2073,12 @@ PCNET32 NETWORK DRIVER
 P:	Thomas Bogendörfer
 M:	tsbogend@alpha.franken.de
 L:	netdev@vger.kernel.org
+S:	Maintained
+
+PERSONALITY HANDLING
+P:	Christoph Hellwig
+M:	hch@infradead.org
+L:	linux-abi-devel@lists.sourceforge.net
 S:	Maintained
 
 PHRAM MTD DRIVER
@@ -2211,13 +2223,6 @@ S:	Maintained
 
 RISCOM8 DRIVER
 S:	Orphan
-
-RTLINUX  REALTIME  LINUX
-P:	Victor Yodaiken
-M:	yodaiken@fsmlabs.com
-L:	rtl@rtlinux.org
-W:	www.rtlinux.org
-S:	Maintained
 
 S3 SAVAGE FRAMEBUFFER DRIVER
 P:      Antonino Daplas
@@ -2531,7 +2536,6 @@ S:	Unsupported ?
 STRADIS MPEG-2 DECODER DRIVER
 P:	Nathan Laredo
 M:	laredo@gnu.org
-W:	http://mpeg.openprojects.net/
 W:	http://www.stradis.com/
 S:	Maintained
 
@@ -2650,7 +2654,7 @@ S:	Maintained
 
 TUN/TAP driver
 P:	Maxim Krasnyansky
-M:	maxk@qualcomm.com, max_mk@yahoo.com
+M:	maxk@qualcomm.com
 L:	vtun@office.satix.net
 W:	http://vtun.sourceforge.net/tun
 S:	Maintained
@@ -2978,18 +2982,6 @@ M:	miquel@df.uba.ar
 L:	rio500-users@lists.sourceforge.net
 W:	http://rio500.sourceforge.net
 S:	Maintained
-
-V9FS FILE SYSTEM
-P:      Eric Van Hensbergen
-M:      ericvh@gmail.com
-P:      Ron Minnich
-M:      rminnich@lanl.gov
-P:      Latchesar Ionkov
-M:      lucho@ionkov.net
-L:      v9fs-developer@lists.sourceforge.net
-W:      http://v9fs.sf.net
-T:      git kernel.org:/pub/scm/linux/kernel/ericvh/v9fs-devel.git
-S:      Maintained
 
 VIDEO FOR LINUX
 P:	Mauro Carvalho Chehab

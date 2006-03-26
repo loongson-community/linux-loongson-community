@@ -1476,10 +1476,9 @@ int compat_do_execve(char * filename,
 	int i;
 
 	retval = -ENOMEM;
-	bprm = kmalloc(sizeof(*bprm), GFP_KERNEL);
+	bprm = kzalloc(sizeof(*bprm), GFP_KERNEL);
 	if (!bprm)
 		goto out_ret;
-	memset(bprm, 0, sizeof(*bprm));
 
 	file = open_exec(filename);
 	retval = PTR_ERR(file);
@@ -2170,8 +2169,11 @@ asmlinkage long compat_sys_nfsservctl(int cmd, struct compat_nfsctl_arg __user *
 
 	default:
 		err = -EINVAL;
-		goto done;
+		break;
 	}
+
+	if (err)
+		goto done;
 
 	oldfs = get_fs();
 	set_fs(KERNEL_DS);

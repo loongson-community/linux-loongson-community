@@ -66,14 +66,8 @@ require 5;	# at least perl 5
 use strict;
 use File::Find;
 
-my $nm = "nm";
-$nm = "$ENV{'NM'}" if (exists($ENV{'NM'}));
-$nm = "$nm" . " -p";
-my $objdump = "objdump";
-
-$objdump = "$ENV{'OBJDUMP'}" if (exists($ENV{'OBJDUMP'}));
-$objdump = $objdump . " -s -j .comment";
-
+my $nm = ($ENV{'NM'} || "nm") . " -p";
+my $objdump = ($ENV{'OBJDUMP'} || "objdump") . " -s -j .comment";
 my $srctree = "";
 my $objtree = "";
 $srctree = "$ENV{'srctree'}/" if (exists($ENV{'srctree'}));

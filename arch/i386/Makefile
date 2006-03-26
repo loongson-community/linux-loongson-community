@@ -39,6 +39,9 @@ include $(srctree)/arch/i386/Makefile.cpu
 
 cflags-$(CONFIG_REGPARM) += -mregparm=3
 
+# temporary until string.h is fixed
+cflags-y += -ffreestanding
+
 # Disable unit-at-a-time mode on pre-gcc-4.0 compilers, it makes gcc use
 # a lot more stack due to the lack of sharing of stacklots:
 CFLAGS				+= $(shell if [ $(call cc-version) -lt 0400 ] ; then echo $(call cc-option,-fno-unit-at-a-time); fi ;)
@@ -99,8 +102,8 @@ AFLAGS += $(mflags-y)
 
 boot := arch/i386/boot
 
-.PHONY: zImage bzImage compressed zlilo bzlilo \
-	zdisk bzdisk fdimage fdimage144 fdimage288 install
+PHONY += zImage bzImage compressed zlilo bzlilo \
+         zdisk bzdisk fdimage fdimage144 fdimage288 install
 
 all: bzImage
 

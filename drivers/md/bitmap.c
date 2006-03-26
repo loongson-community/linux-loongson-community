@@ -556,7 +556,7 @@ static void bitmap_mask_state(struct bitmap *bitmap, enum bitmap_state bits,
 	unsigned long flags;
 
 	spin_lock_irqsave(&bitmap->lock, flags);
-	if (!bitmap || !bitmap->sb_page) { /* can't set the state */
+	if (!bitmap->sb_page) { /* can't set the state */
 		spin_unlock_irqrestore(&bitmap->lock, flags);
 		return;
 	}
@@ -1309,7 +1309,7 @@ int bitmap_startwrite(struct bitmap *bitmap, sector_t offset, unsigned long sect
 		case 1:
 			*bmc = 2;
 		}
-		if ((*bmc & COUNTER_MAX) == COUNTER_MAX) BUG();
+		BUG_ON((*bmc & COUNTER_MAX) == COUNTER_MAX);
 		(*bmc)++;
 
 		spin_unlock_irq(&bitmap->lock);

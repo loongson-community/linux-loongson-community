@@ -220,8 +220,7 @@ asmlinkage long sys_msgget (key_t key, int msgflg)
 		ret = -EEXIST;
 	} else {
 		msq = msg_lock(id);
-		if(msq==NULL)
-			BUG();
+		BUG_ON(msq==NULL);
 		if (ipcperms(&msq->q_perm, msgflg))
 			ret = -EACCES;
 		else {
@@ -429,8 +428,6 @@ asmlinkage long sys_msgctl (int msqid, int cmd, struct msqid_ds __user *buf)
 			return -EFAULT;
 		if (copy_msqid_from_user (&setbuf, buf, version))
 			return -EFAULT;
-		if ((err = audit_ipc_perms(setbuf.qbytes, setbuf.uid, setbuf.gid, setbuf.mode)))
-			return err;
 		break;
 	case IPC_RMID:
 		break;
@@ -461,6 +458,9 @@ asmlinkage long sys_msgctl (int msqid, int cmd, struct msqid_ds __user *buf)
 	switch (cmd) {
 	case IPC_SET:
 	{
+		if ((err = audit_ipc_perms(setbuf.qbytes, setbuf.uid, setbuf.gid, setbuf.mode, ipcp)))
+			goto out_unlock_up;
+
 		err = -EPERM;
 		if (setbuf.qbytes > msg_ctlmnb && !capable(CAP_SYS_RESOURCE))
 			goto out_unlock_up;

@@ -114,6 +114,7 @@
 #include <linux/wireless.h>
 #include <net/iw_handler.h>
 #include <asm/current.h>
+#include <linux/audit.h>
 
 /*
  *	The list of packet types we will receive (as opposed to discard)
@@ -977,7 +978,12 @@ int register_netdevice_notifier(struct notifier_block *nb)
 
 int unregister_netdevice_notifier(struct notifier_block *nb)
 {
-	return notifier_chain_unregister(&netdev_chain, nb);
+	int err;
+
+	rtnl_lock();
+	err = notifier_chain_unregister(&netdev_chain, nb);
+	rtnl_unlock();
+	return err;
 }
 
 /**
@@ -2142,6 +2148,12 @@ void dev_set_promiscuity(struct net_device *dev, int inc)
 		printk(KERN_INFO "device %s %s promiscuous mode\n",
 		       dev->name, (dev->flags & IFF_PROMISC) ? "entered" :
 		       					       "left");
+		audit_log(current->audit_context, GFP_ATOMIC,
+			AUDIT_ANOM_PROMISCUOUS,
+			"dev=%s prom=%d old_prom=%d auid=%u",
+			dev->name, (dev->flags & IFF_PROMISC),
+			(old_flags & IFF_PROMISC),
+			audit_get_loginuid(current->audit_context)); 
 	}
 }
 

@@ -306,8 +306,6 @@ static int __init rdinit_setup(char *str)
 }
 __setup("rdinit=", rdinit_setup);
 
-extern void setup_arch(char **);
-
 #ifndef CONFIG_SMP
 
 #ifdef CONFIG_X86_LOCAL_APIC
@@ -571,17 +569,23 @@ static void __init do_initcalls(void)
 	int count = preempt_count();
 
 	for (call = __initcall_start; call < __initcall_end; call++) {
-		char *msg;
+		char *msg = NULL;
+		char msgbuf[40];
+		int result;
 
 		if (initcall_debug) {
-			printk(KERN_DEBUG "Calling initcall 0x%p", *call);
-			print_fn_descriptor_symbol(": %s()", (unsigned long) *call);
+			printk("Calling initcall 0x%p", *call);
+			print_fn_descriptor_symbol(": %s()",
+					(unsigned long) *call);
 			printk("\n");
 		}
 
-		(*call)();
+		result = (*call)();
 
-		msg = NULL;
+		if (result && (result != -ENODEV || initcall_debug)) {
+			sprintf(msgbuf, "error code %d", result);
+			msg = msgbuf;
+		}
 		if (preempt_count() != count) {
 			msg = "preemption imbalance";
 			preempt_count() = count;
@@ -591,8 +595,10 @@ static void __init do_initcalls(void)
 			local_irq_enable();
 		}
 		if (msg) {
-			printk(KERN_WARNING "error in initcall at 0x%p: "
-				"returned with %s\n", *call, msg);
+			printk(KERN_WARNING "initcall at 0x%p", *call);
+			print_fn_descriptor_symbol(": %s()",
+					(unsigned long) *call);
+			printk(": returned with %s\n", msg);
 		}
 	}
 

@@ -2029,8 +2029,9 @@ static __meminit void zone_pcp_init(struct zone *zone)
 		setup_pageset(zone_pcp(zone,cpu), batch);
 #endif
 	}
-	printk(KERN_DEBUG "  %s zone: %lu pages, LIFO batch:%lu\n",
-		zone->name, zone->present_pages, batch);
+	if (zone->present_pages)
+		printk(KERN_DEBUG "  %s zone: %lu pages, LIFO batch:%lu\n",
+			zone->name, zone->present_pages, batch);
 }
 
 static __meminit void init_currently_empty_zone(struct zone *zone,
@@ -2701,8 +2702,7 @@ void *__init alloc_large_system_hash(const char *tablename,
 		else
 			numentries <<= (PAGE_SHIFT - scale);
 	}
-	/* rounded up to nearest power of 2 in size */
-	numentries = 1UL << (long_log2(numentries) + 1);
+	numentries = roundup_pow_of_two(numentries);
 
 	/* limit allocation size to 1/16 total memory by default */
 	if (max == 0) {

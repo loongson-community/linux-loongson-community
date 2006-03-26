@@ -508,7 +508,7 @@ out:
 /*
  * This special macro can be used to load a debugging register
  */
-#define loaddebug(thread,r) set_debug(thread->debugreg ## r, r)
+#define loaddebug(thread,r) set_debugreg(thread->debugreg ## r, r)
 
 /*
  *	switch_to(x,y) should switch tasks from x to y.
@@ -526,8 +526,6 @@ __switch_to(struct task_struct *prev_p, struct task_struct *next_p)
 				 *next = &next_p->thread;
 	int cpu = smp_processor_id();  
 	struct tss_struct *tss = &per_cpu(init_tss, cpu);
-
-	unlazy_fpu(prev_p);
 
 	/*
 	 * Reload esp0, LDT and the page table pointer:
@@ -586,11 +584,14 @@ __switch_to(struct task_struct *prev_p, struct task_struct *next_p)
 	}
 
 	/* 
-	 * Switch the PDA context.
+	 * Switch the PDA and FPU contexts.
 	 */
 	prev->userrsp = read_pda(oldrsp); 
 	write_pda(oldrsp, next->userrsp); 
 	write_pda(pcurrent, next_p); 
+	/* This must be here to ensure both math_state_restore() and
+	   kernel_fpu_begin() work consistently. */
+	unlazy_fpu(prev_p);
 	write_pda(kernelstack,
 		  task_stack_page(next_p) + THREAD_SIZE - PDA_STACKOFFSET);
 

@@ -65,6 +65,11 @@ extern int dir_notify_enable;
 #define FMODE_PREAD	8
 #define FMODE_PWRITE	FMODE_PREAD	/* These go hand in hand */
 
+/* File is being opened for execution. Primary users of this flag are
+   distributed filesystems that can use it to achieve correct ETXTBUSY
+   behavior for cross-node execution/opening_for_writing of files */
+#define FMODE_EXEC	16
+
 #define RW_MASK		1
 #define RWA_MASK	2
 #define READ 0
@@ -673,7 +678,6 @@ extern spinlock_t files_lock;
 #define FL_POSIX	1
 #define FL_FLOCK	2
 #define FL_ACCESS	8	/* not trying to lock, just looking */
-#define FL_LOCKD	16	/* lock held by rpc.lockd */
 #define FL_LEASE	32	/* lease held on this file */
 #define FL_SLEEP	128	/* A blocking lock */
 
@@ -737,8 +741,6 @@ struct file_lock {
 #define OFFT_OFFSET_MAX	INT_LIMIT(off_t)
 #endif
 
-extern struct list_head file_lock_list;
-
 #include <linux/fcntl.h>
 
 extern int fcntl_getlk(struct file *, struct flock __user *);
@@ -760,10 +762,9 @@ extern void locks_init_lock(struct file_lock *);
 extern void locks_copy_lock(struct file_lock *, struct file_lock *);
 extern void locks_remove_posix(struct file *, fl_owner_t);
 extern void locks_remove_flock(struct file *);
-extern struct file_lock *posix_test_lock(struct file *, struct file_lock *);
+extern int posix_test_lock(struct file *, struct file_lock *, struct file_lock *);
 extern int posix_lock_file(struct file *, struct file_lock *);
 extern int posix_lock_file_wait(struct file *, struct file_lock *);
-extern void posix_block_lock(struct file_lock *, struct file_lock *);
 extern int posix_unblock_lock(struct file *, struct file_lock *);
 extern int posix_locks_deadlock(struct file_lock *, struct file_lock *);
 extern int flock_lock_file_wait(struct file *filp, struct file_lock *fl);
@@ -1092,6 +1093,7 @@ struct super_operations {
 	void (*umount_begin) (struct super_block *);
 
 	int (*show_options)(struct seq_file *, struct vfsmount *);
+	int (*show_stats)(struct seq_file *, struct vfsmount *);
 
 	ssize_t (*quota_read)(struct super_block *, int, char *, size_t, loff_t);
 	ssize_t (*quota_write)(struct super_block *, int, const char *, size_t, loff_t);
@@ -1558,7 +1560,6 @@ extern void destroy_inode(struct inode *);
 extern struct inode *new_inode(struct super_block *);
 extern int remove_suid(struct dentry *);
 extern void remove_dquot_ref(struct super_block *, int, struct list_head *);
-extern struct mutex iprune_mutex;
 
 extern void __insert_inode_hash(struct inode *, unsigned long hashval);
 extern void remove_inode_hash(struct inode *);

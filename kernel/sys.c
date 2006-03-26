@@ -224,18 +224,6 @@ int unregister_reboot_notifier(struct notifier_block * nb)
 
 EXPORT_SYMBOL(unregister_reboot_notifier);
 
-#ifndef CONFIG_SECURITY
-int capable(int cap)
-{
-        if (cap_raised(current->cap_effective, cap)) {
-	       current->flags |= PF_SUPERPRIV;
-	       return 1;
-        }
-        return 0;
-}
-EXPORT_SYMBOL(capable);
-#endif
-
 static int set_one_prio(struct task_struct *p, int niceval, int error)
 {
 	int no_nice;
@@ -1375,7 +1363,7 @@ static void groups_sort(struct group_info *group_info)
 /* a simple bsearch */
 int groups_search(struct group_info *group_info, gid_t grp)
 {
-	int left, right;
+	unsigned int left, right;
 
 	if (!group_info)
 		return 0;
@@ -1383,7 +1371,7 @@ int groups_search(struct group_info *group_info, gid_t grp)
 	left = 0;
 	right = group_info->ngroups;
 	while (left < right) {
-		int mid = (left+right)/2;
+		unsigned int mid = (left+right)/2;
 		int cmp = grp - GROUP_AT(group_info, mid);
 		if (cmp > 0)
 			left = mid + 1;
@@ -1433,7 +1421,6 @@ asmlinkage long sys_getgroups(int gidsetsize, gid_t __user *grouplist)
 		return -EINVAL;
 
 	/* no need to grab task_lock here; it cannot change */
-	get_group_info(current->group_info);
 	i = current->group_info->ngroups;
 	if (gidsetsize) {
 		if (i > gidsetsize) {
@@ -1446,7 +1433,6 @@ asmlinkage long sys_getgroups(int gidsetsize, gid_t __user *grouplist)
 		}
 	}
 out:
-	put_group_info(current->group_info);
 	return i;
 }
 
@@ -1487,9 +1473,7 @@ int in_group_p(gid_t grp)
 {
 	int retval = 1;
 	if (grp != current->fsgid) {
-		get_group_info(current->group_info);
 		retval = groups_search(current->group_info, grp);
-		put_group_info(current->group_info);
 	}
 	return retval;
 }
@@ -1500,9 +1484,7 @@ int in_egroup_p(gid_t grp)
 {
 	int retval = 1;
 	if (grp != current->egid) {
-		get_group_info(current->group_info);
 		retval = groups_search(current->group_info, grp);
-		put_group_info(current->group_info);
 	}
 	return retval;
 }
