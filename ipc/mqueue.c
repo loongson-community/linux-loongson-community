@@ -25,6 +25,8 @@
 #include <linux/netlink.h>
 #include <linux/syscalls.h>
 #include <linux/signal.h>
+#include <linux/mutex.h>
+
 #include <net/sock.h>
 #include "util.h"
 

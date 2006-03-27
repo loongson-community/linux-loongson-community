@@ -252,9 +252,6 @@ extern void __init files_init(unsigned long);
 struct buffer_head;
 typedef int (get_block_t)(struct inode *inode, sector_t iblock,
 			struct buffer_head *bh_result, int create);
-typedef int (get_blocks_t)(struct inode *inode, sector_t iblock,
-			unsigned long max_blocks,
-			struct buffer_head *bh_result, int create);
 typedef void (dio_iodone_t)(struct kiocb *iocb, loff_t offset,
 			ssize_t bytes, void *private);
 
@@ -350,7 +347,7 @@ struct writeback_control;
 struct address_space_operations {
 	int (*writepage)(struct page *page, struct writeback_control *wbc);
 	int (*readpage)(struct file *, struct page *);
-	int (*sync_page)(struct page *);
+	void (*sync_page)(struct page *);
 
 	/* Write back some dirty pages from this mapping. */
 	int (*writepages)(struct address_space *, struct writeback_control *);
@@ -369,7 +366,7 @@ struct address_space_operations {
 	int (*commit_write)(struct file *, struct page *, unsigned, unsigned);
 	/* Unfortunately this kludge is needed for FIBMAP. Don't use it */
 	sector_t (*bmap)(struct address_space *, sector_t);
-	int (*invalidatepage) (struct page *, unsigned long);
+	void (*invalidatepage) (struct page *, unsigned long);
 	int (*releasepage) (struct page *, gfp_t);
 	ssize_t (*direct_IO)(int, struct kiocb *, const struct iovec *iov,
 			loff_t offset, unsigned long nr_segs);
@@ -490,7 +487,7 @@ struct inode {
 	unsigned int		i_blkbits;
 	unsigned long		i_blksize;
 	unsigned long		i_version;
-	unsigned long		i_blocks;
+	blkcnt_t		i_blocks;
 	unsigned short          i_bytes;
 	spinlock_t		i_lock;	/* i_blocks, i_bytes, maybe i_size */
 	struct mutex		i_mutex;
@@ -763,6 +760,7 @@ extern void locks_copy_lock(struct file_lock *, struct file_lock *);
 extern void locks_remove_posix(struct file *, fl_owner_t);
 extern void locks_remove_flock(struct file *);
 extern int posix_test_lock(struct file *, struct file_lock *, struct file_lock *);
+extern int posix_lock_file_conf(struct file *, struct file_lock *, struct file_lock *);
 extern int posix_lock_file(struct file *, struct file_lock *);
 extern int posix_lock_file_wait(struct file *, struct file_lock *);
 extern int posix_unblock_lock(struct file *, struct file_lock *);
@@ -1644,7 +1642,7 @@ static inline void do_generic_file_read(struct file * filp, loff_t *ppos,
 
 ssize_t __blockdev_direct_IO(int rw, struct kiocb *iocb, struct inode *inode,
 	struct block_device *bdev, const struct iovec *iov, loff_t offset,
-	unsigned long nr_segs, get_blocks_t get_blocks, dio_iodone_t end_io,
+	unsigned long nr_segs, get_block_t get_block, dio_iodone_t end_io,
 	int lock_type);
 
 enum {
@@ -1655,29 +1653,29 @@ enum {
 
 static inline ssize_t blockdev_direct_IO(int rw, struct kiocb *iocb,
 	struct inode *inode, struct block_device *bdev, const struct iovec *iov,
-	loff_t offset, unsigned long nr_segs, get_blocks_t get_blocks,
+	loff_t offset, unsigned long nr_segs, get_block_t get_block,
 	dio_iodone_t end_io)
 {
 	return __blockdev_direct_IO(rw, iocb, inode, bdev, iov, offset,
-				nr_segs, get_blocks, end_io, DIO_LOCKING);
+				nr_segs, get_block, end_io, DIO_LOCKING);
 }
 
 static inline ssize_t blockdev_direct_IO_no_locking(int rw, struct kiocb *iocb,
 	struct inode *inode, struct block_device *bdev, const struct iovec *iov,
-	loff_t offset, unsigned long nr_segs, get_blocks_t get_blocks,
+	loff_t offset, unsigned long nr_segs, get_block_t get_block,
 	dio_iodone_t end_io)
 {
 	return __blockdev_direct_IO(rw, iocb, inode, bdev, iov, offset,
-				nr_segs, get_blocks, end_io, DIO_NO_LOCKING);
+				nr_segs, get_block, end_io, DIO_NO_LOCKING);
 }
 
 static inline ssize_t blockdev_direct_IO_own_locking(int rw, struct kiocb *iocb,
 	struct inode *inode, struct block_device *bdev, const struct iovec *iov,
-	loff_t offset, unsigned long nr_segs, get_blocks_t get_blocks,
+	loff_t offset, unsigned long nr_segs, get_block_t get_block,
 	dio_iodone_t end_io)
 {
 	return __blockdev_direct_IO(rw, iocb, inode, bdev, iov, offset,
-				nr_segs, get_blocks, end_io, DIO_OWN_LOCKING);
+				nr_segs, get_block, end_io, DIO_OWN_LOCKING);
 }
 
 extern struct file_operations generic_ro_fops;

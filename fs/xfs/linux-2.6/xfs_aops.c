@@ -1310,20 +1310,21 @@ xfs_get_block(
 	struct buffer_head	*bh_result,
 	int			create)
 {
-	return __xfs_get_block(inode, iblock, 0, bh_result,
-					create, 0, BMAPI_WRITE);
+	return __xfs_get_block(inode, iblock,
+				bh_result->b_size >> inode->i_blkbits,
+				bh_result, create, 0, BMAPI_WRITE);
 }
 
 STATIC int
 xfs_get_blocks_direct(
 	struct inode		*inode,
 	sector_t		iblock,
-	unsigned long		max_blocks,
 	struct buffer_head	*bh_result,
 	int			create)
 {
-	return __xfs_get_block(inode, iblock, max_blocks, bh_result,
-					create, 1, BMAPI_WRITE|BMAPI_DIRECT);
+	return __xfs_get_block(inode, iblock,
+				bh_result->b_size >> inode->i_blkbits,
+				bh_result, create, 1, BMAPI_WRITE|BMAPI_DIRECT);
 }
 
 STATIC void
@@ -1442,14 +1443,14 @@ xfs_vm_readpages(
 	return mpage_readpages(mapping, pages, nr_pages, xfs_get_block);
 }
 
-STATIC int
+STATIC void
 xfs_vm_invalidatepage(
 	struct page		*page,
 	unsigned long		offset)
 {
 	xfs_page_trace(XFS_INVALIDPAGE_ENTER,
 			page->mapping->host, page, offset);
-	return block_invalidatepage(page, offset);
+	block_invalidatepage(page, offset);
 }
 
 struct address_space_operations xfs_address_space_operations = {

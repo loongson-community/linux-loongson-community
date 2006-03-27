@@ -34,11 +34,19 @@ config RWSEM_XCHGADD_ALGORITHM
 	bool
 	default y
 
+config GENERIC_FIND_NEXT_BIT
+	bool
+	default y
+
 config GENERIC_CALIBRATE_DELAY
 	bool
 	default y
 
 config TIME_INTERPOLATION
+	bool
+	default y
+
+config DMI
 	bool
 	default y
 

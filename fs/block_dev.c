@@ -131,9 +131,10 @@ blkdev_get_block(struct inode *inode, sector_t iblock,
 
 static int
 blkdev_get_blocks(struct inode *inode, sector_t iblock,
-		unsigned long max_blocks, struct buffer_head *bh, int create)
+		struct buffer_head *bh, int create)
 {
 	sector_t end_block = max_block(I_BDEV(inode));
+	unsigned long max_blocks = bh->b_size >> inode->i_blkbits;
 
 	if ((iblock + max_blocks) > end_block) {
 		max_blocks = end_block - iblock;
@@ -234,7 +235,7 @@ static int block_fsync(struct file *filp, struct dentry *dentry, int datasync)
  */
 
 static  __cacheline_aligned_in_smp DEFINE_SPINLOCK(bdev_lock);
-static kmem_cache_t * bdev_cachep;
+static kmem_cache_t * bdev_cachep __read_mostly;
 
 static struct inode *bdev_alloc_inode(struct super_block *sb)
 {
@@ -308,7 +309,7 @@ static struct file_system_type bd_type = {
 	.kill_sb	= kill_anon_super,
 };
 
-static struct vfsmount *bd_mnt;
+static struct vfsmount *bd_mnt __read_mostly;
 struct super_block *blockdev_superblock;
 
 void __init bdev_cache_init(void)

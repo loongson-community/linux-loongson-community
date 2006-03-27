@@ -34,9 +34,8 @@
 #include <linux/swap.h>
 #include <linux/bootmem.h>
 
-/* #define DCACHE_DEBUG 1 */
 
-int sysctl_vfs_cache_pressure = 100;
+int sysctl_vfs_cache_pressure __read_mostly = 100;
 EXPORT_SYMBOL_GPL(sysctl_vfs_cache_pressure);
 
  __cacheline_aligned_in_smp DEFINE_SPINLOCK(dcache_lock);
@@ -44,7 +43,7 @@ static seqlock_t rename_lock __cacheline_aligned_in_smp = SEQLOCK_UNLOCKED;
 
 EXPORT_SYMBOL(dcache_lock);
 
-static kmem_cache_t *dentry_cache; 
+static kmem_cache_t *dentry_cache __read_mostly;
 
 #define DNAME_INLINE_LEN (sizeof(struct dentry)-offsetof(struct dentry,d_iname))
 
@@ -59,9 +58,9 @@ static kmem_cache_t *dentry_cache;
 #define D_HASHBITS     d_hash_shift
 #define D_HASHMASK     d_hash_mask
 
-static unsigned int d_hash_mask;
-static unsigned int d_hash_shift;
-static struct hlist_head *dentry_hashtable;
+static unsigned int d_hash_mask __read_mostly;
+static unsigned int d_hash_shift __read_mostly;
+static struct hlist_head *dentry_hashtable __read_mostly;
 static LIST_HEAD(dentry_unused);
 
 /* Statistics gathering. */
@@ -603,10 +602,6 @@ resume:
 		 */
 		if (!list_empty(&dentry->d_subdirs)) {
 			this_parent = dentry;
-#ifdef DCACHE_DEBUG
-printk(KERN_DEBUG "select_parent: descending to %s/%s, found=%d\n",
-dentry->d_parent->d_name.name, dentry->d_name.name, found);
-#endif
 			goto repeat;
 		}
 	}
@@ -616,10 +611,6 @@ dentry->d_parent->d_name.name, dentry->d_name.name, found);
 	if (this_parent != parent) {
 		next = this_parent->d_u.d_child.next;
 		this_parent = this_parent->d_parent;
-#ifdef DCACHE_DEBUG
-printk(KERN_DEBUG "select_parent: ascending to %s/%s, found=%d\n",
-this_parent->d_parent->d_name.name, this_parent->d_name.name, found);
-#endif
 		goto resume;
 	}
 out:
@@ -798,7 +789,7 @@ struct dentry *d_alloc_name(struct dentry *parent, const char *name)
  
 void d_instantiate(struct dentry *entry, struct inode * inode)
 {
-	if (!list_empty(&entry->d_alias)) BUG();
+	BUG_ON(!list_empty(&entry->d_alias));
 	spin_lock(&dcache_lock);
 	if (inode)
 		list_add(&entry->d_alias, &inode->i_dentry);
@@ -1719,10 +1710,10 @@ static void __init dcache_init(unsigned long mempages)
 }
 
 /* SLAB cache for __getname() consumers */
-kmem_cache_t *names_cachep;
+kmem_cache_t *names_cachep __read_mostly;
 
 /* SLAB cache for file structures */
-kmem_cache_t *filp_cachep;
+kmem_cache_t *filp_cachep __read_mostly;
 
 EXPORT_SYMBOL(d_genocide);
 
