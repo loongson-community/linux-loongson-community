@@ -785,6 +785,8 @@ void blk_queue_stack_limits(request_queue_t *t, request_queue_t *b)
 	t->max_hw_segments = min(t->max_hw_segments,b->max_hw_segments);
 	t->max_segment_size = min(t->max_segment_size,b->max_segment_size);
 	t->hardsect_size = max(t->hardsect_size,b->hardsect_size);
+	if (!test_bit(QUEUE_FLAG_CLUSTER, &b->queue_flags))
+		clear_bit(QUEUE_FLAG_CLUSTER, &t->queue_flags);
 }
 
 EXPORT_SYMBOL(blk_queue_stack_limits);
@@ -906,17 +908,15 @@ init_tag_map(request_queue_t *q, struct blk_queue_tag *tags, int depth)
 				__FUNCTION__, depth);
 	}
 
-	tag_index = kmalloc(depth * sizeof(struct request *), GFP_ATOMIC);
+	tag_index = kzalloc(depth * sizeof(struct request *), GFP_ATOMIC);
 	if (!tag_index)
 		goto fail;
 
 	nr_ulongs = ALIGN(depth, BITS_PER_LONG) / BITS_PER_LONG;
-	tag_map = kmalloc(nr_ulongs * sizeof(unsigned long), GFP_ATOMIC);
+	tag_map = kzalloc(nr_ulongs * sizeof(unsigned long), GFP_ATOMIC);
 	if (!tag_map)
 		goto fail;
 
-	memset(tag_index, 0, depth * sizeof(struct request *));
-	memset(tag_map, 0, nr_ulongs * sizeof(unsigned long));
 	tags->real_max_depth = depth;
 	tags->max_depth = depth;
 	tags->tag_index = tag_index;
@@ -2479,10 +2479,12 @@ void blk_execute_rq_nowait(request_queue_t *q, struct gendisk *bd_disk,
 	rq->rq_disk = bd_disk;
 	rq->flags |= REQ_NOMERGE;
 	rq->end_io = done;
-	elv_add_request(q, rq, where, 1);
-	generic_unplug_device(q);
+	WARN_ON(irqs_disabled());
+	spin_lock_irq(q->queue_lock);
+	__elv_add_request(q, rq, where, 1);
+	__generic_unplug_device(q);
+	spin_unlock_irq(q->queue_lock);
 }
-
 EXPORT_SYMBOL_GPL(blk_execute_rq_nowait);
 
 /**
