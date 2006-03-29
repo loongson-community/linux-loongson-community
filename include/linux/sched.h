@@ -355,15 +355,7 @@ struct sighand_struct {
 	atomic_t		count;
 	struct k_sigaction	action[_NSIG];
 	spinlock_t		siglock;
-	struct rcu_head		rcu;
 };
-
-extern void sighand_free_cb(struct rcu_head *rhp);
-
-static inline void sighand_free(struct sighand_struct *sp)
-{
-	call_rcu(&sp->rcu, sighand_free_cb);
-}
 
 /*
  * NOTE! "signal_struct" does not have it's own
@@ -760,6 +752,7 @@ struct task_struct {
 
 	/* PID/PID hash table linkage. */
 	struct pid pids[PIDTYPE_MAX];
+	struct list_head thread_group;
 
 	struct completion *vfork_done;		/* for vfork() */
 	int __user *set_child_tid;		/* CLONE_CHILD_SETTID */
@@ -1101,7 +1094,6 @@ extern void force_sig_specific(int, struct task_struct *);
 extern int send_sig(int, struct task_struct *, int);
 extern void zap_other_threads(struct task_struct *p);
 extern int kill_pg(pid_t, int, int);
-extern int kill_sl(pid_t, int, int);
 extern int kill_proc(pid_t, int, int);
 extern struct sigqueue *sigqueue_alloc(void);
 extern void sigqueue_free(struct sigqueue *);
@@ -1158,10 +1150,8 @@ extern void flush_thread(void);
 extern void exit_thread(void);
 
 extern void exit_files(struct task_struct *);
-extern void exit_signal(struct task_struct *);
-extern void __exit_signal(struct task_struct *);
-extern void exit_sighand(struct task_struct *);
-extern void __exit_sighand(struct task_struct *);
+extern void __cleanup_signal(struct signal_struct *);
+extern void __cleanup_sighand(struct sighand_struct *);
 extern void exit_itimers(struct signal_struct *);
 
 extern NORET_TYPE void do_group_exit(int);
@@ -1185,19 +1175,7 @@ extern void wait_task_inactive(task_t * p);
 #endif
 
 #define remove_parent(p)	list_del_init(&(p)->sibling)
-#define add_parent(p, parent)	list_add_tail(&(p)->sibling,&(parent)->children)
-
-#define REMOVE_LINKS(p) do {					\
-	if (thread_group_leader(p))				\
-		list_del_init(&(p)->tasks);			\
-	remove_parent(p);					\
-	} while (0)
-
-#define SET_LINKS(p) do {					\
-	if (thread_group_leader(p))				\
-		list_add_tail(&(p)->tasks,&init_task.tasks);	\
-	add_parent(p, (p)->parent);				\
-	} while (0)
+#define add_parent(p)		list_add_tail(&(p)->sibling,&(p)->parent->children)
 
 #define next_task(p)	list_entry((p)->tasks.next, struct task_struct, tasks)
 #define prev_task(p)	list_entry((p)->tasks.prev, struct task_struct, tasks)
@@ -1215,19 +1193,21 @@ extern void wait_task_inactive(task_t * p);
 #define while_each_thread(g, t) \
 	while ((t = next_thread(t)) != g)
 
-extern task_t * FASTCALL(next_thread(const task_t *p));
-
 #define thread_group_leader(p)	(p->pid == p->tgid)
+
+static inline task_t *next_thread(task_t *p)
+{
+	return list_entry(rcu_dereference(p->thread_group.next),
+				task_t, thread_group);
+}
 
 static inline int thread_group_empty(task_t *p)
 {
-	return list_empty(&p->pids[PIDTYPE_TGID].pid_list);
+	return list_empty(&p->thread_group);
 }
 
 #define delay_group_leader(p) \
 		(thread_group_leader(p) && !thread_group_empty(p))
-
-extern void unhash_process(struct task_struct *p);
 
 /*
  * Protects ->fs, ->files, ->mm, ->ptrace, ->group_info, ->comm, keyring
@@ -1246,6 +1226,15 @@ static inline void task_lock(struct task_struct *p)
 static inline void task_unlock(struct task_struct *p)
 {
 	spin_unlock(&p->alloc_lock);
+}
+
+extern struct sighand_struct *lock_task_sighand(struct task_struct *tsk,
+							unsigned long *flags);
+
+static inline void unlock_task_sighand(struct task_struct *tsk,
+						unsigned long *flags)
+{
+	spin_unlock_irqrestore(&tsk->sighand->siglock, *flags);
 }
 
 #ifndef __HAVE_THREAD_FUNCTIONS

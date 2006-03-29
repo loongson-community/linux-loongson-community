@@ -616,6 +616,15 @@ static int de_thread(struct task_struct *tsk)
 		kmem_cache_free(sighand_cachep, newsighand);
 		return -EAGAIN;
 	}
+
+	/*
+	 * child_reaper ignores SIGKILL, change it now.
+	 * Reparenting needs write_lock on tasklist_lock,
+	 * so it is safe to do it under read_lock.
+	 */
+	if (unlikely(current->group_leader == child_reaper))
+		child_reaper = current;
+
 	zap_other_threads(current);
 	read_unlock(&tasklist_lock);
 
@@ -699,22 +708,30 @@ static int de_thread(struct task_struct *tsk)
 		remove_parent(current);
 		remove_parent(leader);
 
-		switch_exec_pids(leader, current);
+
+		/* Become a process group leader with the old leader's pid.
+		 * Note: The old leader also uses thispid until release_task
+		 *       is called.  Odd but simple and correct.
+		 */
+		detach_pid(current, PIDTYPE_PID);
+		current->pid = leader->pid;
+		attach_pid(current, PIDTYPE_PID,  current->pid);
+		attach_pid(current, PIDTYPE_PGID, current->signal->pgrp);
+		attach_pid(current, PIDTYPE_SID,  current->signal->session);
+		list_add_tail(&current->tasks, &init_task.tasks);
 
 		current->parent = current->real_parent = leader->real_parent;
 		leader->parent = leader->real_parent = child_reaper;
 		current->group_leader = current;
 		leader->group_leader = leader;
 
-		add_parent(current, current->parent);
-		add_parent(leader, leader->parent);
+		add_parent(current);
+		add_parent(leader);
 		if (ptrace) {
 			current->ptrace = ptrace;
 			__ptrace_link(current, parent);
 		}
 
-		list_del(&current->tasks);
-		list_add_tail(&current->tasks, &init_task.tasks);
 		current->exit_signal = SIGCHLD;
 
 		BUG_ON(leader->exit_state != EXIT_ZOMBIE);
@@ -751,7 +768,6 @@ no_thread_group:
 		/*
 		 * Move our state over to newsighand and switch it in.
 		 */
-		spin_lock_init(&newsighand->siglock);
 		atomic_set(&newsighand->count, 1);
 		memcpy(newsighand->action, oldsighand->action,
 		       sizeof(newsighand->action));
@@ -768,7 +784,7 @@ no_thread_group:
 		write_unlock_irq(&tasklist_lock);
 
 		if (atomic_dec_and_test(&oldsighand->count))
-			sighand_free(oldsighand);
+			kmem_cache_free(sighand_cachep, oldsighand);
 	}
 
 	BUG_ON(!thread_group_leader(current));
