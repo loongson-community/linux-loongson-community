@@ -1296,6 +1296,7 @@ void __init trap_init(void)
 	if (board_be_init)
 		board_be_init();
 
+	set_except_vector(0, handle_int);
 	set_except_vector(1, handle_tlbm);
 	set_except_vector(2, handle_tlbl);
 	set_except_vector(3, handle_tlbs);
