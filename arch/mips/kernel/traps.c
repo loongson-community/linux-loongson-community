@@ -42,6 +42,7 @@
 #include <asm/watch.h>
 #include <asm/types.h>
 
+extern asmlinkage void handle_int(void);
 extern asmlinkage void handle_tlbm(void);
 extern asmlinkage void handle_tlbl(void);
 extern asmlinkage void handle_tlbs(void);
