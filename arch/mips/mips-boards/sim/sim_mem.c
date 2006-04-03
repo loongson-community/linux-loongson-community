@@ -18,6 +18,7 @@
 #include <linux/init.h>
 #include <linux/mm.h>
 #include <linux/bootmem.h>
+#include <linux/pfn.h>
 
 #include <asm/bootinfo.h>
 #include <asm/page.h>
