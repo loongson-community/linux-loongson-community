@@ -20,13 +20,11 @@ __asm__ (
 	"	.set	reorder						\n"
 	"	.set	noat						\n"
 #ifdef CONFIG_MIPS_MT_SMTC
-	"	.set	mips32r2					\n"
 	"	mfc0	$1, $2, 1	# SMTC - clear TCStatus.IXMT	\n"
 	"	ori	$1, 0x400					\n"
 	"	xori	$1, 0x400					\n"
 	"	mtc0	$1, $2, 1					\n"
 #elif defined(CONFIG_CPU_MIPSR2)
-	"	.set	mips32r2					\n"
 	"	ei							\n"
 #else
 	"	mfc0	$1,$12						\n"
@@ -70,13 +68,11 @@ __asm__ (
 	"	.set	push						\n"
 	"	.set	noat						\n"
 #ifdef CONFIG_MIPS_MT_SMTC
-	"	.set	mips32r2					\n"
 	"	mfc0	$1, $2, 1					\n"
 	"	ori	$1, 0x400					\n"
 	"	.set	noreorder					\n"
 	"	mtc0	$1, $2, 1					\n"
 #elif defined(CONFIG_CPU_MIPSR2)
-	"	.set	mips32r2					\n"
 	"	di							\n"
 #else
 	"	mfc0	$1,$12						\n"
@@ -121,17 +117,14 @@ __asm__ (
 	"	.set	reorder						\n"
 	"	.set	noat						\n"
 #ifdef CONFIG_MIPS_MT_SMTC
-	"	.set	mips32r2					\n"
 	"	mfc0	\\result, $2, 1					\n"
 	"	ori	$1, \\result, 0x400				\n"
 	"	.set	noreorder					\n"
 	"	mtc0	$1, $2, 1					\n"
 	"	andi	\\result, \\result, 0x400			\n"
 #elif defined(CONFIG_CPU_MIPSR2)
-	"	.set	mips32r2					\n"
 	"	di	\\result					\n"
 	"	andi	\\result, 1					\n"
-	"	.set	mips0						\n"
 #else
 	"	mfc0	\\result, $12					\n"
 	"	ori	$1, \\result, 0x1f				\n"
@@ -167,11 +160,9 @@ __asm__ (
 	 * Slow, but doesn't suffer from a relativly unlikely race
 	 * condition we're having since days 1.
 	 */
-	"	.set	mips32r2					\n"
 	"	beqz	\\flags, 1f					\n"
 	"	 di							\n"
 	"	ei							\n"
-	"	.set	mips0						\n"
 	"1:								\n"
 #elif defined(CONFIG_CPU_MIPSR2)
 	/*
@@ -213,11 +204,9 @@ static inline int irqs_disabled(void)
 
 	__asm__ __volatile__(
 	"	.set	noreorder					\n"
-	"	.set	mips32						\n"
 	"	mfc0	%0, $2, 1					\n"
 	"	andi	%0, 0x400					\n"
 	"	slt	%0, $0, %0					\n"
-	"	.set	mips0						\n"
 	"	.set	reorder						\n"
 	: "=r" (__result));
 

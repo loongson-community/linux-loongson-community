@@ -503,12 +503,7 @@ static inline unsigned long ffz(unsigned long word)
 static inline unsigned long fls(unsigned long word)
 {
 #ifdef CONFIG_CPU_MIPS32
-	__asm__ (
-	"	.set	mips32					\n"
-	"	clz	%0, %1					\n"
-	"	.set	mips0					\n"
-	: "=r" (word)
-	: "r" (word));
+	__asm__ ("clz %0, %1" : "=r" (word) : "r" (word));
 
 	return 32 - word;
 #endif
