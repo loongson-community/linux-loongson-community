@@ -91,23 +91,16 @@ asmlinkage void plat_irq_dispatch(struct pt_regs *regs)
 	if (pending & CAUSEF_IP7)
 		do_IRQ(7, regs);
 	else if (pending & 0x7800) {
-		if (pending & CAUSEF_IP3) {
+		if (pending & CAUSEF_IP3)
 			irq_dispatch(3, regs);
-			return;
-		} else if (pending & CAUSEF_IP4) {
+		else if (pending & CAUSEF_IP4)
 			irq_dispatch(4, regs);
-			return;
-		} else if (pending & CAUSEF_IP5) {
+		else if (pending & CAUSEF_IP5)
 			irq_dispatch(5, regs);
-			return;
-		} else if (pending & CAUSEF_IP6) {
+		else if (pending & CAUSEF_IP6)
 			irq_dispatch(6, regs);
-			return;
-		}
-	}
-
-	if (pending & CAUSEF_IP2)
-		do_IRQ(2, regs);
+	} else if (pending & CAUSEF_IP2)
+		irq_dispatch(2, regs);
 	else if (pending & CAUSEF_IP0)
 		do_IRQ(0, regs);
 	else if (pending & CAUSEF_IP1)
