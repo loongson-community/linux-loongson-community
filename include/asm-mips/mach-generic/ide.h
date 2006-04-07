@@ -106,14 +106,18 @@ static __inline__ unsigned long ide_default_io_base(int index)
 /* MIPS port and memory-mapped I/O string operations.  */
 static inline void __ide_flush_prologue(void)
 {
+#ifdef CONFIG_SMP
 	if (cpu_has_dc_aliases)
 		preempt_disable();
+#endif
 }
 
 static inline void __ide_flush_epilogue(void)
 {
+#ifdef CONFIG_SMP
 	if (cpu_has_dc_aliases)
 		preempt_enable();
+#endif
 }
 
 static inline void __ide_flush_dcache_range(unsigned long addr, unsigned long size)
