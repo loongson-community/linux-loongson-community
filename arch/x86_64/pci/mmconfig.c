@@ -75,7 +75,7 @@ static int pci_mmcfg_read(unsigned int seg, unsigned int bus,
 	char __iomem *addr;
 
 	/* Why do we have this when nobody checks it. How about a BUG()!? -AK */
-	if (unlikely(!value || (bus > 255) || (devfn > 255) || (reg > 4095))) {
+	if (unlikely((bus > 255) || (devfn > 255) || (reg > 4095))) {
 		*value = -1;
 		return -EINVAL;
 	}
@@ -142,7 +142,7 @@ static __init void unreachable_devices(void)
 {
 	int i, k;
 	/* Use the max bus number from ACPI here? */
-	for (k = 0; i < MAX_CHECK_BUS; k++) {
+	for (k = 0; k < MAX_CHECK_BUS; k++) {
 		for (i = 0; i < 32; i++) {
 			u32 val1;
 			char __iomem *addr;

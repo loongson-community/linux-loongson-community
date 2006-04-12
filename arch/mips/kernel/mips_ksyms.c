@@ -31,7 +31,6 @@ extern long __strnlen_user_asm(const char *s);
 EXPORT_SYMBOL(memset);
 EXPORT_SYMBOL(memcpy);
 EXPORT_SYMBOL(memmove);
-EXPORT_SYMBOL(strpbrk);
 
 EXPORT_SYMBOL(kernel_thread);
 
