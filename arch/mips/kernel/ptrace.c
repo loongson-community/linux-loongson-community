@@ -486,7 +486,7 @@ asmlinkage void do_syscall_trace(struct pt_regs *regs, int entryexit)
 	secure_computing(regs->orig_eax);
 
 	if (unlikely(current->audit_context) && entryexit)
-		audit_syscall_exit(current, AUDITSC_RESULT(regs->regs[2]),
+		audit_syscall_exit(AUDITSC_RESULT(regs->regs[2]),
 		                   regs->regs[2]);
 
 	if (!(current->ptrace & PT_PTRACED))
