@@ -516,7 +516,7 @@ out:
 	   more than a placebo.  */
 
 	if (unlikely(current->audit_context) && !entryexit)
-		audit_syscall_entry(current, audit_arch(), regs->orig_eax,
+		audit_syscall_entry(audit_arch(), regs->orig_eax,
 		                    regs->regs[4], regs->regs[5],
 		                    regs->regs[6], regs->regs[7]);
 }
