@@ -3,6 +3,7 @@
 #include <asm/time.h>
 
 extern void qvga_init(void);
+extern void qemu_reboot_setup(void);
 
 #define QEMU_PORT_BASE 0xb4000000
 
@@ -27,4 +28,6 @@ void __init plat_setup(void)
 	qvga_init();
 #endif
 	board_timer_setup = qemu_timer_setup;
+
+	qemu_reboot_setup();
 }
