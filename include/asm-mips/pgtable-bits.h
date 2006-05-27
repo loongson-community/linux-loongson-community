@@ -33,7 +33,7 @@
  * unpredictable things.  The code (when it is written) to deal with
  * this problem will be in the update_mmu_cache() code for the r4k.
  */
-#if defined(CONFIG_CPU_MIPS32) && defined(CONFIG_64BIT_PHYS_ADDR)
+#if defined(CONFIG_CPU_MIPS32_R1) && defined(CONFIG_64BIT_PHYS_ADDR)
 
 #define _PAGE_PRESENT               (1<<6)  /* implemented in software */
 #define _PAGE_READ                  (1<<7)  /* implemented in software */
