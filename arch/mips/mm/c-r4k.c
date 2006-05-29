@@ -38,7 +38,6 @@
  *  o collapses to normal function call on systems with a single shared
  *    primary cache.
  */
-#ifdef CONFIG_SMP
 static inline void r4k_on_each_cpu(void (*func) (void *info), void *info,
                                    int retry, int wait)
 {
@@ -50,13 +49,6 @@ static inline void r4k_on_each_cpu(void (*func) (void *info), void *info,
 	func(info);
 	preempt_enable();
 }
-#else 
-static inline void r4k_on_each_cpu(void (*func) (void *info), void *info,
-                                   int retry, int wait)
-{
-	func(info);
-}
-#endif
 
 /*
  * Must die.
