@@ -440,12 +440,12 @@ config MIPS_XXS1500
 
 config PNX8550_V2PCI
 	bool "Philips PNX8550 based Viper2-PCI board"
-	select PNX8550
+	select PNX8550 && BROKEN
 	select SYS_SUPPORTS_LITTLE_ENDIAN
 
 config PNX8550_JBS
 	bool "Philips PNX8550 based JBS board"
-	select PNX8550
+	select PNX8550 && BROKEN
 	select SYS_SUPPORTS_LITTLE_ENDIAN
 
 config DDB5074
