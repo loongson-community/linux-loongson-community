@@ -509,6 +509,7 @@ config DDB5477
 
 config MACH_VR41XX
 	bool "NEC VR41XX-based machines"
+	select SYS_HAS_CPU_VR41XX
 
 config PMC_YOSEMITE
 	bool "PMC-Sierra Yosemite eval board"
