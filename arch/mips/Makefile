@@ -454,7 +454,7 @@ core-$(CONFIG_CASIO_E55)	+= arch/mips/vr41xx/casio-e55/
 load-$(CONFIG_CASIO_E55)	+= 0xffffffff80004000
 
 #
-# TANBAC TB0225 VR4131 Multi-chip module/TB0229 VR4131DIMM (VR4131)
+# TANBAC VR4131 multichip module(TB0225) and TANBAC VR4131DIMM(TB0229) (VR4131)
 #
 load-$(CONFIG_TANBAC_TB022X)	+= 0xffffffff80000000
 
