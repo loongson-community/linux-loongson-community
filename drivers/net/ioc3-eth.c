@@ -5,7 +5,7 @@
  *
  * Driver for SGI's IOC3 based Ethernet cards as found in the PCI card.
  *
- * Copyright (C) 1999, 2000, 2001, 2003 Ralf Baechle
+ * Copyright (C) 1999, 2000, 01, 03, 06 Ralf Baechle
  * Copyright (C) 1995, 1999, 2000, 2001 by Silicon Graphics, Inc.
  *
  * References:
@@ -63,12 +63,7 @@
 #include <asm/pgtable.h>
 #include <asm/uaccess.h>
 #include <asm/sn/types.h>
-#include <asm/sn/sn0/addrs.h>
-#include <asm/sn/sn0/hubni.h>
-#include <asm/sn/sn0/hubio.h>
-#include <asm/sn/klconfig.h>
 #include <asm/sn/ioc3.h>
-#include <asm/sn/sn0/ip27.h>
 #include <asm/pci/bridge.h>
 
 /*
