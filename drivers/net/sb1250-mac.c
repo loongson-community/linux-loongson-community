@@ -156,10 +156,6 @@ typedef enum { sbmac_state_uninit, sbmac_state_off, sbmac_state_on,
 
 #define NUMCACHEBLKS(x) (((x)+SMP_CACHE_BYTES-1)/SMP_CACHE_BYTES)
 
-#define SBMAC_READCSR(t)	__raw_readq((unsigned long)t)
-#define SBMAC_WRITECSR(t,v)	__raw_writeq(v, (unsigned long)t)
-
-
 #define SBMAC_MAX_TXDESCR	32
 #define SBMAC_MAX_RXDESCR	32
 
@@ -2416,11 +2412,6 @@ static int sbmac_init(struct net_device *dev, int idx)
 		goto out_uninit;
 
 	if (sc->rx_hw_checksum == ENABLE) {
-		printk(KERN_INFO "%s: enabling TCP rcv checksum\n",
-			sc->sbm_dev->name);
-	}
-
-	if (periph_rev >= 2) {
 		printk(KERN_INFO "%s: enabling TCP rcv checksum\n",
 			sc->sbm_dev->name);
 	}
