@@ -24,31 +24,11 @@
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include <asm/r4kcache.h>
+#include <asm/smp.h>
 #include <asm/system.h>
 #include <asm/mmu_context.h>
 #include <asm/war.h>
 #include <asm/cacheflush.h> /* for run_uncached() */
-
-
-/*
- * Special Variant of smp_call_function for use by cache functions:
- *
- *  o No return value
- *  o collapses to normal function call on UP kernels
- *  o collapses to normal function call on systems with a single shared
- *    primary cache.
- */
-static inline void r4k_on_each_cpu(void (*func) (void *info), void *info,
-                                   int retry, int wait)
-{
-	preempt_disable();
-
-#if !defined(CONFIG_MIPS_MT_SMP) && !defined(CONFIG_MIPS_MT_SMTC)
-	smp_call_function(func, info, retry, wait);
-#endif
-	func(info);
-	preempt_enable();
-}
 
 /*
  * Must die.
@@ -332,7 +312,7 @@ static void r4k_flush_cache_all(void)
 	if (!cpu_has_dc_aliases)
 		return;
 
-	r4k_on_each_cpu(local_r4k_flush_cache_all, NULL, 1, 1);
+	__on_each_core(local_r4k_flush_cache_all, NULL);
 }
 
 static inline void local_r4k___flush_cache_all(void * args)
@@ -354,7 +334,7 @@ static inline void local_r4k___flush_cache_all(void * args)
 
 static void r4k___flush_cache_all(void)
 {
-	r4k_on_each_cpu(local_r4k___flush_cache_all, NULL, 1, 1);
+	__on_each_core(local_r4k___flush_cache_all, NULL);
 }
 
 static inline void local_r4k_flush_cache_range(void * args)
@@ -375,7 +355,7 @@ static inline void local_r4k_flush_cache_range(void * args)
 static void r4k_flush_cache_range(struct vm_area_struct *vma,
 	unsigned long start, unsigned long end)
 {
-	r4k_on_each_cpu(local_r4k_flush_cache_range, vma, 1, 1);
+	__on_each_core(local_r4k_flush_cache_range, vma);
 }
 
 static inline void local_r4k_flush_cache_mm(void * args)
@@ -404,7 +384,7 @@ static void r4k_flush_cache_mm(struct mm_struct *mm)
 	if (!cpu_has_dc_aliases)
 		return;
 
-	r4k_on_each_cpu(local_r4k_flush_cache_mm, mm, 1, 1);
+	__on_each_core(local_r4k_flush_cache_mm, mm);
 }
 
 struct flush_cache_page_args {
@@ -495,7 +475,7 @@ static void r4k_flush_cache_page(struct vm_area_struct *vma,
 	args.addr = addr;
 	args.pfn = pfn;
 
-	r4k_on_each_cpu(local_r4k_flush_cache_page, &args, 1, 1);
+	__on_each_core(local_r4k_flush_cache_page, &args);
 }
 
 static inline void local_r4k_flush_data_cache_page(void * addr)
@@ -505,7 +485,7 @@ static inline void local_r4k_flush_data_cache_page(void * addr)
 
 static void r4k_flush_data_cache_page(unsigned long addr)
 {
-	r4k_on_each_cpu(local_r4k_flush_data_cache_page, (void *) addr, 1, 1);
+	__on_each_core(local_r4k_flush_data_cache_page, (void *) addr);
 }
 
 struct flush_icache_range_args {
@@ -548,7 +528,7 @@ static void r4k_flush_icache_range(unsigned long start, unsigned long end)
 	args.start = start;
 	args.end = end;
 
-	r4k_on_each_cpu(local_r4k_flush_icache_range, &args, 1, 1);
+	__on_each_core(local_r4k_flush_icache_range, &args);
 	instruction_hazard();
 }
 
@@ -624,7 +604,7 @@ static void r4k_flush_icache_page(struct vm_area_struct *vma,
 	args.vma = vma;
 	args.page = page;
 
-	r4k_on_each_cpu(local_r4k_flush_icache_page, &args, 1, 1);
+	__on_each_core(local_r4k_flush_icache_page, &args);
 }
 
 
@@ -725,7 +705,7 @@ static void local_r4k_flush_cache_sigtramp(void * arg)
 
 static void r4k_flush_cache_sigtramp(unsigned long addr)
 {
-	r4k_on_each_cpu(local_r4k_flush_cache_sigtramp, (void *) addr, 1, 1);
+	__on_each_core(local_r4k_flush_cache_sigtramp, (void *) addr);
 }
 
 static void r4k_flush_icache_all(void)
