@@ -39,7 +39,12 @@
 #define PSC0_BASE_ADDR		0xb1a00000
 #define PSC1_BASE_ADDR		0xb1b00000
 #define PSC2_BASE_ADDR		0xb0a00000
-#define PSC3_BASE_ADDR		0xb0d00000
+#define PSC3_BASE_ADDR		0xb0b00000
+#endif
+
+#ifdef CONFIG_SOC_AU1200
+#define PSC0_BASE_ADDR		0xb1a00000
+#define PSC1_BASE_ADDR		0xb1b00000
 #endif
 
 /* The PSC select and control registers are common to
@@ -505,7 +510,7 @@ typedef struct	psc_smb {
 
 /* Transmit register control.
 */
-#define PSC_SMBTXRX_RSR		(1 << 30)
+#define PSC_SMBTXRX_RSR		(1 << 28)
 #define PSC_SMBTXRX_STP		(1 << 29)
 #define PSC_SMBTXRX_DATAMASK	(0xff)
 
