@@ -57,10 +57,9 @@
 #include <asm/io.h>
 #include <asm/uaccess.h>
 #include <asm/hardirq.h>
-#include <asm/mach-au1x00/au1000.h>
 #include <asm/mach-au1x00/au1xxx_psc.h>
 #include <asm/mach-au1x00/au1xxx_dbdma.h>
-#include <asm/mach-pb1x00/pb1550.h>
+#include <asm/mach-au1x00/au1xxx.h>
 
 #undef OSS_DOCUMENTED_MIXER_SEMANTICS
 

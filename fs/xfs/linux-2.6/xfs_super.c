@@ -684,10 +684,11 @@ xfs_fs_sync_super(
 
 STATIC int
 xfs_fs_statfs(
-	struct super_block	*sb,
+	struct dentry		*dentry,
 	struct kstatfs		*statp)
 {
-	return -bhv_vfs_statvfs(vfs_from_sb(sb), statp, NULL);
+	return -bhv_vfs_statvfs(vfs_from_sb(dentry->d_sb), statp,
+				vn_from_inode(dentry->d_inode));
 }
 
 STATIC int
@@ -853,14 +854,16 @@ fail_vfsop:
 	return -error;
 }
 
-STATIC struct super_block *
+STATIC int
 xfs_fs_get_sb(
 	struct file_system_type	*fs_type,
 	int			flags,
 	const char		*dev_name,
-	void			*data)
+	void			*data,
+	struct vfsmount		*mnt)
 {
-	return get_sb_bdev(fs_type, flags, dev_name, data, xfs_fs_fill_super);
+	return get_sb_bdev(fs_type, flags, dev_name, data, xfs_fs_fill_super,
+			   mnt);
 }
 
 STATIC struct super_operations xfs_super_operations = {

@@ -1903,13 +1903,13 @@ static int selinux_sb_kern_mount(struct super_block *sb, void *data)
 	return superblock_has_perm(current, sb, FILESYSTEM__MOUNT, &ad);
 }
 
-static int selinux_sb_statfs(struct super_block *sb)
+static int selinux_sb_statfs(struct dentry *dentry)
 {
 	struct avc_audit_data ad;
 
 	AVC_AUDIT_DATA_INIT(&ad,FS);
-	ad.u.fs.dentry = sb->s_root;
-	return superblock_has_perm(current, sb, FILESYSTEM__GETATTR, &ad);
+	ad.u.fs.dentry = dentry->d_sb->s_root;
+	return superblock_has_perm(current, dentry->d_sb, FILESYSTEM__GETATTR, &ad);
 }
 
 static int selinux_mount(char * dev_name,
@@ -2645,6 +2645,11 @@ static int selinux_task_setnice(struct task_struct *p, int nice)
 	return task_has_perm(current,p, PROCESS__SETSCHED);
 }
 
+static int selinux_task_setioprio(struct task_struct *p, int ioprio)
+{
+	return task_has_perm(current, p, PROCESS__SETSCHED);
+}
+
 static int selinux_task_setrlimit(unsigned int resource, struct rlimit *new_rlim)
 {
 	struct rlimit *old_rlim = current->signal->rlim + resource;
@@ -2672,6 +2677,11 @@ static int selinux_task_setscheduler(struct task_struct *p, int policy, struct s
 static int selinux_task_getscheduler(struct task_struct *p)
 {
 	return task_has_perm(current, p, PROCESS__GETSCHED);
+}
+
+static int selinux_task_movememory(struct task_struct *p)
+{
+	return task_has_perm(current, p, PROCESS__SETSCHED);
 }
 
 static int selinux_task_kill(struct task_struct *p, struct siginfo *info, int sig)
@@ -4383,9 +4393,11 @@ static struct security_operations selinux_ops = {
 	.task_getsid =		        selinux_task_getsid,
 	.task_setgroups =		selinux_task_setgroups,
 	.task_setnice =			selinux_task_setnice,
+	.task_setioprio =		selinux_task_setioprio,
 	.task_setrlimit =		selinux_task_setrlimit,
 	.task_setscheduler =		selinux_task_setscheduler,
 	.task_getscheduler =		selinux_task_getscheduler,
+	.task_movememory =		selinux_task_movememory,
 	.task_kill =			selinux_task_kill,
 	.task_wait =			selinux_task_wait,
 	.task_prctl =			selinux_task_prctl,

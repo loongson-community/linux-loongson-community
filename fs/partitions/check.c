@@ -484,6 +484,10 @@ int rescan_partitions(struct gendisk *disk, struct block_device *bdev)
 		sector_t from = state->parts[p].from;
 		if (!size)
 			continue;
+		if (from + size > get_capacity(disk)) {
+			printk(" %s: p%d exceeds device capacity\n",
+				disk->disk_name, p);
+		}
 		add_partition(disk, p, from, size);
 #ifdef CONFIG_BLK_DEV_MD
 		if (state->parts[p].flags)
@@ -499,8 +503,8 @@ unsigned char *read_dev_sector(struct block_device *bdev, sector_t n, Sector *p)
 	struct address_space *mapping = bdev->bd_inode->i_mapping;
 	struct page *page;
 
-	page = read_cache_page(mapping, (pgoff_t)(n >> (PAGE_CACHE_SHIFT-9)),
-			(filler_t *)mapping->a_ops->readpage, NULL);
+	page = read_mapping_page(mapping, (pgoff_t)(n >> (PAGE_CACHE_SHIFT-9)),
+				 NULL);
 	if (!IS_ERR(page)) {
 		wait_on_page_locked(page);
 		if (!PageUptodate(page))
