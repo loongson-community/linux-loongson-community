@@ -828,6 +828,32 @@ grab_cache_page_nowait(struct address_space *mapping, unsigned long index)
 }
 EXPORT_SYMBOL(grab_cache_page_nowait);
 
+/*
+ * CD/DVDs are error prone. When a medium error occurs, the driver may fail
+ * a _large_ part of the i/o request. Imagine the worst scenario:
+ *
+ *      ---R__________________________________________B__________
+ *         ^ reading here                             ^ bad block(assume 4k)
+ *
+ * read(R) => miss => readahead(R...B) => media error => frustrating retries
+ * => failing the whole request => read(R) => read(R+1) =>
+ * readahead(R+1...B+1) => bang => read(R+2) => read(R+3) =>
+ * readahead(R+3...B+2) => bang => read(R+3) => read(R+4) =>
+ * readahead(R+4...B+3) => bang => read(R+4) => read(R+5) => ......
+ *
+ * It is going insane. Fix it by quickly scaling down the readahead size.
+ */
+static void shrink_readahead_size_eio(struct file *filp,
+					struct file_ra_state *ra)
+{
+	if (!ra->ra_pages)
+		return;
+
+	ra->ra_pages /= 4;
+	printk(KERN_WARNING "Reducing readahead size to %luK\n",
+			ra->ra_pages << (PAGE_CACHE_SHIFT - 10));
+}
+
 /**
  * do_generic_mapping_read - generic file read routine
  * @mapping:	address_space to be read
@@ -985,6 +1011,7 @@ readpage:
 				}
 				unlock_page(page);
 				error = -EIO;
+				shrink_readahead_size_eio(filp, &ra);
 				goto readpage_error;
 			}
 			unlock_page(page);
@@ -1522,6 +1549,7 @@ page_not_uptodate:
 	 * Things didn't work out. Return zero to tell the
 	 * mm layer so, possibly freeing the page cache page first.
 	 */
+	shrink_readahead_size_eio(file, ra);
 	page_cache_release(page);
 	return NULL;
 }
@@ -1892,7 +1920,7 @@ int remove_suid(struct dentry *dentry)
 EXPORT_SYMBOL(remove_suid);
 
 size_t
-__filemap_copy_from_user_iovec(char *vaddr, 
+__filemap_copy_from_user_iovec_inatomic(char *vaddr,
 			const struct iovec *iov, size_t base, size_t bytes)
 {
 	size_t copied = 0, left = 0;
@@ -1908,12 +1936,8 @@ __filemap_copy_from_user_iovec(char *vaddr,
 		vaddr += copy;
 		iov++;
 
-		if (unlikely(left)) {
-			/* zero the rest of the target like __copy_from_user */
-			if (bytes)
-				memset(vaddr, 0, bytes);
+		if (unlikely(left))
 			break;
-		}
 	}
 	return copied - left;
 }

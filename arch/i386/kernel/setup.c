@@ -48,7 +48,6 @@
 #include <linux/crash_dump.h>
 #include <linux/dmi.h>
 #include <linux/pfn.h>
-#include <linux/suspend.h>
 
 #include <video/edid.h>
 
@@ -61,7 +60,7 @@
 #include <asm/io_apic.h>
 #include <asm/ist.h>
 #include <asm/io.h>
-#include "setup_arch_pre.h"
+#include <setup_arch.h>
 #include <bios_ebda.h>
 
 /* Forward Declaration. */
@@ -411,8 +410,8 @@ static void __init limit_regions(unsigned long long size)
 	}
 }
 
-static void __init add_memory_region(unsigned long long start,
-                                  unsigned long long size, int type)
+void __init add_memory_region(unsigned long long start,
+			      unsigned long long size, int type)
 {
 	int x;
 
@@ -475,7 +474,7 @@ static struct change_member *change_point[2*E820MAX] __initdata;
 static struct e820entry *overlap_list[E820MAX] __initdata;
 static struct e820entry new_bios[E820MAX] __initdata;
 
-static int __init sanitize_e820_map(struct e820entry * biosmap, char * pnr_map)
+int __init sanitize_e820_map(struct e820entry * biosmap, char * pnr_map)
 {
 	struct change_member *change_tmp;
 	unsigned long current_type, last_type;
@@ -644,7 +643,7 @@ static int __init sanitize_e820_map(struct e820entry * biosmap, char * pnr_map)
  * thinkpad 560x, for example, does not cooperate with the memory
  * detection code.)
  */
-static int __init copy_e820_map(struct e820entry * biosmap, int nr_map)
+int __init copy_e820_map(struct e820entry * biosmap, int nr_map)
 {
 	/* Only one memory region (or negative)? Ignore it */
 	if (nr_map < 2)
@@ -701,12 +700,6 @@ static inline void copy_edd(void)
 {
 }
 #endif
-
-/*
- * Do NOT EVER look at the BIOS memory size location.
- * It does not work on many machines.
- */
-#define LOWMEMSIZE()	(0x9f000)
 
 static void __init parse_cmdline_early (char ** cmdline_p)
 {
@@ -1424,8 +1417,6 @@ static void __init register_memory(void)
 		pci_mem_start, gapstart, gapsize);
 }
 
-static char * __init machine_specific_memory_setup(void);
-
 #ifdef CONFIG_MCA
 static void set_mca_bus(int x)
 {
@@ -1433,111 +1424,6 @@ static void set_mca_bus(int x)
 }
 #else
 static void set_mca_bus(int x) { }
-#endif
-
-#ifdef CONFIG_SOFTWARE_SUSPEND
-static void __init mark_nosave_page_range(unsigned long start, unsigned long end)
-{
-	struct page *page;
-	while (start <= end) {
-		page = pfn_to_page(start);
-		SetPageNosave(page);
-		start++;
-	}
-}
-
-static void __init e820_nosave_reserved_pages(void)
-{
-	int i;
-	unsigned long r_start = 0, r_end = 0;
-
-	/* Assume e820 map is sorted */
-	for (i = 0; i < e820.nr_map; i++) {
-		struct e820entry *ei = &e820.map[i];
-		unsigned long start, end;
-
-		start = PFN_DOWN(ei->addr);
-		end = PFN_UP(ei->addr + ei->size);
-		if (start >= end)
-			continue;
-		if (ei->type == E820_RESERVED)
-			continue;
-		r_end = start;
-		/*
-		 * Highmem 'Reserved' pages are marked as reserved, swsusp
-		 * will not save/restore them, so we ignore these pages here.
-		 */
-		if (r_end > max_low_pfn)
-			r_end = max_low_pfn;
-		if (r_end > r_start)
-			mark_nosave_page_range(r_start, r_end-1);
-		if (r_end >= max_low_pfn)
-			break;
-		r_start = end;
-	}
-}
-
-static void __init e820_save_acpi_pages(void)
-{
-	int i;
-
-	/* Assume e820 map is sorted */
-	for (i = 0; i < e820.nr_map; i++) {
-		struct e820entry *ei = &e820.map[i];
-		unsigned long start, end;
-
-		start = ei->addr;
-		end = ei->addr + ei->size;
-		if (start >= end)
-			continue;
-		if (ei->type != E820_ACPI && ei->type != E820_NVS)
-			continue;
-		/*
-		 * If the region is below max_low_pfn, it will be
-		 * saved/restored by swsusp follow 'RAM' type.
-		 */
-		if (start < (max_low_pfn << PAGE_SHIFT))
-			start = max_low_pfn << PAGE_SHIFT;
-		/*
-		 * Highmem pages (ACPI NVS/Data) are reserved, but swsusp
-		 * highmem save/restore will not save/restore them. We marked
-		 * them as arch saveable pages here
-		 */
-		if (end > start)
-			swsusp_add_arch_pages(start, end);
-	}
-}
-
-extern char __start_rodata, __end_rodata;
-/*
- * BIOS reserved region/hole - no save/restore
- * ACPI NVS - save/restore
- * ACPI Data - this is a little tricky, the mem could be used by OS after OS
- * reads tables from the region, but anyway save/restore the memory hasn't any
- * side effect and Linux runtime module load/unload might use it.
- * kernel rodata - no save/restore (kernel rodata isn't changed)
- */
-static int __init mark_nosave_pages(void)
-{
-	unsigned long pfn_start, pfn_end;
-
-	/* FIXME: provide a version for efi BIOS */
-	if (efi_enabled)
-		return 0;
-	/* BIOS reserved regions & holes */
-	e820_nosave_reserved_pages();
-
-	/* kernel rodata */
-	pfn_start = PFN_UP(virt_to_phys(&__start_rodata));
-	pfn_end = PFN_DOWN(virt_to_phys(&__end_rodata));
-	mark_nosave_page_range(pfn_start, pfn_end-1);
-
-	/* record ACPI Data/NVS as saveable */
-	e820_save_acpi_pages();
-
-	return 0;
-}
-core_initcall(mark_nosave_pages);
 #endif
 
 /*
@@ -1708,7 +1594,6 @@ static __init int add_pcspkr(void)
 }
 device_initcall(add_pcspkr);
 
-#include "setup_arch_post.h"
 /*
  * Local Variables:
  * mode:c

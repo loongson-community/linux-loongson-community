@@ -854,7 +854,6 @@ static int ext2_fill_super(struct super_block *sb, void *data, int silent)
 	}
 	if (!ext2_check_descriptors (sb)) {
 		printk ("EXT2-fs: group descriptors corrupted!\n");
-		db_count = i;
 		goto failed_mount2;
 	}
 	sbi->s_gdb_count = db_count;
@@ -1046,6 +1045,7 @@ static int ext2_statfs (struct dentry * dentry, struct kstatfs * buf)
 	unsigned long overhead;
 	int i;
 
+	lock_super(sb);
 	if (test_opt (sb, MINIX_DF))
 		overhead = 0;
 	else {
@@ -1086,6 +1086,7 @@ static int ext2_statfs (struct dentry * dentry, struct kstatfs * buf)
 	buf->f_files = le32_to_cpu(sbi->s_es->s_inodes_count);
 	buf->f_ffree = ext2_count_free_inodes (sb);
 	buf->f_namelen = EXT2_NAME_LEN;
+	unlock_super(sb);
 	return 0;
 }
 

@@ -145,7 +145,6 @@ extern unsigned int kobjsize(const void *objp);
 
 #define VM_GROWSDOWN	0x00000100	/* general info on the segment */
 #define VM_GROWSUP	0x00000200
-#define VM_SHM		0x00000000	/* Means nothing: delete it later */
 #define VM_PFNMAP	0x00000400	/* Page-ranges managed without "struct page", just pure PFN */
 #define VM_DENYWRITE	0x00000800	/* ETXTBSY on write attempts.. */
 
@@ -207,6 +206,8 @@ struct vm_operations_struct {
 	int (*set_policy)(struct vm_area_struct *vma, struct mempolicy *new);
 	struct mempolicy *(*get_policy)(struct vm_area_struct *vma,
 					unsigned long addr);
+	int (*migrate)(struct vm_area_struct *vma, const nodemask_t *from,
+		const nodemask_t *to, unsigned long flags);
 #endif
 };
 

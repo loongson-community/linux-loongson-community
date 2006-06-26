@@ -137,14 +137,15 @@ static int __kprobes notifier_call_chain(struct notifier_block **nl,
 		unsigned long val, void *v)
 {
 	int ret = NOTIFY_DONE;
-	struct notifier_block *nb;
+	struct notifier_block *nb, *next_nb;
 
 	nb = rcu_dereference(*nl);
 	while (nb) {
+		next_nb = rcu_dereference(nb->next);
 		ret = nb->notifier_call(nb, val, v);
 		if ((ret & NOTIFY_STOP_MASK) == NOTIFY_STOP_MASK)
 			break;
-		nb = rcu_dereference(nb->next);
+		nb = next_nb;
 	}
 	return ret;
 }
@@ -588,7 +589,7 @@ void emergency_restart(void)
 }
 EXPORT_SYMBOL_GPL(emergency_restart);
 
-void kernel_restart_prepare(char *cmd)
+static void kernel_restart_prepare(char *cmd)
 {
 	blocking_notifier_call_chain(&reboot_notifier_list, SYS_RESTART, cmd);
 	system_state = SYSTEM_RESTART;
@@ -622,7 +623,7 @@ EXPORT_SYMBOL_GPL(kernel_restart);
  *	Move into place and start executing a preloaded standalone
  *	executable.  If nothing was preloaded return an error.
  */
-void kernel_kexec(void)
+static void kernel_kexec(void)
 {
 #ifdef CONFIG_KEXEC
 	struct kimage *image;
@@ -636,7 +637,6 @@ void kernel_kexec(void)
 	machine_kexec(image);
 #endif
 }
-EXPORT_SYMBOL_GPL(kernel_kexec);
 
 void kernel_shutdown_prepare(enum system_states state)
 {
