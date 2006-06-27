@@ -818,6 +818,11 @@ static void deactivate_task(struct task_struct *p, runqueue_t *rq)
  * the target CPU.
  */
 #ifdef CONFIG_SMP
+
+#ifndef tsk_is_polling
+#define tsk_is_polling(t) test_tsk_thread_flag(t, TIF_POLLING_NRFLAG)
+#endif
+
 static void resched_task(task_t *p)
 {
 	int cpu;
@@ -833,9 +838,9 @@ static void resched_task(task_t *p)
 	if (cpu == smp_processor_id())
 		return;
 
-	/* NEED_RESCHED must be visible before we test POLLING_NRFLAG */
+	/* NEED_RESCHED must be visible before we test polling */
 	smp_mb();
-	if (!test_tsk_thread_flag(p, TIF_POLLING_NRFLAG))
+	if (!tsk_is_polling(p))
 		smp_send_reschedule(cpu);
 }
 #else
@@ -4247,7 +4252,7 @@ long sys_sched_rr_get_interval(pid_t pid, struct timespec __user *interval)
 	if (retval)
 		goto out_unlock;
 
-	jiffies_to_timespec(p->policy & SCHED_FIFO ?
+	jiffies_to_timespec(p->policy == SCHED_FIFO ?
 				0 : task_timeslice(p), &t);
 	read_unlock(&tasklist_lock);
 	retval = copy_to_user(interval, &t, sizeof(t)) ? -EFAULT : 0;
