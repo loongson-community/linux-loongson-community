@@ -1221,9 +1221,7 @@ static void __init sbus_iommu_init(int __node, struct sbus_bus *sbus)
 
 	/* Now some Xfire specific grot... */
 	if (this_is_starfire)
-		sbus->starfire_cookie = starfire_hookup(sbus->portid);
-	else
-		sbus->starfire_cookie = NULL;
+		starfire_hookup(sbus->portid);
 
 	sysio_register_error_handlers(sbus);
 }
@@ -1269,8 +1267,6 @@ int __init sbus_arch_preinit(void)
 void __init sbus_arch_postinit(void)
 {
 	extern void firetruck_init(void);
-	extern void clock_probe(void);
 
 	firetruck_init();
-	clock_probe();
 }

@@ -307,7 +307,6 @@ static void __init pci_scan_each_controller_bus(void)
 		p->scan_bus(p);
 }
 
-extern void clock_probe(void);
 extern void power_init(void);
 
 static int __init pcibios_init(void)
@@ -320,7 +319,6 @@ static int __init pcibios_init(void)
 
 	isa_init();
 	ebus_init();
-	clock_probe();
 	power_init();
 
 	return 0;
@@ -357,7 +355,7 @@ void pcibios_update_irq(struct pci_dev *pdev, int irq)
 }
 
 void pcibios_align_resource(void *data, struct resource *res,
-			    unsigned long size, unsigned long align)
+			    resource_size_t size, resource_size_t align)
 {
 }
 
@@ -406,14 +404,8 @@ void pcibios_bus_to_resource(struct pci_dev *pdev, struct resource *res,
 }
 EXPORT_SYMBOL(pcibios_bus_to_resource);
 
-extern int pci_irq_verbose;
-
 char * __init pcibios_setup(char *str)
 {
-	if (!strcmp(str, "irq_verbose")) {
-		pci_irq_verbose = 1;
-		return NULL;
-	}
 	return str;
 }
 
