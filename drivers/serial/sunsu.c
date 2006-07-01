@@ -15,7 +15,6 @@
  *   David S. Miller (davem@davemloft.net), 2002-Jul-29
  */
 
-#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -1439,6 +1438,8 @@ static int __devinit su_probe(struct of_device *op, const struct of_device_id *m
 		err = sunsu_kbd_ms_init(up);
 		if (err)
 			goto out_unmap;
+
+		return 0;
 	}
 
 	up->port.flags |= UPF_BOOT_AUTOCONF;

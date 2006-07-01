@@ -20,7 +20,6 @@
  *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/list.h>
 #include <linux/module.h>
@@ -942,8 +941,6 @@ static int __devinit saa7134_initdev(struct pci_dev *pci_dev,
 	/* load i2c helpers */
 	if (TUNER_ABSENT != dev->tuner_type)
 		request_module("tuner");
-	if (dev->tda9887_conf)
-		request_module("tda9887");
 	if (card_is_empress(dev)) {
 		request_module("saa6752hs");
 		request_module_depend("saa7134-empress",&need_empress);

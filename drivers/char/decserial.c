@@ -18,7 +18,6 @@
  *	Copyright (C) 2004  Maciej W. Rozycki
  */
 
-#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/init.h>
 
