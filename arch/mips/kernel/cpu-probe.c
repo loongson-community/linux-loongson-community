@@ -466,7 +466,7 @@ static inline unsigned int decode_config0(struct cpuinfo_mips *c)
 	isa = (config0 & MIPS_CONF_AT) >> 13;
 	switch (isa) {
 	case 0:
-		switch ((config0 >> 10) & 7) {
+		switch ((config0 & MIPS_CONF_AR) >> 10) {
 		case 0:
 			c->isa_level = MIPS_CPU_ISA_M32R1;
 			break;
@@ -478,7 +478,7 @@ static inline unsigned int decode_config0(struct cpuinfo_mips *c)
 		}
 		break;
 	case 2:
-		switch ((config0 >> 10) & 7) {
+		switch ((config0 & MIPS_CONF_AR) >> 10) {
 		case 0:
 			c->isa_level = MIPS_CPU_ISA_M64R1;
 			break;
