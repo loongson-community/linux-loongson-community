@@ -740,7 +740,7 @@ static void h3800_IRQ_demux(unsigned int irq, struct irqdesc *desc, struct pt_re
 static struct irqaction h3800_irq = {
 	.name		= "h3800_asic",
 	.handler	= h3800_IRQ_demux,
-	.flags		= SA_INTERRUPT | SA_TIMER,
+	.flags		= IRQF_DISABLED | IRQF_TIMER,
 };
 
 u32 kpio_int_shadow = 0;
@@ -835,7 +835,7 @@ static void __init h3800_init_irq(void)
 	}
 #endif
 	set_irq_type(IRQ_GPIO_H3800_ASIC, IRQT_RISING);
-	set_irq_chained_handler(IRQ_GPIO_H3800_ASIC, &h3800_IRQ_demux);
+	set_irq_chained_handler(IRQ_GPIO_H3800_ASIC, h3800_IRQ_demux);
 }
 
 
