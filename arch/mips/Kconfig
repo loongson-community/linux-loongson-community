@@ -1689,6 +1689,7 @@ config ARCH_DISCONTIGMEM_ENABLE
 
 config ARCH_SPARSEMEM_ENABLE
 	bool
+	select SPARSEMEM_STATIC
 
 config NUMA
 	bool "NUMA Support"
