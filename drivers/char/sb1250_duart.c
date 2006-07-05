@@ -763,7 +763,6 @@ static int __init sb1250_duart_init(void)
 
 	sb1250_duart_driver->owner = THIS_MODULE;
 	sb1250_duart_driver->name = "duart";
-	sb1250_duart_driver->devfs_name = "duart/";
 	sb1250_duart_driver->major = TTY_MAJOR;
 	sb1250_duart_driver->minor_start = SB1250_DUART_MINOR_BASE;
 	sb1250_duart_driver->type            = TTY_DRIVER_TYPE_SERIAL;
