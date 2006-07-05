@@ -111,36 +111,6 @@ static inline void smp_send_reschedule(int cpu)
 
 extern asmlinkage void smp_call_function_interrupt(void);
 
-int smp_call_function(void(*func)(void *info), void *info, int retry, int wait);
-
 #endif /* CONFIG_SMP */
-
-/*
- * Special Variant of smp_call_function for use by cache functions:
- *
- *  o No return value
- *  o collapses to normal function call on UP kernels
- *  o collapses to normal function call on systems with a single shared
- *    primary cache.
- *  o Both CONFIG_MIPS_MT_SMP and CONFIG_MIPS_MT_SMTC currently imply there
- *    is only one physical core.
- */
-static inline void __on_other_cores(void (*func) (void *info), void *info)
-{
-#if defined(CONFIG_SMP) && \
-	!defined(CONFIG_MIPS_MT_SMP) && !defined(CONFIG_MIPS_MT_SMTC)
-	smp_call_function(func, info, 1, 1);
-#endif
-}
-
-static inline void __on_each_core(void (*func) (void *info), void *info)
-{
-	preempt_disable();
-
-	__on_other_cores(func, info);
-	func(info);
-
-	preempt_enable();
-}
 
 #endif /* __ASM_SMP_H */
