@@ -12,7 +12,7 @@ const char *get_system_type(void)
 	return "Qemu";
 }
 
-static void __init qemu_timer_setup(struct irqaction *irq)
+void __init plat_timer_setup(struct irqaction *irq)
 {
 	/* set the clock to 100 Hz */
 	outb_p(0x34,0x43);		/* binary, mode 2, LSB/MSB, ch 0 */
@@ -27,7 +27,6 @@ void __init plat_mem_setup(void)
 #ifdef CONFIG_VT
 	qvga_init();
 #endif
-	board_timer_setup = qemu_timer_setup;
 
 	qemu_reboot_setup();
 }
