@@ -11,6 +11,8 @@
 #ifndef _ASM_IRQFLAGS_H
 #define _ASM_IRQFLAGS_H
 
+#ifndef __ASSEMBLY__
+
 #include <asm/hazards.h>
 
 __asm__ (
@@ -204,5 +206,20 @@ static inline int raw_irqs_disabled_flags(unsigned long flags)
 	return !(flags & 1);
 #endif
 }
+
+#endif
+
+/*
+ * Do the CPU's IRQ-state tracing from assembly code.
+ */
+#ifdef CONFIG_TRACE_IRQFLAGS
+# define TRACE_IRQS_ON							\
+	jal	trace_hardirqs_on
+# define TRACE_IRQS_OFF							\
+	jal	trace_hardirqs_off
+#else
+# define TRACE_IRQS_ON
+# define TRACE_IRQS_OFF
+#endif
 
 #endif /* _ASM_IRQFLAGS_H */
