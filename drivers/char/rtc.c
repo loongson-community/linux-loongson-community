@@ -50,7 +50,7 @@
  *	1.12ac	Alan Cox: Allow read access to the day of week register
  */
 
-#define RTC_VERSION		"1.12a"
+#define RTC_VERSION		"1.12ac"
 
 /*
  *	Note that *all* calls to CMOS_READ and CMOS_WRITE are done with
