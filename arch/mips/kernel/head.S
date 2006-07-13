@@ -173,7 +173,6 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 	xori	t0, t0, 0x001e
 	mtc0	t0, CP0_STATUS
 #endif /* CONFIG_MIPS_MT_SMTC */
-	TRACE_IRQS_OFF
 
 	PTR_LA		t0, __bss_start		# clear .bss
 	LONG_S		zero, (t0)
