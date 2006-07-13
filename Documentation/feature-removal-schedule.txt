@@ -55,14 +55,6 @@ Who:	Mauro Carvalho Chehab <mchehab@brturbo.com.br>
 
 ---------------------------
 
-What:	remove EXPORT_SYMBOL(insert_resource)
-When:	April 2006
-Files:	kernel/resource.c
-Why:	No modular usage in the kernel.
-Who:	Adrian Bunk <bunk@stusta.de>
-
----------------------------
-
 What:	PCMCIA control ioctl (needed for pcmcia-cs [cardmgr, cardctl])
 When:	November 2005
 Files:	drivers/pcmcia/: pcmcia_ioctl.c
@@ -253,5 +245,16 @@ Why:	The interrupt related SA_* flags are replaced by IRQF_* to move them
 	out of the signal namespace.
 
 Who:	Thomas Gleixner <tglx@linutronix.de>
+
+---------------------------
+
+What:	i2c-ite and i2c-algo-ite drivers
+When:	September 2006
+Why:	These drivers never compiled since they were added to the kernel
+	tree 5 years ago. This feature removal can be reevaluated if
+	someone shows interest in the drivers, fixes them and takes over
+	maintenance.
+	http://marc.theaimsgroup.com/?l=linux-mips&m=115040510817448
+Who:	Jean Delvare <khali@linux-fr.org>
 
 ---------------------------
