@@ -8,6 +8,7 @@
  * This will eventually go into the qemu firmware.
  */
 #include <linux/init.h>
+#include <linux/screen_info.h>
 #include <linux/tty.h>
 #include <asm/io.h>
 #include <video/vga.h>
