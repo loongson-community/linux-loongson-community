@@ -14,8 +14,6 @@
 
 #include <spaces.h>
 
-#endif
-
 /*
  * PAGE_SHIFT determines the page size
  */
@@ -35,7 +33,6 @@
 #define PAGE_MASK       (~((1 << PAGE_SHIFT) - 1))
 
 
-#ifdef __KERNEL__
 #ifndef __ASSEMBLY__
 
 #include <asm/cpu-features.h>
@@ -171,7 +168,6 @@ typedef struct { unsigned long pgprot; } pgprot_t;
 #define UNCAC_ADDR(addr)	((addr) - PAGE_OFFSET + UNCAC_BASE)
 #define CAC_ADDR(addr)		((addr) - UNCAC_BASE + PAGE_OFFSET)
 
-#endif /* defined (__KERNEL__) */
 
 #ifdef CONFIG_LIMITED_DMA
 #define WANT_PAGE_VIRTUAL
@@ -179,5 +175,7 @@ typedef struct { unsigned long pgprot; } pgprot_t;
 
 #include <asm-generic/memory_model.h>
 #include <asm-generic/page.h>
+
+#endif /* defined (__KERNEL__) */
 
 #endif /* _ASM_PAGE_H */
