@@ -120,13 +120,13 @@ Step 2:  the machine setup() function
 Step 3: implement rtc routines, board_time_init() and plat_timer_setup()
   if needed.
 
-  board_time_init() - 
+  board_time_init() -
   	a) (optional) set up RTC routines, 
         b) (optional) calibrate and set the mips_counter_frequency
  	    (only needed if you intended to use fixed_rate_gettimeoffset
  	     or use cpu counter as timer interrupt source)
 
-  plat_timer_setup() - 
+  plat_timer_setup() -
  	a) (optional) over-write any choices made above by time_init().
  	b) machine specific code should setup the timer irqaction.
  	c) enable the timer interrupt
