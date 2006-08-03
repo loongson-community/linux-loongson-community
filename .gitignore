@@ -30,12 +30,15 @@ include/config
 include/linux/autoconf.h
 include/linux/compile.h
 include/linux/version.h
+<<<<<<< HEAD/.gitignore
 include/asm-*/asm-offsets.h
+=======
+include/linux/utsrelease.h
+>>>>>>> 3f2792ffbd88dc1cd41d226674cc428914981e98/.gitignore
 
 # stgit generated dirs
 patches-*
 
-#
-# Quilt
-#
+# quilt's files
 patches
+series
