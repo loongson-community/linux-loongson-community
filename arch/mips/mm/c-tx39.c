@@ -382,7 +382,7 @@ void __init tx39_cache_init(void)
 		flush_cache_mm		= (void *) tx39h_flush_icache_all;
 		flush_cache_range	= (void *) tx39h_flush_icache_all;
 		flush_cache_page	= (void *) tx39h_flush_icache_all;
-		flush_icache_page	= (void *) tx39h_flush_icache_all;
+		__flush_icache_page	= (void *) tx39h_flush_icache_all;
 		flush_icache_range	= (void *) tx39h_flush_icache_all;
 
 		flush_cache_sigtramp	= (void *) tx39h_flush_icache_all;
