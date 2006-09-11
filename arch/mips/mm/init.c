@@ -200,6 +200,7 @@ static inline void kunmap_coherent(struct page *page)
 	write_c0_entrylo1(0);
 	mtc0_tlbw_hazard();
 	tlb_write_indexed();
+	tlbw_use_hazard();
 	write_c0_entryhi(old_ctx);
 	EXIT_CRITICAL(flags);
 #endif
