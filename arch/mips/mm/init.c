@@ -136,7 +136,7 @@ static inline void *kmap_coherent(struct page *page, unsigned long addr)
 	unsigned long vaddr, flags, entrylo;
 	unsigned long old_ctx;
 	pte_t pte;
-	unsigned int tlbidx;
+	int tlbidx;
 
 	inc_preempt_count();
 	idx = (addr >> PAGE_SHIFT) & (FIX_N_COLOURS - 1);
