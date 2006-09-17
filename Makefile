@@ -886,7 +886,7 @@ depend dep:
 
 # ---------------------------------------------------------------------------
 # Kernel headers
-INSTALL_HDR_PATH=$(MODLIB)/abi
+INSTALL_HDR_PATH=$(objtree)/usr
 export INSTALL_HDR_PATH
 
 PHONY += headers_install
@@ -983,7 +983,7 @@ CLEAN_FILES +=	vmlinux System.map \
                 .tmp_kallsyms* .tmp_version .tmp_vmlinux* .tmp_System.map
 
 # Directories & files removed with 'make mrproper'
-MRPROPER_DIRS  += include/config include2
+MRPROPER_DIRS  += include/config include2 usr/include
 MRPROPER_FILES += .config .config.old include/asm .version .old_version \
                   include/linux/autoconf.h include/linux/version.h      \
                   include/linux/utsrelease.h                            \
@@ -1074,7 +1074,7 @@ help:
 	@echo  '  kernelrelease	  - Output the release version string'
 	@echo  '  kernelversion	  - Output the version stored in Makefile'
 	@echo  '  headers_install - Install sanitised kernel headers to INSTALL_HDR_PATH'
-	@echo  '                    (default: /lib/modules/$$VERSION/abi)'
+	@echo  '                    (default: $(INSTALL_HDR_PATH))'
 	@echo  ''
 	@echo  'Static analysers'
 	@echo  '  checkstack      - Generate a list of stack hogs'

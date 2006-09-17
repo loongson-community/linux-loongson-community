@@ -32,7 +32,6 @@
 #define PAGE_SIZE	(1UL << PAGE_SHIFT)
 #define PAGE_MASK       (~((1 << PAGE_SHIFT) - 1))
 
-
 #ifndef __ASSEMBLY__
 
 extern void clear_page(void * page);
@@ -164,7 +163,6 @@ typedef struct { unsigned long pgprot; } pgprot_t;
 
 #define UNCAC_ADDR(addr)	((addr) - PAGE_OFFSET + UNCAC_BASE)
 #define CAC_ADDR(addr)		((addr) - UNCAC_BASE + PAGE_OFFSET)
-
 
 #ifdef CONFIG_LIMITED_DMA
 #define WANT_PAGE_VIRTUAL
