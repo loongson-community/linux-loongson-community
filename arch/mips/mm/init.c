@@ -38,11 +38,6 @@
 #include <asm/tlb.h>
 #include <asm/fixmap.h>
 
-/* CP0 hazard avoidance. */
-#define BARRIER __asm__ __volatile__(".set noreorder\n\t" \
-				     "nop; nop; nop; nop; nop; nop;\n\t" \
-				     ".set reorder\n\t")
-
 /* Atomicity and interruptability */
 #ifdef CONFIG_MIPS_MT_SMTC
 
@@ -161,7 +156,7 @@ static inline void *kmap_coherent(struct page *page, unsigned long addr)
 	/* preload TLB instead of local_flush_tlb_one() */
 	mtc0_tlbw_hazard();
 	tlb_probe();
-	BARRIER;
+	tlb_probe_hazard();
 	tlbidx = read_c0_index();
 	mtc0_tlbw_hazard();
 	if (tlbidx < 0)
