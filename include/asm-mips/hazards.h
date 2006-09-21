@@ -177,22 +177,4 @@ ASMMACRO(back_to_back_c0_hazard,
 
 #endif
 
-#ifndef __ASSEMBLY__
-
-/* C access to assembler macros */
-#define mtc0_tlbw_hazard() \
-	__asm__ __volatile__("mtc0_tlbw_hazard")
-#define tlbw_use_hazard() \
-	__asm__ __volatile__("tlbw_use_hazard")
-#define tlb_probe_hazard() \
-	__asm__ __volatile__("tlb_probe_hazard")
-#define irq_enable_hazard() \
-	__asm__ __volatile__("irq_enable_hazard")
-#define irq_disable_hazard() \
-	__asm__ __volatile__("irq_disable_hazard")
-#define back_to_back_c0_hazard() \
-	__asm__ __volatile__("back_to_back_c0_hazard")
-
-#endif /* __ASSEMBLY__ */
-
 #endif /* _ASM_HAZARDS_H */
