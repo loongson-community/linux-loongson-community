@@ -51,8 +51,6 @@ ASMMACRO(tlbw_use_hazard,
 ASMMACRO(tlb_probe_hazard,
 	 _ehb
 	)
-ASMMACRO(tlbw_eret_hazard,
-	)
 ASMMACRO(irq_enable_hazard,
 	)
 ASMMACRO(irq_disable_hazard,
@@ -94,8 +92,6 @@ ASMMACRO(tlbw_use_hazard,
 	)
 ASMMACRO(tlb_probe_hazard,
 	)
-ASMMACRO(tlbw_eret_hazard,
-	)
 ASMMACRO(irq_enable_hazard,
 	)
 ASMMACRO(irq_disable_hazard,
@@ -121,9 +117,6 @@ ASMMACRO(tlbw_use_hazard,
 ASMMACRO(tlb_probe_hazard,
 	 _ssnop; _ssnop; _ssnop; _ssnop
 	)
-ASMMACRO(tlbw_eret_hazard,
-	 _ssnop; _ssnop; _ssnop; _ssnop
-	)
 ASMMACRO(irq_enable_hazard,
 	)
 ASMMACRO(irq_disable_hazard,
@@ -142,8 +135,6 @@ ASMMACRO(mtc0_tlbw_hazard,
 ASMMACRO(tlbw_use_hazard,
 	)
 ASMMACRO(tlb_probe_hazard,
-	)
-ASMMACRO(tlbw_eret_hazard,
 	)
 ASMMACRO(irq_enable_hazard,
 	)
@@ -173,8 +164,6 @@ ASMMACRO(tlbw_use_hazard,
 	)
 ASMMACRO(tlb_probe_hazard,
 	 nop; nop; nop; nop; nop; nop
-	)
-ASMMACRO(tlbw_eret_hazard,
 	)
 ASMMACRO(irq_enable_hazard,
 	)
