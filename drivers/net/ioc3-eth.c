@@ -28,7 +28,7 @@
  */
 
 #define IOC3_NAME	"ioc3-eth"
-#define IOC3_VERSION	"2.6.3-3"
+#define IOC3_VERSION	"2.6.3-4"
 
 #include <linux/init.h>
 #include <linux/delay.h>
@@ -113,7 +113,7 @@ static inline void ioc3_stop(struct ioc3_private *ip);
 static void ioc3_init(struct net_device *dev);
 
 static const char ioc3_str[] = "IOC3 Ethernet";
-static struct ethtool_ops ioc3_ethtool_ops;
+static const struct ethtool_ops ioc3_ethtool_ops;
 
 /* We use this to acquire receive skb's that we can DMA directly into. */
 
@@ -1592,7 +1592,7 @@ static int ioc3_set_rx_csum(struct net_device *dev, u32 data)
 	return 0;
 }
 
-static struct ethtool_ops ioc3_ethtool_ops = {
+static const struct ethtool_ops ioc3_ethtool_ops = {
 	.get_drvinfo		= ioc3_get_drvinfo,
 	.get_settings		= ioc3_get_settings,
 	.set_settings		= ioc3_set_settings,
@@ -1627,8 +1627,6 @@ static void ioc3_set_multicast_list(struct net_device *dev)
 	netif_stop_queue(dev);				/* Lock out others. */
 
 	if (dev->flags & IFF_PROMISC) {			/* Set promiscuous.  */
-		/* Unconditionally log net taps.  */
-		printk(KERN_INFO "%s: Promiscuous mode enabled.\n", dev->name);
 		ip->emcr |= EMCR_PROMISC;
 		ioc3_w_emcr(ip->emcr);
 		(void) ioc3_r_emcr();
