@@ -138,13 +138,10 @@ ASMMACRO(back_to_back_c0_hazard,
  * Mostly like R4000 for historic reasons
  */
 ASMMACRO(mtc0_tlbw_hazard,
-	 b	. + 8
 	)
 ASMMACRO(tlbw_use_hazard,
-	 nop; nop; nop; nop; nop; nop
 	)
 ASMMACRO(tlb_probe_hazard,
-	 nop; nop; nop; nop; nop; nop
 	)
 ASMMACRO(tlbw_eret_hazard,
 	)
