@@ -157,18 +157,18 @@ ASMMACRO(back_to_back_c0_hazard,
  * processors.
  */
 ASMMACRO(mtc0_tlbw_hazard,
-	 b	. + 8
+	nop
 	)
 ASMMACRO(tlbw_use_hazard,
-	 nop; nop; nop; nop; nop; nop
+	nop; nop; nop
 	)
 ASMMACRO(tlb_probe_hazard,
-	 nop; nop; nop; nop; nop; nop
+	 nop; nop; nop
 	)
 ASMMACRO(irq_enable_hazard,
 	)
 ASMMACRO(irq_disable_hazard,
-	 _ssnop; _ssnop; _ssnop
+	nop; nop; nop
 	)
 ASMMACRO(back_to_back_c0_hazard,
 	 _ssnop; _ssnop; _ssnop;
