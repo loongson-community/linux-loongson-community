@@ -16,6 +16,7 @@
 #include <linux/string.h>
 #include <linux/kexec.h>
 #include <linux/module.h>
+#include <linux/mm.h>
 
 #include <asm/pgtable.h>
 #include <asm/page.h>
@@ -23,6 +24,8 @@
 #include <asm/proto.h>
 #include <asm/bootsetup.h>
 #include <asm/sections.h>
+
+struct e820map e820 __initdata;
 
 /* 
  * PFN of last memory page.
@@ -40,7 +43,7 @@ unsigned long end_pfn_map;
 /* 
  * Last pfn which the user wants to use.
  */
-unsigned long end_user_pfn = MAXMEM>>PAGE_SHIFT;  
+static unsigned long __initdata end_user_pfn = MAXMEM>>PAGE_SHIFT;
 
 extern struct resource code_resource, data_resource;
 
@@ -69,12 +72,7 @@ static inline int bad_addr(unsigned long *addrp, unsigned long size)
 		return 1;
 	} 
 #endif
-	/* kernel code + 640k memory hole (later should not be needed, but 
-	   be paranoid for now) */
-	if (last >= 640*1024 && addr < 1024*1024) {
-		*addrp = 1024*1024;
-		return 1;
-	}
+	/* kernel code */
 	if (last >= __pa_symbol(&_text) && last < __pa_symbol(&_end)) {
 		*addrp = __pa_symbol(&_end);
 		return 1;
@@ -294,6 +292,53 @@ void __init e820_reserve_resources(void)
 			request_resource(res, &crashk_res);
 #endif
 		}
+	}
+}
+
+/* Mark pages corresponding to given address range as nosave */
+static void __init
+e820_mark_nosave_range(unsigned long start, unsigned long end)
+{
+	unsigned long pfn, max_pfn;
+
+	if (start >= end)
+		return;
+
+	printk("Nosave address range: %016lx - %016lx\n", start, end);
+	max_pfn = end >> PAGE_SHIFT;
+	for (pfn = start >> PAGE_SHIFT; pfn < max_pfn; pfn++)
+		if (pfn_valid(pfn))
+			SetPageNosave(pfn_to_page(pfn));
+}
+
+/*
+ * Find the ranges of physical addresses that do not correspond to
+ * e820 RAM areas and mark the corresponding pages as nosave for software
+ * suspend and suspend to RAM.
+ *
+ * This function requires the e820 map to be sorted and without any
+ * overlapping entries and assumes the first e820 area to be RAM.
+ */
+void __init e820_mark_nosave_regions(void)
+{
+	int i;
+	unsigned long paddr;
+
+	paddr = round_down(e820.map[0].addr + e820.map[0].size, PAGE_SIZE);
+	for (i = 1; i < e820.nr_map; i++) {
+		struct e820entry *ei = &e820.map[i];
+
+		if (paddr < ei->addr)
+			e820_mark_nosave_range(paddr,
+					round_up(ei->addr, PAGE_SIZE));
+
+		paddr = round_down(ei->addr + ei->size, PAGE_SIZE);
+		if (ei->type != E820_RAM)
+			e820_mark_nosave_range(round_up(ei->addr, PAGE_SIZE),
+					paddr);
+
+		if (paddr >= (end_pfn << PAGE_SHIFT))
+			break;
 	}
 }
 
@@ -517,13 +562,6 @@ static int __init sanitize_e820_map(struct e820entry * biosmap, char * pnr_map)
  * If we're lucky and live on a modern system, the setup code
  * will have given us a memory map that we can use to properly
  * set up memory.  If we aren't, we'll fake a memory map.
- *
- * We check to see that the memory map contains at least 2 elements
- * before we'll use it, because the detection code in setup.S may
- * not be perfect and most every PC known to man has two memory
- * regions: one from 0 to 640k, and one from 1mb up.  (The IBM
- * thinkpad 560x, for example, does not cooperate with the memory
- * detection code.)
  */
 static int __init copy_e820_map(struct e820entry * biosmap, int nr_map)
 {
@@ -541,34 +579,19 @@ static int __init copy_e820_map(struct e820entry * biosmap, int nr_map)
 		if (start > end)
 			return -1;
 
-		/*
-		 * Some BIOSes claim RAM in the 640k - 1M region.
-		 * Not right. Fix it up.
-		 * 
-		 * This should be removed on Hammer which is supposed to not
-		 * have non e820 covered ISA mappings there, but I had some strange
-		 * problems so it stays for now.  -AK
-		 */
-		if (type == E820_RAM) {
-			if (start < 0x100000ULL && end > 0xA0000ULL) {
-				if (start < 0xA0000ULL)
-					add_memory_region(start, 0xA0000ULL-start, type);
-				if (end <= 0x100000ULL)
-					continue;
-				start = 0x100000ULL;
-				size = end - start;
-			}
-		}
-
 		add_memory_region(start, size, type);
 	} while (biosmap++,--nr_map);
 	return 0;
 }
 
+void early_panic(char *msg)
+{
+	early_printk(msg);
+	panic(msg);
+}
+
 void __init setup_memory_region(void)
 {
-	char *who = "BIOS-e820";
-
 	/*
 	 * Try to copy the BIOS-supplied E820-map.
 	 *
@@ -576,51 +599,70 @@ void __init setup_memory_region(void)
 	 * the next section from 1mb->appropriate_mem_k
 	 */
 	sanitize_e820_map(E820_MAP, &E820_MAP_NR);
-	if (copy_e820_map(E820_MAP, E820_MAP_NR) < 0) {
-		unsigned long mem_size;
-
-		/* compare results from other methods and take the greater */
-		if (ALT_MEM_K < EXT_MEM_K) {
-			mem_size = EXT_MEM_K;
-			who = "BIOS-88";
-		} else {
-			mem_size = ALT_MEM_K;
-			who = "BIOS-e801";
-		}
-
-		e820.nr_map = 0;
-		add_memory_region(0, LOWMEMSIZE(), E820_RAM);
-		add_memory_region(HIGH_MEMORY, mem_size << 10, E820_RAM);
-  	}
+	if (copy_e820_map(E820_MAP, E820_MAP_NR) < 0)
+		early_panic("Cannot find a valid memory map");
 	printk(KERN_INFO "BIOS-provided physical RAM map:\n");
-	e820_print_map(who);
+	e820_print_map("BIOS-e820");
 }
 
-void __init parse_memopt(char *p, char **from) 
-{ 
-	end_user_pfn = memparse(p, from);
-	end_user_pfn >>= PAGE_SHIFT;	
-} 
-
-void __init parse_memmapopt(char *p, char **from)
+static int __init parse_memopt(char *p)
 {
+	if (!p)
+		return -EINVAL;
+	end_user_pfn = memparse(p, &p);
+	end_user_pfn >>= PAGE_SHIFT;	
+	return 0;
+} 
+early_param("mem", parse_memopt);
+
+static int userdef __initdata;
+
+static int __init parse_memmap_opt(char *p)
+{
+	char *oldp;
 	unsigned long long start_at, mem_size;
 
-	mem_size = memparse(p, from);
-	p = *from;
+	if (!strcmp(p, "exactmap")) {
+#ifdef CONFIG_CRASH_DUMP
+		/* If we are doing a crash dump, we
+		 * still need to know the real mem
+		 * size before original memory map is
+		 * reset.
+		 */
+		saved_max_pfn = e820_end_of_ram();
+#endif
+		end_pfn_map = 0;
+		e820.nr_map = 0;
+		userdef = 1;
+		return 0;
+	}
+
+	oldp = p;
+	mem_size = memparse(p, &p);
+	if (p == oldp)
+		return -EINVAL;
 	if (*p == '@') {
-		start_at = memparse(p+1, from);
+		start_at = memparse(p+1, &p);
 		add_memory_region(start_at, mem_size, E820_RAM);
 	} else if (*p == '#') {
-		start_at = memparse(p+1, from);
+		start_at = memparse(p+1, &p);
 		add_memory_region(start_at, mem_size, E820_ACPI);
 	} else if (*p == '$') {
-		start_at = memparse(p+1, from);
+		start_at = memparse(p+1, &p);
 		add_memory_region(start_at, mem_size, E820_RESERVED);
 	} else {
 		end_user_pfn = (mem_size >> PAGE_SHIFT);
 	}
-	p = *from;
+	return *p == '\0' ? 0 : -EINVAL;
+}
+early_param("memmap", parse_memmap_opt);
+
+void finish_e820_parsing(void)
+{
+	if (userdef) {
+		printk(KERN_INFO "user-defined physical RAM map:\n");
+		e820_print_map("user");
+	}
 }
 
 unsigned long pci_mem_start = 0xaeedbabe;
