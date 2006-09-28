@@ -40,7 +40,6 @@ static struct inode *debugfs_get_inode(struct super_block *sb, int mode, dev_t d
 		inode->i_mode = mode;
 		inode->i_uid = 0;
 		inode->i_gid = 0;
-		inode->i_blksize = PAGE_CACHE_SIZE;
 		inode->i_blocks = 0;
 		inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
 		switch (mode & S_IFMT) {
@@ -168,7 +167,7 @@ static int debugfs_create_by_name(const char *name, mode_t mode,
  *          directory dentry if set.  If this paramater is NULL, then the
  *          file will be created in the root of the debugfs filesystem.
  * @data: a pointer to something that the caller will want to get to later
- *        on.  The inode.u.generic_ip pointer will point to this value on
+ *        on.  The inode.i_private pointer will point to this value on
  *        the open() call.
  * @fops: a pointer to a struct file_operations that should be used for
  *        this file.
@@ -209,7 +208,7 @@ struct dentry *debugfs_create_file(const char *name, mode_t mode,
 
 	if (dentry->d_inode) {
 		if (data)
-			dentry->d_inode->u.generic_ip = data;
+			dentry->d_inode->i_private = data;
 		if (fops)
 			dentry->d_inode->i_fop = fops;
 	}

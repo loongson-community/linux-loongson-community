@@ -34,6 +34,8 @@
 
 #ifndef __ASSEMBLY__
 
+#include <asm/cpu-features.h>
+
 extern void clear_page(void * page);
 extern void copy_page(void * to, void * from);
 

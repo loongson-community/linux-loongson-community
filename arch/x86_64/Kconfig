@@ -85,6 +85,9 @@ config ARCH_MAY_HAVE_PC_FDC
 	bool
 	default y
 
+config ARCH_POPULATES_NODE_MAP
+	def_bool y
+
 config DMI
 	bool
 	default y
@@ -168,6 +171,7 @@ config X86_GOOD_APIC
 
 config MICROCODE
 	tristate "/dev/cpu/microcode - Intel CPU microcode support"
+	select FW_LOADER
 	---help---
 	  If you say Y here the 'File systems' section, you will be
 	  able to update the microcode on Intel processors. You will
@@ -182,6 +186,11 @@ config MICROCODE
 	  module will be called microcode.
 	  If you use modprobe or kmod you may also want to add the line
 	  'alias char-major-10-184 microcode' to your /etc/modules.conf file.
+
+config MICROCODE_OLD_INTERFACE
+	bool
+	depends on MICROCODE
+	default y
 
 config X86_MSR
 	tristate "/dev/cpu/*/msr - Model-specific register support"
