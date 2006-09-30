@@ -46,7 +46,6 @@
  */
 static long ratelimit_pages = 32;
 
-static long total_pages;	/* The total number of pages in the machine. */
 static int dirty_exceeded __cacheline_aligned_in_smp;	/* Dirty mem may be over limit */
 
 /*
@@ -126,7 +125,7 @@ get_dirty_limits(long *pbackground, long *pdirty,
 	int unmapped_ratio;
 	long background;
 	long dirty;
-	unsigned long available_memory = total_pages;
+	unsigned long available_memory = vm_total_pages;
 	struct task_struct *tsk;
 
 #ifdef CONFIG_HIGHMEM
@@ -141,7 +140,7 @@ get_dirty_limits(long *pbackground, long *pdirty,
 
 	unmapped_ratio = 100 - ((global_page_state(NR_FILE_MAPPED) +
 				global_page_state(NR_ANON_PAGES)) * 100) /
-					total_pages;
+					vm_total_pages;
 
 	dirty_ratio = vm_dirty_ratio;
 	if (dirty_ratio > unmapped_ratio / 2)
@@ -502,9 +501,9 @@ void laptop_sync_completion(void)
  * will write six megabyte chunks, max.
  */
 
-static void set_ratelimit(void)
+void writeback_set_ratelimit(void)
 {
-	ratelimit_pages = total_pages / (num_online_cpus() * 32);
+	ratelimit_pages = vm_total_pages / (num_online_cpus() * 32);
 	if (ratelimit_pages < 16)
 		ratelimit_pages = 16;
 	if (ratelimit_pages * PAGE_CACHE_SIZE > 4096 * 1024)
@@ -514,7 +513,7 @@ static void set_ratelimit(void)
 static int __cpuinit
 ratelimit_handler(struct notifier_block *self, unsigned long u, void *v)
 {
-	set_ratelimit();
+	writeback_set_ratelimit();
 	return 0;
 }
 
@@ -533,9 +532,7 @@ void __init page_writeback_init(void)
 	long buffer_pages = nr_free_buffer_pages();
 	long correction;
 
-	total_pages = nr_free_pagecache_pages();
-
-	correction = (100 * 4 * buffer_pages) / total_pages;
+	correction = (100 * 4 * buffer_pages) / vm_total_pages;
 
 	if (correction < 100) {
 		dirty_background_ratio *= correction;
@@ -549,7 +546,7 @@ void __init page_writeback_init(void)
 			vm_dirty_ratio = 1;
 	}
 	mod_timer(&wb_timer, jiffies + dirty_writeback_interval);
-	set_ratelimit();
+	writeback_set_ratelimit();
 	register_cpu_notifier(&ratelimit_nb);
 }
 
