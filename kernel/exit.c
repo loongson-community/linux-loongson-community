@@ -18,6 +18,7 @@
 #include <linux/security.h>
 #include <linux/cpu.h>
 #include <linux/acct.h>
+#include <linux/tsacct_kern.h>
 #include <linux/file.h>
 #include <linux/binfmts.h>
 #include <linux/ptrace.h>
@@ -38,6 +39,7 @@
 #include <linux/pipe_fs_i.h>
 #include <linux/audit.h> /* for audit_free() */
 #include <linux/resource.h>
+#include <linux/blkdev.h>
 
 #include <asm/uaccess.h>
 #include <asm/unistd.h>

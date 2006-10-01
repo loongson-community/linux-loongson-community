@@ -638,7 +638,7 @@ static int autofs4_dir_unlink(struct inode *dir, struct dentry *dentry)
 	dput(ino->dentry);
 
 	dentry->d_inode->i_size = 0;
-	dentry->d_inode->i_nlink = 0;
+	clear_nlink(dentry->d_inode);
 
 	dir->i_mtime = CURRENT_TIME;
 
@@ -673,10 +673,10 @@ static int autofs4_dir_rmdir(struct inode *dir, struct dentry *dentry)
 	}
 	dput(ino->dentry);
 	dentry->d_inode->i_size = 0;
-	dentry->d_inode->i_nlink = 0;
+	clear_nlink(dentry->d_inode);
 
 	if (dir->i_nlink)
-		dir->i_nlink--;
+		drop_nlink(dir);
 
 	return 0;
 }
@@ -713,7 +713,7 @@ static int autofs4_dir_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	if (p_ino && dentry->d_parent != dentry)
 		atomic_inc(&p_ino->count);
 	ino->inode = inode;
-	dir->i_nlink++;
+	inc_nlink(dir);
 	dir->i_mtime = CURRENT_TIME;
 
 	return 0;

@@ -710,7 +710,6 @@ extern unsigned int max_cache_size;
 
 
 struct io_context;			/* See blkdev.h */
-void exit_io_context(void);
 struct cpuset;
 
 #define NGROUPS_SMALL		32
@@ -982,10 +981,10 @@ struct task_struct {
 	wait_queue_t *io_wait;
 /* i/o counters(bytes read/written, #syscalls */
 	u64 rchar, wchar, syscr, syscw;
-#if defined(CONFIG_BSD_PROCESS_ACCT)
+#if defined(CONFIG_TASK_XACCT)
 	u64 acct_rss_mem1;	/* accumulated rss usage */
 	u64 acct_vm_mem1;	/* accumulated virtual memory usage */
-	clock_t acct_stimexpd;	/* clock_t-converted stime since last update */
+	cputime_t acct_stimexpd;/* stime since last update */
 #endif
 #ifdef CONFIG_NUMA
   	struct mempolicy *mempolicy;

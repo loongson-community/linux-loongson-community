@@ -2,6 +2,7 @@
  * Copyright 2000 by Hans Reiser, licensing governed by reiserfs/README
  */
 
+#include <linux/config.h>
 #include <linux/time.h>
 #include <linux/reiserfs_fs.h>
 #include <linux/reiserfs_acl.h>
@@ -1333,7 +1334,7 @@ static ssize_t reiserfs_file_write(struct file *file,	/* the file we are going t
 			if (err)
 				return err;
 		}
-		result = generic_file_write(file, buf, count, ppos);
+		result = do_sync_write(file, buf, count, ppos);
 
 		if (after_file_end) {	/* Now update i_size and remove the savelink */
 			struct reiserfs_transaction_handle th;
@@ -1565,10 +1566,14 @@ static ssize_t reiserfs_file_write(struct file *file,	/* the file we are going t
 }
 
 const struct file_operations reiserfs_file_operations = {
-	.read = generic_file_read,
+	.read = do_sync_read,
 	.write = reiserfs_file_write,
 	.ioctl = reiserfs_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = reiserfs_compat_ioctl,
+#endif
 	.mmap = generic_file_mmap,
+	.open = generic_file_open,
 	.release = reiserfs_file_release,
 	.fsync = reiserfs_sync_file,
 	.sendfile = generic_file_sendfile,

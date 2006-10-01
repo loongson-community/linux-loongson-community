@@ -1379,7 +1379,7 @@ shmem_get_inode(struct super_block *sb, int mode, dev_t dev)
 							&sbinfo->policy_nodes);
 			break;
 		case S_IFDIR:
-			inode->i_nlink++;
+			inc_nlink(inode);
 			/* Some things misbehave if size == 0 on a directory */
 			inode->i_size = 2 * BOGO_DIRENT_SIZE;
 			inode->i_op = &shmem_dir_inode_operations;
@@ -1715,7 +1715,7 @@ static int shmem_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 
 	if ((error = shmem_mknod(dir, dentry, mode | S_IFDIR, 0)))
 		return error;
-	dir->i_nlink++;
+	inc_nlink(dir);
 	return 0;
 }
 
@@ -1750,7 +1750,7 @@ static int shmem_link(struct dentry *old_dentry, struct inode *dir, struct dentr
 
 	dir->i_size += BOGO_DIRENT_SIZE;
 	inode->i_ctime = dir->i_ctime = dir->i_mtime = CURRENT_TIME;
-	inode->i_nlink++;
+	inc_nlink(inode);
 	atomic_inc(&inode->i_count);	/* New dentry reference */
 	dget(dentry);		/* Extra pinning count for the created dentry */
 	d_instantiate(dentry, inode);
@@ -1772,7 +1772,7 @@ static int shmem_unlink(struct inode *dir, struct dentry *dentry)
 
 	dir->i_size -= BOGO_DIRENT_SIZE;
 	inode->i_ctime = dir->i_ctime = dir->i_mtime = CURRENT_TIME;
-	inode->i_nlink--;
+	drop_nlink(inode);
 	dput(dentry);	/* Undo the count from "create" - this does all the work */
 	return 0;
 }
@@ -1782,8 +1782,8 @@ static int shmem_rmdir(struct inode *dir, struct dentry *dentry)
 	if (!simple_empty(dentry))
 		return -ENOTEMPTY;
 
-	dentry->d_inode->i_nlink--;
-	dir->i_nlink--;
+	drop_nlink(dentry->d_inode);
+	drop_nlink(dir);
 	return shmem_unlink(dir, dentry);
 }
 
@@ -1804,10 +1804,10 @@ static int shmem_rename(struct inode *old_dir, struct dentry *old_dentry, struct
 	if (new_dentry->d_inode) {
 		(void) shmem_unlink(new_dir, new_dentry);
 		if (they_are_dirs)
-			old_dir->i_nlink--;
+			drop_nlink(old_dir);
 	} else if (they_are_dirs) {
-		old_dir->i_nlink--;
-		new_dir->i_nlink++;
+		drop_nlink(old_dir);
+		inc_nlink(new_dir);
 	}
 
 	old_dir->i_size -= BOGO_DIRENT_SIZE;
