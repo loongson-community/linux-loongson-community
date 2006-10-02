@@ -82,7 +82,6 @@ obj-$(CONFIG_DS1620)		+= ds1620.o
 obj-$(CONFIG_HW_RANDOM)		+= hw_random/
 obj-$(CONFIG_FTAPE)		+= ftape/
 obj-$(CONFIG_COBALT_LCD)	+= lcd.o
-obj-$(CONFIG_ITE_GPIO)		+= ite_gpio.o
 obj-$(CONFIG_AU1000_GPIO)	+= au1000_gpio.o
 obj-$(CONFIG_AU1000_USB_TTY)	+= au1000_usbtty.o
 obj-$(CONFIG_AU1000_USB_RAW)	+= au1000_usbraw.o
@@ -108,7 +107,7 @@ obj-$(CONFIG_HANGCHECK_TIMER)	+= hangcheck-timer.o
 obj-$(CONFIG_TCG_TPM)		+= tpm/
 
 # Files generated that shall be removed upon make clean
-clean-files := consolemap_deftbl.c defkeymap.c qtronixmap.c
+clean-files := consolemap_deftbl.c defkeymap.c
 
 quiet_cmd_conmk = CONMK   $@
       cmd_conmk = scripts/conmakehash $< > $@
@@ -118,8 +117,6 @@ $(obj)/consolemap_deftbl.c: $(src)/$(FONTMAPFILE)
 
 $(obj)/defkeymap.o:  $(obj)/defkeymap.c
 
-$(obj)/qtronixmap.o: $(obj)/qtronixmap.c
-
 # Uncomment if you're changing the keymap and have an appropriate
 # loadkeys version for the map. By default, we'll use the shipped
 # versions.
@@ -127,7 +124,7 @@ $(obj)/qtronixmap.o: $(obj)/qtronixmap.c
 
 ifdef GENERATE_KEYMAP
 
-$(obj)/defkeymap.c $(obj)/qtronixmap.c: $(obj)/%.c: $(src)/%.map
+$(obj)/defkeymap.c $(obj)/%.c: $(src)/%.map
 	loadkeys --mktable $< > $@.tmp
 	sed -e 's/^static *//' $@.tmp > $@
 	rm $@.tmp
