@@ -184,7 +184,16 @@ static void __cpuinit get_cpu_vendor(struct cpuinfo_x86 *c, int early)
 
 static int __init x86_fxsr_setup(char * s)
 {
+	/* Tell all the other CPU's to not use it... */
 	disable_x86_fxsr = 1;
+
+	/*
+	 * ... and clear the bits early in the boot_cpu_data
+	 * so that the bootup process doesn't try to do this
+	 * either.
+	 */
+	clear_bit(X86_FEATURE_FXSR, boot_cpu_data.x86_capability);
+	clear_bit(X86_FEATURE_XMM, boot_cpu_data.x86_capability);
 	return 1;
 }
 __setup("nofxsr", x86_fxsr_setup);
@@ -660,8 +669,7 @@ old_gdt:
 	 */
 	atomic_inc(&init_mm.mm_count);
 	current->active_mm = &init_mm;
-	if (current->mm)
-		BUG();
+	BUG_ON(current->mm);
 	enter_lazy_tlb(&init_mm, current);
 
 	load_esp0(t, thread);

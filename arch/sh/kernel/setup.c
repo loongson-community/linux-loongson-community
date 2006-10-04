@@ -1,5 +1,4 @@
-/* $Id: setup.c,v 1.30 2003/10/13 07:21:19 lethal Exp $
- *
+/*
  *  linux/arch/sh/kernel/setup.c
  *
  *  Copyright (C) 1999  Niibe Yutaka
@@ -21,6 +20,7 @@
 #include <linux/utsname.h>
 #include <linux/cpu.h>
 #include <linux/pfn.h>
+#include <linux/fs.h>
 #include <asm/uaccess.h>
 #include <asm/io.h>
 #include <asm/sections.h>
@@ -459,7 +459,7 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 		seq_printf(m, "machine\t\t: %s\n", get_system_type());
 
 	seq_printf(m, "processor\t: %d\n", cpu);
-	seq_printf(m, "cpu family\t: %s\n", system_utsname.machine);
+	seq_printf(m, "cpu family\t: %s\n", init_utsname()->machine);
 	seq_printf(m, "cpu type\t: %s\n", get_cpu_subtype());
 
 	show_cpuflags(m);

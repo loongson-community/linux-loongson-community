@@ -59,8 +59,6 @@ static int __ide_end_request(ide_drive_t *drive, struct request *rq,
 {
 	int ret = 1;
 
-	BUG_ON(!blk_rq_started(rq));
-
 	/*
 	 * if failfast is set on a request, override number of sectors and
 	 * complete the whole request right now
@@ -82,7 +80,8 @@ static int __ide_end_request(ide_drive_t *drive, struct request *rq,
 
 	if (!end_that_request_first(rq, uptodate, nr_sectors)) {
 		add_disk_randomness(rq->rq_disk);
-		blkdev_dequeue_request(rq);
+		if (!list_empty(&rq->queuelist))
+			blkdev_dequeue_request(rq);
 		HWGROUP(drive)->rq = NULL;
 		end_that_request_last(rq, uptodate);
 		ret = 0;
@@ -135,7 +134,8 @@ enum {
 	ide_pm_flush_cache	= ide_pm_state_start_suspend,
 	idedisk_pm_standby,
 
-	idedisk_pm_idle		= ide_pm_state_start_resume,
+	idedisk_pm_restore_pio	= ide_pm_state_start_resume,
+	idedisk_pm_idle,
 	ide_pm_restore_dma,
 };
 
@@ -156,7 +156,10 @@ static void ide_complete_power_step(ide_drive_t *drive, struct request *rq, u8 s
 	case idedisk_pm_standby:	/* Suspend step 2 (standby) complete */
 		pm->pm_step = ide_pm_state_completed;
 		break;
-	case idedisk_pm_idle:		/* Resume step 1 (idle) complete */
+	case idedisk_pm_restore_pio:	/* Resume step 1 complete */
+		pm->pm_step = idedisk_pm_idle;
+		break;
+	case idedisk_pm_idle:		/* Resume step 2 (idle) complete */
 		pm->pm_step = ide_pm_restore_dma;
 		break;
 	}
@@ -170,8 +173,11 @@ static ide_startstop_t ide_start_power_step(ide_drive_t *drive, struct request *
 	memset(args, 0, sizeof(*args));
 
 	if (drive->media != ide_disk) {
-		/* skip idedisk_pm_idle for ATAPI devices */
-		if (pm->pm_step == idedisk_pm_idle)
+		/*
+		 * skip idedisk_pm_restore_pio and idedisk_pm_idle for ATAPI
+		 * devices
+		 */
+		if (pm->pm_step == idedisk_pm_restore_pio)
 			pm->pm_step = ide_pm_restore_dma;
 	}
 
@@ -198,13 +204,19 @@ static ide_startstop_t ide_start_power_step(ide_drive_t *drive, struct request *
 		args->handler	   = &task_no_data_intr;
 		return do_rw_taskfile(drive, args);
 
-	case idedisk_pm_idle:		/* Resume step 1 (idle) */
+	case idedisk_pm_restore_pio:	/* Resume step 1 (restore PIO) */
+		if (drive->hwif->tuneproc != NULL)
+			drive->hwif->tuneproc(drive, 255);
+		ide_complete_power_step(drive, rq, 0, 0);
+		return ide_stopped;
+
+	case idedisk_pm_idle:		/* Resume step 2 (idle) */
 		args->tfRegister[IDE_COMMAND_OFFSET] = WIN_IDLEIMMEDIATE;
 		args->command_type = IDE_DRIVE_TASK_NO_DATA;
 		args->handler = task_no_data_intr;
 		return do_rw_taskfile(drive, args);
 
-	case ide_pm_restore_dma:	/* Resume step 2 (restore DMA) */
+	case ide_pm_restore_dma:	/* Resume step 3 (restore DMA) */
 		/*
 		 * Right now, all we do is call hwif->ide_dma_check(drive),
 		 * we could be smarter and check for current xfer_speed
@@ -1346,6 +1358,10 @@ static ide_startstop_t ide_dma_timeout_retry(ide_drive_t *drive, int error)
 	 * make sure request is sane
 	 */
 	rq = HWGROUP(drive)->rq;
+
+	if (!rq)
+		goto out;
+
 	HWGROUP(drive)->rq = NULL;
 
 	rq->errors = 0;

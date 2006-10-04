@@ -450,7 +450,7 @@ void ide_hwif_release_regions(ide_hwif_t *hwif)
  *	@hwif: hwif to update
  *	@tmp_hwif: template
  *
- *	Restore hwif to a previous state by copying most settngs
+ *	Restore hwif to a previous state by copying most settings
  *	from the template.
  */
 
@@ -539,9 +539,10 @@ static void ide_hwif_restore(ide_hwif_t *hwif, ide_hwif_t *tmp_hwif)
 	hwif->dma_vendor3		= tmp_hwif->dma_vendor3;
 	hwif->dma_prdtable		= tmp_hwif->dma_prdtable;
 
-	hwif->dma_extra			= tmp_hwif->dma_extra;
 	hwif->config_data		= tmp_hwif->config_data;
 	hwif->select_data		= tmp_hwif->select_data;
+	hwif->extra_base		= tmp_hwif->extra_base;
+	hwif->extra_ports		= tmp_hwif->extra_ports;
 	hwif->autodma			= tmp_hwif->autodma;
 	hwif->udma_four			= tmp_hwif->udma_four;
 	hwif->no_dsc			= tmp_hwif->no_dsc;
@@ -550,7 +551,7 @@ static void ide_hwif_restore(ide_hwif_t *hwif, ide_hwif_t *tmp_hwif)
 }
 
 /**
- *	ide_unregister		-	free an ide interface
+ *	ide_unregister		-	free an IDE interface
  *	@index: index of interface (will change soon to a pointer)
  *
  *	Perform the final unregister of an IDE interface. At the moment
@@ -563,8 +564,8 @@ static void ide_hwif_restore(ide_hwif_t *hwif, ide_hwif_t *tmp_hwif)
  *	deadlocking the IDE layer. The shutdown callback is called
  *	before we take the lock and free resources. It is up to the
  *	caller to be sure there is no pending I/O here, and that
- *	the interfce will not be reopened (present/vanishing locking
- *	isnt yet done btw). After we commit to the final kill we
+ *	the interface will not be reopened (present/vanishing locking
+ *	isn't yet done BTW). After we commit to the final kill we
  *	call the cleanup callback with the ide locks held.
  *
  *	Unregister restores the hwif structures to the default state.
@@ -674,6 +675,9 @@ void ide_unregister(unsigned int index)
 		hwif->dma_status = 0;
 		hwif->dma_vendor3 = 0;
 		hwif->dma_prdtable = 0;
+
+		hwif->extra_base  = 0;
+		hwif->extra_ports = 0;
 	}
 
 	/* copy original settings */
@@ -1360,6 +1364,11 @@ int generic_ide_ioctl(ide_drive_t *drive, struct file *file, struct block_device
 
 			spin_lock_irqsave(&ide_lock, flags);
 
+			if (HWGROUP(drive)->resetting) {
+				spin_unlock_irqrestore(&ide_lock, flags);
+				return -EBUSY;
+			}
+
 			ide_abort(drive, "drive reset");
 
 			BUG_ON(HWGROUP(drive)->handler);
@@ -1993,10 +2002,16 @@ EXPORT_SYMBOL_GPL(ide_bus_type);
  */
 static int __init ide_init(void)
 {
+	int ret;
+
 	printk(KERN_INFO "Uniform Multi-Platform E-IDE driver " REVISION "\n");
 	system_bus_speed = ide_system_bus_speed();
 
-	bus_register(&ide_bus_type);
+	ret = bus_register(&ide_bus_type);
+	if (ret < 0) {
+		printk(KERN_WARNING "IDE: bus_register error: %d\n", ret);
+		return ret;
+	}
 
 	init_ide_data();
 

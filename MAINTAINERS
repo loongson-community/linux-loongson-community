@@ -144,11 +144,9 @@ L:	netdev@vger.kernel.org
 S:	Maintained
 
 8250/16?50 (AND CLONE UARTS) SERIAL DRIVER
-P:	Russell King
-M:	rmk+serial@arm.linux.org.uk
 L:	linux-serial@vger.kernel.org
 W:	http://serial.sourceforge.net
-S:	Maintained
+S:	Orphan
 
 8390 NETWORK DRIVERS [WD80x3/SMC-ELITE, SMC-ULTRA, NE2000, 3C503, etc.]
 P:	Paul Gortmaker
@@ -1986,9 +1984,7 @@ W:	http://www.atnf.csiro.au/~rgooch/linux/kernel-patches.html
 S:	Maintained
 
 MULTIMEDIA CARD (MMC) SUBSYSTEM
-P:	Russell King
-M:	rmk+mmc@arm.linux.org.uk
-S:	Maintained
+S:	Orphan
 
 MULTISOUND SOUND DRIVER
 P:	Andrew Veliath
@@ -2711,14 +2707,6 @@ M:	chrisw@sous-sol.org
 L:	stable@kernel.org
 S:	Maintained
 
-STABLE BRANCH:
-P:	Greg Kroah-Hartman
-M:	greg@kroah.com
-P:	Chris Wright
-M:	chrisw@sous-sol.org
-L:	stable@kernel.org
-S:	Maintained
-
 TPM DEVICE DRIVER
 P:	Kylene Hall
 M:	kjhall@us.ibm.com
@@ -2825,17 +2813,13 @@ P:	Paul Mundt
 M:	lethal@linux-sh.org
 L:	linuxsh-dev@lists.sourceforge.net (subscribers-only)
 W:	http://www.linux-sh.org
-W:	http://www.m17n.org/linux-sh/
 S:	Maintained
 
 SUPERH64 (sh64)
 P:	Paul Mundt
 M:	lethal@linux-sh.org
-P:	Richard Curnow
-M:	rc@rc0.org.uk
 L:	linuxsh-shmedia-dev@lists.sourceforge.net
 W:	http://www.linux-sh.org
-W:	http://www.rc0.org.uk/sh64
 S:	Maintained
 
 SUN3/3X

@@ -497,7 +497,7 @@ void close_lines(struct line *lines, int nlines)
 }
 
 /* Common setup code for both startup command line and mconsole initialization.
- * @lines contains the the array (of size @num) to modify;
+ * @lines contains the array (of size @num) to modify;
  * @init is the setup string;
  */
 
@@ -642,9 +642,9 @@ int line_remove(struct line *lines, unsigned int num, int n)
 }
 
 struct tty_driver *line_register_devfs(struct lines *set,
-			 struct line_driver *line_driver,
-			 struct tty_operations *ops, struct line *lines,
-			 int nlines)
+				       struct line_driver *line_driver,
+				       const struct tty_operations *ops,
+				       struct line *lines, int nlines)
 {
 	int i;
 	struct tty_driver *driver = alloc_tty_driver(nlines);

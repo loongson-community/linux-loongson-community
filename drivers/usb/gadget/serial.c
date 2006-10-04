@@ -271,7 +271,7 @@ static unsigned int use_acm = GS_DEFAULT_USE_ACM;
 
 
 /* tty driver struct */
-static struct tty_operations gs_tty_ops = {
+static const struct tty_operations gs_tty_ops = {
 	.open =			gs_open,
 	.close =		gs_close,
 	.write =		gs_write,
@@ -1434,7 +1434,7 @@ static int __init gs_bind(struct usb_gadget *gadget)
 		return -ENOMEM;
 
 	snprintf(manufacturer, sizeof(manufacturer), "%s %s with %s",
-		system_utsname.sysname, system_utsname.release,
+		init_utsname()->sysname, init_utsname()->release,
 		gadget->name);
 
 	memset(dev, 0, sizeof(struct gs_dev));

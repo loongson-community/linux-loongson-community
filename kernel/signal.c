@@ -1055,26 +1055,42 @@ int group_send_sig_info(int sig, struct siginfo *info, struct task_struct *p)
 }
 
 /*
- * kill_pg_info() sends a signal to a process group: this is what the tty
+ * kill_pgrp_info() sends a signal to a process group: this is what the tty
  * control characters do (^C, ^Z etc)
  */
 
-int __kill_pg_info(int sig, struct siginfo *info, pid_t pgrp)
+int __kill_pgrp_info(int sig, struct siginfo *info, struct pid *pgrp)
 {
 	struct task_struct *p = NULL;
 	int retval, success;
 
-	if (pgrp <= 0)
-		return -EINVAL;
-
 	success = 0;
 	retval = -ESRCH;
-	do_each_task_pid(pgrp, PIDTYPE_PGID, p) {
+	do_each_pid_task(pgrp, PIDTYPE_PGID, p) {
 		int err = group_send_sig_info(sig, info, p);
 		success |= !err;
 		retval = err;
-	} while_each_task_pid(pgrp, PIDTYPE_PGID, p);
+	} while_each_pid_task(pgrp, PIDTYPE_PGID, p);
 	return success ? 0 : retval;
+}
+
+int kill_pgrp_info(int sig, struct siginfo *info, struct pid *pgrp)
+{
+	int retval;
+
+	read_lock(&tasklist_lock);
+	retval = __kill_pgrp_info(sig, info, pgrp);
+	read_unlock(&tasklist_lock);
+
+	return retval;
+}
+
+int __kill_pg_info(int sig, struct siginfo *info, pid_t pgrp)
+{
+	if (pgrp <= 0)
+		return -EINVAL;
+
+	return __kill_pgrp_info(sig, info, find_pid(pgrp));
 }
 
 int
@@ -1089,8 +1105,7 @@ kill_pg_info(int sig, struct siginfo *info, pid_t pgrp)
 	return retval;
 }
 
-int
-kill_proc_info(int sig, struct siginfo *info, pid_t pid)
+int kill_pid_info(int sig, struct siginfo *info, struct pid *pid)
 {
 	int error;
 	int acquired_tasklist_lock = 0;
@@ -1101,7 +1116,7 @@ kill_proc_info(int sig, struct siginfo *info, pid_t pid)
 		read_lock(&tasklist_lock);
 		acquired_tasklist_lock = 1;
 	}
-	p = find_task_by_pid(pid);
+	p = pid_task(pid, PIDTYPE_PID);
 	error = -ESRCH;
 	if (p)
 		error = group_send_sig_info(sig, info, p);
@@ -1111,8 +1126,18 @@ kill_proc_info(int sig, struct siginfo *info, pid_t pid)
 	return error;
 }
 
-/* like kill_proc_info(), but doesn't use uid/euid of "current" */
-int kill_proc_info_as_uid(int sig, struct siginfo *info, pid_t pid,
+int
+kill_proc_info(int sig, struct siginfo *info, pid_t pid)
+{
+	int error;
+	rcu_read_lock();
+	error = kill_pid_info(sig, info, find_pid(pid));
+	rcu_read_unlock();
+	return error;
+}
+
+/* like kill_pid_info(), but doesn't use uid/euid of "current" */
+int kill_pid_info_as_uid(int sig, struct siginfo *info, struct pid *pid,
 		      uid_t uid, uid_t euid, u32 secid)
 {
 	int ret = -EINVAL;
@@ -1122,7 +1147,7 @@ int kill_proc_info_as_uid(int sig, struct siginfo *info, pid_t pid,
 		return ret;
 
 	read_lock(&tasklist_lock);
-	p = find_task_by_pid(pid);
+	p = pid_task(pid, PIDTYPE_PID);
 	if (!p) {
 		ret = -ESRCH;
 		goto out_unlock;
@@ -1146,7 +1171,7 @@ out_unlock:
 	read_unlock(&tasklist_lock);
 	return ret;
 }
-EXPORT_SYMBOL_GPL(kill_proc_info_as_uid);
+EXPORT_SYMBOL_GPL(kill_pid_info_as_uid);
 
 /*
  * kill_something_info() interprets pid in interesting ways just like kill(2).
@@ -1263,6 +1288,18 @@ force_sigsegv(int sig, struct task_struct *p)
 	force_sig(SIGSEGV, p);
 	return 0;
 }
+
+int kill_pgrp(struct pid *pid, int sig, int priv)
+{
+	return kill_pgrp_info(sig, __si_special(priv), pid);
+}
+EXPORT_SYMBOL(kill_pgrp);
+
+int kill_pid(struct pid *pid, int sig, int priv)
+{
+	return kill_pid_info(sig, __si_special(priv), pid);
+}
+EXPORT_SYMBOL(kill_pid);
 
 int
 kill_pg(pid_t pgrp, int sig, int priv)

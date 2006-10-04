@@ -342,7 +342,7 @@ static int __init pSeries_init_panel(void)
 {
 	/* Manually leave the kernel version on the panel. */
 	ppc_md.progress("Linux ppc64\n", 0);
-	ppc_md.progress(system_utsname.release, 0);
+	ppc_md.progress(init_utsname()->version, 0);
 
 	return 0;
 }
@@ -415,12 +415,6 @@ static int pSeries_check_legacy_ioport(unsigned int baseport)
 			return -ENODEV;
 		of_node_put(np);
 		break;
-	case PARALLEL_BASE:
-		np = of_find_node_by_type(NULL, "parallel");
-		if (np == NULL)
-			return -ENODEV;
-		of_node_put(np);
-		break;
 	}
 	return 0;
 }
@@ -483,7 +477,6 @@ static void pseries_dedicated_idle_sleep(void)
 { 
 	unsigned int cpu = smp_processor_id();
 	unsigned long start_snooze;
-	unsigned long *smt_snooze_delay = &__get_cpu_var(smt_snooze_delay);
 
 	/*
 	 * Indicate to the HV that we are idle. Now would be
@@ -496,9 +489,9 @@ static void pseries_dedicated_idle_sleep(void)
 	 * has been checked recently.  If we should poll for a little
 	 * while, do so.
 	 */
-	if (*smt_snooze_delay) {
+	if (__get_cpu_var(smt_snooze_delay)) {
 		start_snooze = get_tb() +
-			*smt_snooze_delay * tb_ticks_per_usec;
+			__get_cpu_var(smt_snooze_delay) * tb_ticks_per_usec;
 		local_irq_enable();
 		set_thread_flag(TIF_POLLING_NRFLAG);
 
@@ -518,24 +511,7 @@ static void pseries_dedicated_idle_sleep(void)
 			goto out;
 	}
 
-	/*
-	 * If not SMT, cede processor.  If CPU is running SMT
-	 * cede if the other thread is not idle, so that it can
-	 * go single-threaded.  If the other thread is idle,
-	 * we ask the hypervisor if it has pending work it
-	 * wants to do and cede if it does.  Otherwise we keep
-	 * polling in order to reduce interrupt latency.
-	 *
-	 * Doing the cede when the other thread is active will
-	 * result in this thread going dormant, meaning the other
-	 * thread gets to run in single-threaded (ST) mode, which
-	 * is slightly faster than SMT mode with this thread at
-	 * very low priority.  The cede enables interrupts, which
-	 * doesn't matter here.
-	 */
-	if (!cpu_has_feature(CPU_FTR_SMT) || !lppaca[cpu ^ 1].idle
-	    || poll_pending() == H_PENDING)
-		cede_processor();
+	cede_processor();
 
 out:
 	HMT_medium();

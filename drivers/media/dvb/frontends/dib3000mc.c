@@ -37,6 +37,8 @@ struct dib3000mc_state {
 
 	struct dibx000_i2c_master i2c_master;
 
+	u32 timf;
+
 	fe_bandwidth_t current_bandwidth;
 
 	u16 dev_id;
@@ -92,50 +94,31 @@ static int dib3000mc_identify(struct dib3000mc_state *state)
 
 static int dib3000mc_set_timing(struct dib3000mc_state *state, s16 nfft, u8 bw, u8 update_offset)
 {
-/*
-	u32 timf_msb, timf_lsb, i;
-	int tim_sgn ;
-	LUInt comp1, comp2, comp ;
-//	u32 tim_offset ;
-	comp = 27700 * BW_INDEX_TO_KHZ(bw) / 1000;
-	timf_msb = (comp >> 16) & 0x00FF;
-	timf_lsb =  comp        & 0xFFFF;
+	u32 timf;
 
-	// Update the timing offset ;
+	if (state->timf == 0) {
+		timf = 1384402; // default value for 8MHz
+		if (update_offset)
+			msleep(200); // first time we do an update
+	} else
+		timf = state->timf;
+
+	timf *= (BW_INDEX_TO_KHZ(bw) / 1000);
+
 	if (update_offset) {
-		if (state->timing_offset_comp_done == 0) {
-			usleep(200000);
-			state->timing_offset_comp_done = 1;
-		}
-		tim_offset = dib3000mc_read_word(state, 416);
-		if ((tim_offset & 0x2000) == 0x2000)
-			tim_offset |= 0xC000; // PB: This only works if tim_offset is s16 - weird
+		s16 tim_offs = dib3000mc_read_word(state, 416);
+
+		if (tim_offs &  0x2000)
+			tim_offs -= 0x4000;
 
 		if (nfft == 0)
-			tim_offset = tim_offset << 2; // PB: Do not store the offset for different things in one variable
-		state->timing_offset += tim_offset;
+			tim_offs *= 4;
+
+		timf += tim_offs;
+		state->timf = timf / (BW_INDEX_TO_KHZ(bw) / 1000);
 	}
-	tim_offset = state->timing_offset;
 
-	if (tim_offset < 0) {
-		tim_sgn = 1;
-		tim_offset = -tim_offset;
-	} else
-		tim_sgn = 0;
-
-	comp1 = tim_offset * timf_lsb;
-	comp2 = tim_offset * timf_msb;
-	comp  = ((comp1 >> 16) + comp2) >> 7;
-
-	if (tim_sgn == 0)
-		comp = timf_msb * (1<<16) + timf_lsb + comp;
-	else
-		comp = timf_msb * (1<<16) + timf_lsb - comp;
-
-	timf_msb = (comp>>16)&0xFF ;
-	timf_lsb = comp&0xFFFF;
-*/
-	u32 timf = 1384402 * (BW_INDEX_TO_KHZ(bw) / 1000);
+	dprintk("timf: %d\n", timf);
 
 	dib3000mc_write_word(state, 23, timf >> 16);
 	dib3000mc_write_word(state, 24, timf & 0xffff);
@@ -143,15 +126,18 @@ static int dib3000mc_set_timing(struct dib3000mc_state *state, s16 nfft, u8 bw, 
 	return 0;
 }
 
-static int dib3000mc_setup_pwm3_state(struct dib3000mc_state *state)
+static int dib3000mc_setup_pwm_state(struct dib3000mc_state *state)
 {
+	u16 reg_51, reg_52 = state->cfg->agc->setup & 0xfefb;
     if (state->cfg->pwm3_inversion) {
-		dib3000mc_write_word(state, 51, (2 << 14) | (0 << 10) | (7 << 6) | (2 << 2) | (2 << 0));
-		dib3000mc_write_word(state, 52, (0 << 8) | (5 << 5) | (1 << 4) | (1 << 3) | (1 << 2) | (2 << 0));
+		reg_51 =  (2 << 14) | (0 << 10) | (7 << 6) | (2 << 2) | (2 << 0);
+		reg_52 |= (1 << 2);
 	} else {
-		dib3000mc_write_word(state, 51, (2 << 14) | (4 << 10) | (7 << 6) | (2 << 2) | (2 << 0));
-		dib3000mc_write_word(state, 52, (1 << 8) | (5 << 5) | (1 << 4) | (1 << 3) | (0 << 2) | (2 << 0));
+		reg_51 = (2 << 14) | (4 << 10) | (7 << 6) | (2 << 2) | (2 << 0);
+		reg_52 |= (1 << 8);
 	}
+	dib3000mc_write_word(state, 51, reg_51);
+	dib3000mc_write_word(state, 52, reg_52);
 
     if (state->cfg->use_pwm3)
 		dib3000mc_write_word(state, 245, (1 << 3) | (1 << 0));
@@ -326,10 +312,10 @@ static int dib3000mc_init(struct dvb_frontend *demod)
 		dib3000mc_write_word(state, 175,  0x0000);
 		dib3000mc_write_word(state, 1032, 0x012C);
 	}
-	dib3000mc_write_word(state, 1033, 0);
+	dib3000mc_write_word(state, 1033, 0x0000);
 
 	// P_clk_cfg
-	dib3000mc_write_word(state, 1037, 12592);
+	dib3000mc_write_word(state, 1037, 0x3130);
 
 	// other configurations
 
@@ -350,7 +336,7 @@ static int dib3000mc_init(struct dvb_frontend *demod)
 	dib3000mc_write_word(state, 50, 0x8000);
 
 	// agc setup misc
-	dib3000mc_setup_pwm3_state(state);
+	dib3000mc_setup_pwm_state(state);
 
 	// P_agc_counter_lock
 	dib3000mc_write_word(state, 53, 0x87);
@@ -426,10 +412,9 @@ static int dib3000mc_sleep(struct dvb_frontend *demod)
 {
 	struct dib3000mc_state *state = demod->demodulator_priv;
 
-	dib3000mc_write_word(state, 1037, dib3000mc_read_word(state, 1037) | 0x0003);
 	dib3000mc_write_word(state, 1031, 0xFFFF);
 	dib3000mc_write_word(state, 1032, 0xFFFF);
-	dib3000mc_write_word(state, 1033, 0xFFF4);   // ****  Bin2
+	dib3000mc_write_word(state, 1033, 0xFFF0);
 
     return 0;
 }
@@ -539,6 +524,7 @@ static int dib3000mc_autosearch_start(struct dvb_frontend *demod, struct dibx000
 
 	reg = dib3000mc_read_word(state, 0);
 	dib3000mc_write_word(state, 0, reg | (1 << 8));
+	dib3000mc_read_word(state, 511);
 	dib3000mc_write_word(state, 0, reg);
 
 	return 0;
@@ -578,59 +564,9 @@ static int dib3000mc_tune(struct dvb_frontend *demod, struct dibx000_ofdm_channe
 		dib3000mc_write_word(state, 33, 6);
 	}
 
-	// if (lock)
-	//	dib3000mc_set_timing(state, ch->nfft, ch->Bw, 1);
+	if (dib3000mc_read_word(state, 509) & 0x80)
+		dib3000mc_set_timing(state, ch->nfft, ch->Bw, 1);
 
-	return 0;
-}
-
-static int dib3000mc_demod_output_mode(struct dvb_frontend *demod, int mode)
-{
-	struct dib3000mc_state *state = demod->demodulator_priv;
-	return dib3000mc_set_output_mode(state, mode);
-}
-
-static int dib3000mc_i2c_enumeration(struct dvb_frontend *demod[], int no_of_demods, u8 default_addr)
-{
-	struct dib3000mc_state *st;
-	int k,ret=0;
-	u8 new_addr;
-
-	static u8 DIB3000MC_I2C_ADDRESS[] = {20,22,24,26};
-
-	for (k = no_of_demods-1; k >= 0; k--) {
-		st = demod[k]->demodulator_priv;
-
-		/* designated i2c address */
-		new_addr          = DIB3000MC_I2C_ADDRESS[k];
-
-		st->i2c_addr = new_addr;
-		if (dib3000mc_identify(st) != 0) {
-			st->i2c_addr = default_addr;
-			if (dib3000mc_identify(st) != 0) {
-				dprintk("-E-  DiB3000P/MC #%d: not identified\n", k);
-				return -EINVAL;
-			}
-		}
-
-		/* turn on div_out */
-		dib3000mc_demod_output_mode(demod[k], OUTMODE_MPEG2_PAR_CONT_CLK);
-
-		// set new i2c address and force divstr (Bit 1) to value 0 (Bit 0)
-		ret |= dib3000mc_write_word(st, 1024, (new_addr << 3) | 0x1);
-		st->i2c_addr = new_addr;
-	}
-
-	for (k = 0; k < no_of_demods; k++) {
-		st = demod[k]->demodulator_priv;
-
-		ret |= dib3000mc_write_word(st, 1024, st->i2c_addr << 3);
-
-		/* turn off data output */
-		dib3000mc_demod_output_mode(demod[k],OUTMODE_HIGH_Z);
-		dib3000mc_write_word(st, 769, (1 << 7) );
-
-	}
 	return 0;
 }
 
@@ -826,61 +762,79 @@ void dib3000mc_set_config(struct dvb_frontend *fe, struct dib3000mc_config *cfg)
 }
 EXPORT_SYMBOL(dib3000mc_set_config);
 
-static struct dvb_frontend_ops dib3000mc_ops;
-
-int dib3000mc_attach(struct i2c_adapter *i2c_adap, int no_of_demods, u8	default_addr,				u8 do_i2c_enum, struct dib3000mc_config cfg[], struct dvb_frontend *demod[])
+int dib3000mc_i2c_enumeration(struct i2c_adapter *i2c, int no_of_demods, u8 default_addr, struct dib3000mc_config cfg[])
 {
-	struct dib3000mc_state *st;
-	int k, num=0;
+	struct dib3000mc_state st = { .i2c_adap = i2c };
+	int k;
+	u8 new_addr;
 
-	if (no_of_demods < 1)
-		return -EINVAL;
+	static u8 DIB3000MC_I2C_ADDRESS[] = {20,22,24,26};
+
+	for (k = no_of_demods-1; k >= 0; k--) {
+		st.cfg = &cfg[k];
+
+		/* designated i2c address */
+		new_addr          = DIB3000MC_I2C_ADDRESS[k];
+		st.i2c_addr = new_addr;
+		if (dib3000mc_identify(&st) != 0) {
+			st.i2c_addr = default_addr;
+			if (dib3000mc_identify(&st) != 0) {
+				dprintk("-E-  DiB3000P/MC #%d: not identified\n", k);
+				return -ENODEV;
+			}
+		}
+
+		dib3000mc_set_output_mode(&st, OUTMODE_MPEG2_PAR_CONT_CLK);
+
+		// set new i2c address and force divstr (Bit 1) to value 0 (Bit 0)
+		dib3000mc_write_word(&st, 1024, (new_addr << 3) | 0x1);
+		st.i2c_addr = new_addr;
+	}
 
 	for (k = 0; k < no_of_demods; k++) {
-		st = kzalloc(sizeof(struct dib3000mc_state), GFP_KERNEL);
-		if (st == NULL)
-			goto error;
+		st.cfg = &cfg[k];
+		st.i2c_addr = DIB3000MC_I2C_ADDRESS[k];
 
-		num++;
+		dib3000mc_write_word(&st, 1024, st.i2c_addr << 3);
 
-		st->cfg = &cfg[k];
-	//	st->gpio_val = cfg[k].gpio_val;
-	//	st->gpio_dir = cfg[k].gpio_dir;
-		st->i2c_adap = i2c_adap;
-
-		demod[k]           = &st->demod;
-		demod[k]->demodulator_priv     = st;
-		memcpy(&st->demod.ops, &dib3000mc_ops, sizeof(struct dvb_frontend_ops));
-
-//		INIT_COMPONENT_REGISTER_ACCESS(&st->register_access, 12, 16, dib7000p_register_read, dib7000p_register_write, st);
-//		demod[k]->register_access = &st->register_access;
+		/* turn off data output */
+		dib3000mc_set_output_mode(&st, OUTMODE_HIGH_Z);
 	}
-
-	if (do_i2c_enum) {
-		if (dib3000mc_i2c_enumeration(demod,no_of_demods,default_addr) != 0)
-			goto error;
-	} else {
-		st = demod[0]->demodulator_priv;
-		st->i2c_addr = default_addr;
-		if (dib3000mc_identify(st) != 0)
-			goto error;
-	}
-
-	for (k = 0; k < num; k++) {
-		st = demod[k]->demodulator_priv;
-		dibx000_init_i2c_master(&st->i2c_master, DIB3000MC, st->i2c_adap, st->i2c_addr);
-	}
-
 	return 0;
+}
+EXPORT_SYMBOL(dib3000mc_i2c_enumeration);
+
+static struct dvb_frontend_ops dib3000mc_ops;
+
+struct dvb_frontend * dib3000mc_attach(struct i2c_adapter *i2c_adap, u8 i2c_addr, struct dib3000mc_config *cfg)
+{
+	struct dvb_frontend *demod;
+	struct dib3000mc_state *st;
+	st = kzalloc(sizeof(struct dib3000mc_state), GFP_KERNEL);
+	if (st == NULL)
+		return NULL;
+
+	st->cfg = cfg;
+	st->i2c_adap = i2c_adap;
+	st->i2c_addr = i2c_addr;
+
+	demod                   = &st->demod;
+	demod->demodulator_priv = st;
+	memcpy(&st->demod.ops, &dib3000mc_ops, sizeof(struct dvb_frontend_ops));
+
+	if (dib3000mc_identify(st) != 0)
+		goto error;
+
+	dibx000_init_i2c_master(&st->i2c_master, DIB3000MC, st->i2c_adap, st->i2c_addr);
+
+	dib3000mc_write_word(st, 1037, 0x3130);
+
+	return demod;
 
 error:
-	for (k = 0; k < num; k++) {
-		kfree(demod[k]->demodulator_priv);
-		demod[k] = NULL;
-	}
-	return -EINVAL;
+	kfree(st);
+	return NULL;
 }
-
 EXPORT_SYMBOL(dib3000mc_attach);
 
 static struct dvb_frontend_ops dib3000mc_ops = {

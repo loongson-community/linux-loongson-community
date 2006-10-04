@@ -68,7 +68,6 @@ extern int sysrq_enabled;
 extern int core_uses_pid;
 extern int suid_dumpable;
 extern char core_pattern[];
-extern int cad_pid;
 extern int pid_max;
 extern int min_free_kbytes;
 extern int printk_ratelimit_jiffies;
@@ -92,13 +91,8 @@ extern char modprobe_path[];
 extern int sg_big_buff;
 #endif
 #ifdef CONFIG_SYSVIPC
-extern size_t shm_ctlmax;
-extern size_t shm_ctlall;
-extern int shm_ctlmni;
-extern int msg_ctlmax;
-extern int msg_ctlmnb;
-extern int msg_ctlmni;
-extern int sem_ctls[];
+static int proc_do_ipc_string(ctl_table *table, int write, struct file *filp,
+		void __user *buffer, size_t *lenp, loff_t *ppos);
 #endif
 
 #ifdef __sparc__
@@ -139,7 +133,10 @@ static int parse_table(int __user *, int, void __user *, size_t __user *,
 		void __user *, size_t, ctl_table *, void **);
 #endif
 
-static int proc_doutsstring(ctl_table *table, int write, struct file *filp,
+static int proc_do_uts_string(ctl_table *table, int write, struct file *filp,
+		  void __user *buffer, size_t *lenp, loff_t *ppos);
+
+static int proc_do_cad_pid(ctl_table *table, int write, struct file *filp,
 		  void __user *buffer, size_t *lenp, loff_t *ppos);
 
 static ctl_table root_table[];
@@ -229,51 +226,100 @@ static ctl_table root_table[] = {
 };
 
 static ctl_table kern_table[] = {
+#ifndef CONFIG_UTS_NS
 	{
 		.ctl_name	= KERN_OSTYPE,
 		.procname	= "ostype",
-		.data		= system_utsname.sysname,
-		.maxlen		= sizeof(system_utsname.sysname),
+		.data		= init_uts_ns.name.sysname,
+		.maxlen		= sizeof(init_uts_ns.name.sysname),
 		.mode		= 0444,
-		.proc_handler	= &proc_doutsstring,
+		.proc_handler	= &proc_do_uts_string,
 		.strategy	= &sysctl_string,
 	},
 	{
 		.ctl_name	= KERN_OSRELEASE,
 		.procname	= "osrelease",
-		.data		= system_utsname.release,
-		.maxlen		= sizeof(system_utsname.release),
+		.data		= init_uts_ns.name.release,
+		.maxlen		= sizeof(init_uts_ns.name.release),
 		.mode		= 0444,
-		.proc_handler	= &proc_doutsstring,
+		.proc_handler	= &proc_do_uts_string,
 		.strategy	= &sysctl_string,
 	},
 	{
 		.ctl_name	= KERN_VERSION,
 		.procname	= "version",
-		.data		= system_utsname.version,
-		.maxlen		= sizeof(system_utsname.version),
+		.data		= init_uts_ns.name.version,
+		.maxlen		= sizeof(init_uts_ns.name.version),
 		.mode		= 0444,
-		.proc_handler	= &proc_doutsstring,
+		.proc_handler	= &proc_do_uts_string,
 		.strategy	= &sysctl_string,
 	},
 	{
 		.ctl_name	= KERN_NODENAME,
 		.procname	= "hostname",
-		.data		= system_utsname.nodename,
-		.maxlen		= sizeof(system_utsname.nodename),
+		.data		= init_uts_ns.name.nodename,
+		.maxlen		= sizeof(init_uts_ns.name.nodename),
 		.mode		= 0644,
-		.proc_handler	= &proc_doutsstring,
+		.proc_handler	= &proc_do_uts_string,
 		.strategy	= &sysctl_string,
 	},
 	{
 		.ctl_name	= KERN_DOMAINNAME,
 		.procname	= "domainname",
-		.data		= system_utsname.domainname,
-		.maxlen		= sizeof(system_utsname.domainname),
+		.data		= init_uts_ns.name.domainname,
+		.maxlen		= sizeof(init_uts_ns.name.domainname),
 		.mode		= 0644,
-		.proc_handler	= &proc_doutsstring,
+		.proc_handler	= &proc_do_uts_string,
 		.strategy	= &sysctl_string,
 	},
+#else  /* !CONFIG_UTS_NS */
+	{
+		.ctl_name	= KERN_OSTYPE,
+		.procname	= "ostype",
+		.data		= NULL,
+		/* could maybe use __NEW_UTS_LEN here? */
+		.maxlen		= FIELD_SIZEOF(struct new_utsname, sysname),
+		.mode		= 0444,
+		.proc_handler	= &proc_do_uts_string,
+		.strategy	= &sysctl_string,
+	},
+	{
+		.ctl_name	= KERN_OSRELEASE,
+		.procname	= "osrelease",
+		.data		= NULL,
+		.maxlen		= FIELD_SIZEOF(struct new_utsname, release),
+		.mode		= 0444,
+		.proc_handler	= &proc_do_uts_string,
+		.strategy	= &sysctl_string,
+	},
+	{
+		.ctl_name	= KERN_VERSION,
+		.procname	= "version",
+		.data		= NULL,
+		.maxlen		= FIELD_SIZEOF(struct new_utsname, version),
+		.mode		= 0444,
+		.proc_handler	= &proc_do_uts_string,
+		.strategy	= &sysctl_string,
+	},
+	{
+		.ctl_name	= KERN_NODENAME,
+		.procname	= "hostname",
+		.data		= NULL,
+		.maxlen		= FIELD_SIZEOF(struct new_utsname, nodename),
+		.mode		= 0644,
+		.proc_handler	= &proc_do_uts_string,
+		.strategy	= &sysctl_string,
+	},
+	{
+		.ctl_name	= KERN_DOMAINNAME,
+		.procname	= "domainname",
+		.data		= NULL,
+		.maxlen		= FIELD_SIZEOF(struct new_utsname, domainname),
+		.mode		= 0644,
+		.proc_handler	= &proc_do_uts_string,
+		.strategy	= &sysctl_string,
+	},
+#endif /* !CONFIG_UTS_NS */
 	{
 		.ctl_name	= KERN_PANIC,
 		.procname	= "panic",
@@ -432,58 +478,58 @@ static ctl_table kern_table[] = {
 	{
 		.ctl_name	= KERN_SHMMAX,
 		.procname	= "shmmax",
-		.data		= &shm_ctlmax,
+		.data		= NULL,
 		.maxlen		= sizeof (size_t),
 		.mode		= 0644,
-		.proc_handler	= &proc_doulongvec_minmax,
+		.proc_handler	= &proc_do_ipc_string,
 	},
 	{
 		.ctl_name	= KERN_SHMALL,
 		.procname	= "shmall",
-		.data		= &shm_ctlall,
+		.data		= NULL,
 		.maxlen		= sizeof (size_t),
 		.mode		= 0644,
-		.proc_handler	= &proc_doulongvec_minmax,
+		.proc_handler	= &proc_do_ipc_string,
 	},
 	{
 		.ctl_name	= KERN_SHMMNI,
 		.procname	= "shmmni",
-		.data		= &shm_ctlmni,
+		.data		= NULL,
 		.maxlen		= sizeof (int),
 		.mode		= 0644,
-		.proc_handler	= &proc_dointvec,
+		.proc_handler	= &proc_do_ipc_string,
 	},
 	{
 		.ctl_name	= KERN_MSGMAX,
 		.procname	= "msgmax",
-		.data		= &msg_ctlmax,
+		.data		= NULL,
 		.maxlen		= sizeof (int),
 		.mode		= 0644,
-		.proc_handler	= &proc_dointvec,
+		.proc_handler	= &proc_do_ipc_string,
 	},
 	{
 		.ctl_name	= KERN_MSGMNI,
 		.procname	= "msgmni",
-		.data		= &msg_ctlmni,
+		.data		= NULL,
 		.maxlen		= sizeof (int),
 		.mode		= 0644,
-		.proc_handler	= &proc_dointvec,
+		.proc_handler	= &proc_do_ipc_string,
 	},
 	{
 		.ctl_name	= KERN_MSGMNB,
 		.procname	=  "msgmnb",
-		.data		= &msg_ctlmnb,
+		.data		= NULL,
 		.maxlen		= sizeof (int),
 		.mode		= 0644,
-		.proc_handler	= &proc_dointvec,
+		.proc_handler	= &proc_do_ipc_string,
 	},
 	{
 		.ctl_name	= KERN_SEM,
 		.procname	= "sem",
-		.data		= &sem_ctls,
+		.data		= NULL,
 		.maxlen		= 4*sizeof (int),
 		.mode		= 0644,
-		.proc_handler	= &proc_dointvec,
+		.proc_handler	= &proc_do_ipc_string,
 	},
 #endif
 #ifdef CONFIG_MAGIC_SYSRQ
@@ -499,10 +545,10 @@ static ctl_table kern_table[] = {
 	{
 		.ctl_name	= KERN_CADPID,
 		.procname	= "cad_pid",
-		.data		= &cad_pid,
+		.data		= NULL,
 		.maxlen		= sizeof (int),
 		.mode		= 0600,
-		.proc_handler	= &proc_dointvec,
+		.proc_handler	= &proc_do_cad_pid,
 	},
 	{
 		.ctl_name	= KERN_MAX_THREADS,
@@ -1624,6 +1670,56 @@ static ssize_t proc_writesys(struct file * file, const char __user * buf,
 	return do_rw_proc(1, file, (char __user *) buf, count, ppos);
 }
 
+static int _proc_do_string(void* data, int maxlen, int write,
+			   struct file *filp, void __user *buffer,
+			   size_t *lenp, loff_t *ppos)
+{
+	size_t len;
+	char __user *p;
+	char c;
+	
+	if (!data || !maxlen || !*lenp ||
+	    (*ppos && !write)) {
+		*lenp = 0;
+		return 0;
+	}
+	
+	if (write) {
+		len = 0;
+		p = buffer;
+		while (len < *lenp) {
+			if (get_user(c, p++))
+				return -EFAULT;
+			if (c == 0 || c == '\n')
+				break;
+			len++;
+		}
+		if (len >= maxlen)
+			len = maxlen-1;
+		if(copy_from_user(data, buffer, len))
+			return -EFAULT;
+		((char *) data)[len] = 0;
+		*ppos += *lenp;
+	} else {
+		len = strlen(data);
+		if (len > maxlen)
+			len = maxlen;
+		if (len > *lenp)
+			len = *lenp;
+		if (len)
+			if(copy_to_user(buffer, data, len))
+				return -EFAULT;
+		if (len < *lenp) {
+			if(put_user('\n', ((char __user *) buffer) + len))
+				return -EFAULT;
+			len++;
+		}
+		*lenp = len;
+		*ppos += len;
+	}
+	return 0;
+}
+
 /**
  * proc_dostring - read a string sysctl
  * @table: the sysctl table
@@ -1645,50 +1741,8 @@ static ssize_t proc_writesys(struct file * file, const char __user * buf,
 int proc_dostring(ctl_table *table, int write, struct file *filp,
 		  void __user *buffer, size_t *lenp, loff_t *ppos)
 {
-	size_t len;
-	char __user *p;
-	char c;
-	
-	if (!table->data || !table->maxlen || !*lenp ||
-	    (*ppos && !write)) {
-		*lenp = 0;
-		return 0;
-	}
-	
-	if (write) {
-		len = 0;
-		p = buffer;
-		while (len < *lenp) {
-			if (get_user(c, p++))
-				return -EFAULT;
-			if (c == 0 || c == '\n')
-				break;
-			len++;
-		}
-		if (len >= table->maxlen)
-			len = table->maxlen-1;
-		if(copy_from_user(table->data, buffer, len))
-			return -EFAULT;
-		((char *) table->data)[len] = 0;
-		*ppos += *lenp;
-	} else {
-		len = strlen(table->data);
-		if (len > table->maxlen)
-			len = table->maxlen;
-		if (len > *lenp)
-			len = *lenp;
-		if (len)
-			if(copy_to_user(buffer, table->data, len))
-				return -EFAULT;
-		if (len < *lenp) {
-			if(put_user('\n', ((char __user *) buffer) + len))
-				return -EFAULT;
-			len++;
-		}
-		*lenp = len;
-		*ppos += len;
-	}
-	return 0;
+	return _proc_do_string(table->data, table->maxlen, write, filp,
+			       buffer, lenp, ppos);
 }
 
 /*
@@ -1696,7 +1750,8 @@ int proc_dostring(ctl_table *table, int write, struct file *filp,
  *	to observe. Should this be in kernel/sys.c ????
  */
  
-static int proc_doutsstring(ctl_table *table, int write, struct file *filp,
+#ifndef CONFIG_UTS_NS
+static int proc_do_uts_string(ctl_table *table, int write, struct file *filp,
 		  void __user *buffer, size_t *lenp, loff_t *ppos)
 {
 	int r;
@@ -1712,6 +1767,48 @@ static int proc_doutsstring(ctl_table *table, int write, struct file *filp,
 	}
 	return r;
 }
+#else /* !CONFIG_UTS_NS */
+static int proc_do_uts_string(ctl_table *table, int write, struct file *filp,
+		  void __user *buffer, size_t *lenp, loff_t *ppos)
+{
+	int r;
+	struct uts_namespace* uts_ns = current->nsproxy->uts_ns;
+	char* which;
+
+	switch (table->ctl_name) {
+	case KERN_OSTYPE:
+		which = uts_ns->name.sysname;
+		break;
+	case KERN_NODENAME:
+		which = uts_ns->name.nodename;
+		break;
+	case KERN_OSRELEASE:
+		which = uts_ns->name.release;
+		break;
+	case KERN_VERSION:
+		which = uts_ns->name.version;
+		break;
+	case KERN_DOMAINNAME:
+		which = uts_ns->name.domainname;
+		break;
+	default:
+		r = -EINVAL;
+		goto out;
+	}
+
+	if (!write) {
+		down_read(&uts_sem);
+		r=_proc_do_string(which,table->maxlen,0,filp,buffer,lenp, ppos);
+		up_read(&uts_sem);
+	} else {
+		down_write(&uts_sem);
+		r=_proc_do_string(which,table->maxlen,1,filp,buffer,lenp, ppos);
+		up_write(&uts_sem);
+	}
+ out:
+	return r;
+}
+#endif /* !CONFIG_UTS_NS */
 
 static int do_proc_dointvec_conv(int *negp, unsigned long *lvalp,
 				 int *valp,
@@ -1732,8 +1829,9 @@ static int do_proc_dointvec_conv(int *negp, unsigned long *lvalp,
 	return 0;
 }
 
-static int do_proc_dointvec(ctl_table *table, int write, struct file *filp,
-		  void __user *buffer, size_t *lenp, loff_t *ppos,
+static int __do_proc_dointvec(void *tbl_data, ctl_table *table,
+		  int write, struct file *filp, void __user *buffer,
+		  size_t *lenp, loff_t *ppos,
 		  int (*conv)(int *negp, unsigned long *lvalp, int *valp,
 			      int write, void *data),
 		  void *data)
@@ -1746,13 +1844,13 @@ static int do_proc_dointvec(ctl_table *table, int write, struct file *filp,
 	char buf[TMPBUFLEN], *p;
 	char __user *s = buffer;
 	
-	if (!table->data || !table->maxlen || !*lenp ||
+	if (!tbl_data || !table->maxlen || !*lenp ||
 	    (*ppos && !write)) {
 		*lenp = 0;
 		return 0;
 	}
 	
-	i = (int *) table->data;
+	i = (int *) tbl_data;
 	vleft = table->maxlen / sizeof(*i);
 	left = *lenp;
 
@@ -1839,6 +1937,16 @@ static int do_proc_dointvec(ctl_table *table, int write, struct file *filp,
 	*ppos += *lenp;
 	return 0;
 #undef TMPBUFLEN
+}
+
+static int do_proc_dointvec(ctl_table *table, int write, struct file *filp,
+		  void __user *buffer, size_t *lenp, loff_t *ppos,
+		  int (*conv)(int *negp, unsigned long *lvalp, int *valp,
+			      int write, void *data),
+		  void *data)
+{
+	return __do_proc_dointvec(table->data, table, write, filp,
+			buffer, lenp, ppos, conv, data);
 }
 
 /**
@@ -1974,7 +2082,7 @@ int proc_dointvec_minmax(ctl_table *table, int write, struct file *filp,
 				do_proc_dointvec_minmax_conv, &param);
 }
 
-static int do_proc_doulongvec_minmax(ctl_table *table, int write,
+static int __do_proc_doulongvec_minmax(void *data, ctl_table *table, int write,
 				     struct file *filp,
 				     void __user *buffer,
 				     size_t *lenp, loff_t *ppos,
@@ -1988,13 +2096,13 @@ static int do_proc_doulongvec_minmax(ctl_table *table, int write,
 	char buf[TMPBUFLEN], *p;
 	char __user *s = buffer;
 	
-	if (!table->data || !table->maxlen || !*lenp ||
+	if (!data || !table->maxlen || !*lenp ||
 	    (*ppos && !write)) {
 		*lenp = 0;
 		return 0;
 	}
 	
-	i = (unsigned long *) table->data;
+	i = (unsigned long *) data;
 	min = (unsigned long *) table->extra1;
 	max = (unsigned long *) table->extra2;
 	vleft = table->maxlen / sizeof(unsigned long);
@@ -2077,6 +2185,17 @@ static int do_proc_doulongvec_minmax(ctl_table *table, int write,
 	*ppos += *lenp;
 	return 0;
 #undef TMPBUFLEN
+}
+
+static int do_proc_doulongvec_minmax(ctl_table *table, int write,
+				     struct file *filp,
+				     void __user *buffer,
+				     size_t *lenp, loff_t *ppos,
+				     unsigned long convmul,
+				     unsigned long convdiv)
+{
+	return __do_proc_doulongvec_minmax(table->data, table, write,
+			filp, buffer, lenp, ppos, convmul, convdiv);
 }
 
 /**
@@ -2267,6 +2386,71 @@ int proc_dointvec_ms_jiffies(ctl_table *table, int write, struct file *filp,
 				do_proc_dointvec_ms_jiffies_conv, NULL);
 }
 
+#ifdef CONFIG_SYSVIPC
+static int proc_do_ipc_string(ctl_table *table, int write, struct file *filp,
+		void __user *buffer, size_t *lenp, loff_t *ppos)
+{
+	void *data;
+	struct ipc_namespace *ns;
+
+	ns = current->nsproxy->ipc_ns;
+
+	switch (table->ctl_name) {
+	case KERN_SHMMAX:
+		data = &ns->shm_ctlmax;
+		goto proc_minmax;
+	case KERN_SHMALL:
+		data = &ns->shm_ctlall;
+		goto proc_minmax;
+	case KERN_SHMMNI:
+		data = &ns->shm_ctlmni;
+		break;
+	case KERN_MSGMAX:
+		data = &ns->msg_ctlmax;
+		break;
+	case KERN_MSGMNI:
+		data = &ns->msg_ctlmni;
+		break;
+	case KERN_MSGMNB:
+		data = &ns->msg_ctlmnb;
+		break;
+	case KERN_SEM:
+		data = &ns->sem_ctls;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return __do_proc_dointvec(data, table, write, filp, buffer,
+			lenp, ppos, NULL, NULL);
+proc_minmax:
+	return __do_proc_doulongvec_minmax(data, table, write, filp, buffer,
+			lenp, ppos, 1l, 1l);
+}
+#endif
+
+static int proc_do_cad_pid(ctl_table *table, int write, struct file *filp,
+			   void __user *buffer, size_t *lenp, loff_t *ppos)
+{
+	struct pid *new_pid;
+	pid_t tmp;
+	int r;
+
+	tmp = pid_nr(cad_pid);
+
+	r = __do_proc_dointvec(&tmp, table, write, filp, buffer,
+			       lenp, ppos, NULL, NULL);
+	if (r || !write)
+		return r;
+
+	new_pid = find_get_pid(tmp);
+	if (!new_pid)
+		return -ESRCH;
+
+	put_pid(xchg(&cad_pid, new_pid));
+	return 0;
+}
+
 #else /* CONFIG_PROC_FS */
 
 int proc_dostring(ctl_table *table, int write, struct file *filp,
@@ -2275,11 +2459,19 @@ int proc_dostring(ctl_table *table, int write, struct file *filp,
 	return -ENOSYS;
 }
 
-static int proc_doutsstring(ctl_table *table, int write, struct file *filp,
-			    void __user *buffer, size_t *lenp, loff_t *ppos)
+static int proc_do_uts_string(ctl_table *table, int write, struct file *filp,
+		void __user *buffer, size_t *lenp, loff_t *ppos)
 {
 	return -ENOSYS;
 }
+
+#ifdef CONFIG_SYSVIPC
+static int proc_do_ipc_string(ctl_table *table, int write, struct file *filp,
+		void __user *buffer, size_t *lenp, loff_t *ppos)
+{
+	return -ENOSYS;
+}
+#endif
 
 int proc_dointvec(ctl_table *table, int write, struct file *filp,
 		  void __user *buffer, size_t *lenp, loff_t *ppos)

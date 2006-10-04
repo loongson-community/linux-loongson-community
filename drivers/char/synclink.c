@@ -87,7 +87,6 @@
 
 #include <linux/vmalloc.h>
 #include <linux/init.h>
-#include <asm/serial.h>
 
 #include <linux/delay.h>
 #include <linux/ioctl.h>
@@ -4360,7 +4359,7 @@ static struct mgsl_struct* mgsl_allocate_device(void)
 
 }	/* end of mgsl_allocate_device()*/
 
-static struct tty_operations mgsl_ops = {
+static const struct tty_operations mgsl_ops = {
 	.open = mgsl_open,
 	.close = mgsl_close,
 	.write = mgsl_write,

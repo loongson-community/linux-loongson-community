@@ -18,6 +18,30 @@
 #include <linux/mm.h>
 
 /*
+ * This is the RPC server thread function prototype
+ */
+typedef void		(*svc_thread_fn)(struct svc_rqst *);
+
+/*
+ *
+ * RPC service thread pool.
+ *
+ * Pool of threads and temporary sockets.  Generally there is only
+ * a single one of these per RPC service, but on NUMA machines those
+ * services that can benefit from it (i.e. nfs but not lockd) will
+ * have one pool per NUMA node.  This optimisation reduces cross-
+ * node traffic on multi-node NUMA NFS servers.
+ */
+struct svc_pool {
+	unsigned int		sp_id;	    	/* pool id; also node id on NUMA */
+	spinlock_t		sp_lock;	/* protects all fields */
+	struct list_head	sp_threads;	/* idle server threads */
+	struct list_head	sp_sockets;	/* pending sockets */
+	unsigned int		sp_nrthreads;	/* # of threads in pool */
+	struct list_head	sp_all_threads;	/* all server threads */
+} ____cacheline_aligned_in_smp;
+
+/*
  * RPC service.
  *
  * An RPC service is a ``daemon,'' possibly multithreaded, which
@@ -28,8 +52,6 @@
  * We currently do not support more than one RPC program per daemon.
  */
 struct svc_serv {
-	struct list_head	sv_threads;	/* idle server threads */
-	struct list_head	sv_sockets;	/* pending sockets */
 	struct svc_program *	sv_program;	/* RPC program */
 	struct svc_stat *	sv_stats;	/* RPC statistics */
 	spinlock_t		sv_lock;
@@ -40,9 +62,34 @@ struct svc_serv {
 	struct list_head	sv_permsocks;	/* all permanent sockets */
 	struct list_head	sv_tempsocks;	/* all temporary sockets */
 	int			sv_tmpcnt;	/* count of temporary sockets */
+	struct timer_list	sv_temptimer;	/* timer for aging temporary sockets */
 
 	char *			sv_name;	/* service name */
+
+	unsigned int		sv_nrpools;	/* number of thread pools */
+	struct svc_pool *	sv_pools;	/* array of thread pools */
+
+	void			(*sv_shutdown)(struct svc_serv *serv);
+						/* Callback to use when last thread
+						 * exits.
+						 */
+
+	struct module *		sv_module;	/* optional module to count when
+						 * adding threads */
+	svc_thread_fn		sv_function;	/* main function for threads */
+	int			sv_kill_signal;	/* signal to kill threads */
 };
+
+/*
+ * We use sv_nrthreads as a reference count.  svc_destroy() drops
+ * this refcount, so we need to bump it up around operations that
+ * change the number of threads.  Horrible, but there it is.
+ * Should be called with the BKL held.
+ */
+static inline void svc_get(struct svc_serv *serv)
+{
+	serv->sv_nrthreads++;
+}
 
 /*
  * Maximum payload size supported by a kernel RPC server.
@@ -127,11 +174,13 @@ static inline void svc_putu32(struct kvec *iov, __be32 val)
  */
 struct svc_rqst {
 	struct list_head	rq_list;	/* idle list */
+	struct list_head	rq_all;		/* all threads list */
 	struct svc_sock *	rq_sock;	/* socket */
 	struct sockaddr_in	rq_addr;	/* peer address */
 	int			rq_addrlen;
 
 	struct svc_serv *	rq_server;	/* RPC service definition */
+	struct svc_pool *	rq_pool;	/* thread pool */
 	struct svc_procedure *	rq_procinfo;	/* procedure info */
 	struct auth_ops *	rq_authop;	/* authentication flavour */
 	struct svc_cred		rq_cred;	/* auth info */
@@ -180,6 +229,7 @@ struct svc_rqst {
 						 * to prevent encrypting page
 						 * cache pages */
 	wait_queue_head_t	rq_wait;	/* synchronization */
+	struct task_struct	*rq_task;	/* service thread */
 };
 
 /*
@@ -321,20 +371,21 @@ struct svc_procedure {
 };
 
 /*
- * This is the RPC server thread function prototype
- */
-typedef void		(*svc_thread_fn)(struct svc_rqst *);
-
-/*
  * Function prototypes.
  */
-struct svc_serv *  svc_create(struct svc_program *, unsigned int);
+struct svc_serv *  svc_create(struct svc_program *, unsigned int,
+			      void (*shutdown)(struct svc_serv*));
 int		   svc_create_thread(svc_thread_fn, struct svc_serv *);
 void		   svc_exit_thread(struct svc_rqst *);
+struct svc_serv *  svc_create_pooled(struct svc_program *, unsigned int,
+			void (*shutdown)(struct svc_serv*),
+			svc_thread_fn, int sig, struct module *);
+int		   svc_set_num_threads(struct svc_serv *, struct svc_pool *, int);
 void		   svc_destroy(struct svc_serv *);
-int		   svc_process(struct svc_serv *, struct svc_rqst *);
+int		   svc_process(struct svc_rqst *);
 int		   svc_register(struct svc_serv *, int, unsigned short);
 void		   svc_wake_up(struct svc_serv *);
 void		   svc_reserve(struct svc_rqst *rqstp, int space);
+struct svc_pool *  svc_pool_for_cpu(struct svc_serv *serv, int cpu);
 
 #endif /* SUNRPC_SVC_H */

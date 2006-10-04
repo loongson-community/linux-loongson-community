@@ -57,7 +57,6 @@
 #include <linux/netdevice.h>
 #include <linux/vmalloc.h>
 #include <linux/init.h>
-#include <asm/serial.h>
 #include <linux/delay.h>
 #include <linux/ioctl.h>
 
@@ -3010,7 +3009,7 @@ static struct pcmcia_driver mgslpc_driver = {
 	.resume		= mgslpc_resume,
 };
 
-static struct tty_operations mgslpc_ops = {
+static const struct tty_operations mgslpc_ops = {
 	.open = mgslpc_open,
 	.close = mgslpc_close,
 	.write = mgslpc_write,
