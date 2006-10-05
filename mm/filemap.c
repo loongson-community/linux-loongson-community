@@ -1139,11 +1139,11 @@ success:
 }
 
 /**
- * __generic_file_aio_read - generic filesystem read routine
+ * generic_file_aio_read - generic filesystem read routine
  * @iocb:	kernel I/O control block
  * @iov:	io vector request
  * @nr_segs:	number of segments in the iovec
- * @ppos:	current file position
+ * @pos:	current file position
  *
  * This is the "read()" routine for all filesystems
  * that can use the page cache directly.
@@ -1198,8 +1198,10 @@ generic_file_aio_read(struct kiocb *iocb, const struct iovec *iov,
 			if (retval > 0)
 				*ppos = pos + retval;
 		}
-		file_accessed(filp);
-		goto out;
+		if (likely(retval != 0)) {
+			file_accessed(filp);
+			goto out;
+		}
 	}
 
 	retval = 0;

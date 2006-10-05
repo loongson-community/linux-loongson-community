@@ -417,18 +417,15 @@ svc_init_buffer(struct svc_rqst *rqstp, unsigned int size)
 	if (size > RPCSVC_MAXPAYLOAD)
 		size = RPCSVC_MAXPAYLOAD;
 	pages = 2 + (size+ PAGE_SIZE -1) / PAGE_SIZE;
-	rqstp->rq_argused = 0;
-	rqstp->rq_resused = 0;
 	arghi = 0;
 	BUG_ON(pages > RPCSVC_MAXPAGES);
 	while (pages) {
 		struct page *p = alloc_page(GFP_KERNEL);
 		if (!p)
 			break;
-		rqstp->rq_argpages[arghi++] = p;
+		rqstp->rq_pages[arghi++] = p;
 		pages--;
 	}
-	rqstp->rq_arghi = arghi;
 	return ! pages;
 }
 
@@ -438,14 +435,10 @@ svc_init_buffer(struct svc_rqst *rqstp, unsigned int size)
 static void
 svc_release_buffer(struct svc_rqst *rqstp)
 {
-	while (rqstp->rq_arghi)
-		put_page(rqstp->rq_argpages[--rqstp->rq_arghi]);
-	while (rqstp->rq_resused) {
-		if (rqstp->rq_respages[--rqstp->rq_resused] == NULL)
-			continue;
-		put_page(rqstp->rq_respages[rqstp->rq_resused]);
-	}
-	rqstp->rq_argused = 0;
+	int i;
+	for (i=0; i<ARRAY_SIZE(rqstp->rq_pages); i++)
+		if (rqstp->rq_pages[i])
+			put_page(rqstp->rq_pages[i]);
 }
 
 /*
@@ -651,23 +644,32 @@ svc_register(struct svc_serv *serv, int proto, unsigned short port)
 	unsigned long		flags;
 	int			i, error = 0, dummy;
 
-	progp = serv->sv_program;
-
-	dprintk("RPC: svc_register(%s, %s, %d)\n",
-		progp->pg_name, proto == IPPROTO_UDP? "udp" : "tcp", port);
-
 	if (!port)
 		clear_thread_flag(TIF_SIGPENDING);
 
-	for (i = 0; i < progp->pg_nvers; i++) {
-		if (progp->pg_vers[i] == NULL)
-			continue;
-		error = rpc_register(progp->pg_prog, i, proto, port, &dummy);
-		if (error < 0)
-			break;
-		if (port && !dummy) {
-			error = -EACCES;
-			break;
+	for (progp = serv->sv_program; progp; progp = progp->pg_next) {
+		for (i = 0; i < progp->pg_nvers; i++) {
+			if (progp->pg_vers[i] == NULL)
+				continue;
+
+			dprintk("RPC: svc_register(%s, %s, %d, %d)%s\n",
+					progp->pg_name,
+					proto == IPPROTO_UDP?  "udp" : "tcp",
+					port,
+					i,
+					progp->pg_vers[i]->vs_hidden?
+						" (but not telling portmap)" : "");
+
+			if (progp->pg_vers[i]->vs_hidden)
+				continue;
+
+			error = rpc_register(progp->pg_prog, i, proto, port, &dummy);
+			if (error < 0)
+				break;
+			if (port && !dummy) {
+				error = -EACCES;
+				break;
+			}
 		}
 	}
 
@@ -697,7 +699,7 @@ svc_process(struct svc_rqst *rqstp)
 	u32			dir, prog, vers, proc;
 	__be32			auth_stat, rpc_stat;
 	int			auth_res;
-	__be32			*accept_statp;
+	__be32			*reply_statp;
 
 	rpc_stat = rpc_success;
 
@@ -707,10 +709,10 @@ svc_process(struct svc_rqst *rqstp)
 	/* setup response xdr_buf.
 	 * Initially it has just one page 
 	 */
-	svc_take_page(rqstp); /* must succeed */
+	rqstp->rq_resused = 1;
 	resv->iov_base = page_address(rqstp->rq_respages[0]);
 	resv->iov_len = 0;
-	rqstp->rq_res.pages = rqstp->rq_respages+1;
+	rqstp->rq_res.pages = rqstp->rq_respages + 1;
 	rqstp->rq_res.len = 0;
 	rqstp->rq_res.page_base = 0;
 	rqstp->rq_res.page_len = 0;
@@ -738,7 +740,7 @@ svc_process(struct svc_rqst *rqstp)
 		goto err_bad_rpc;
 
 	/* Save position in case we later decide to reject: */
-	accept_statp = resv->iov_base + resv->iov_len;
+	reply_statp = resv->iov_base + resv->iov_len;
 
 	svc_putnl(resv, 0);		/* ACCEPT */
 
@@ -886,7 +888,7 @@ err_bad_auth:
 	dprintk("svc: authentication failed (%d)\n", ntohl(auth_stat));
 	serv->sv_stats->rpcbadauth++;
 	/* Restore write pointer to location of accept status: */
-	xdr_ressize_check(rqstp, accept_statp);
+	xdr_ressize_check(rqstp, reply_statp);
 	svc_putnl(resv, 1);	/* REJECT */
 	svc_putnl(resv, 1);	/* AUTH_ERROR */
 	svc_putnl(resv, ntohl(auth_stat));	/* status */
@@ -926,3 +928,18 @@ err_bad:
 	svc_putnl(resv, ntohl(rpc_stat));
 	goto sendit;
 }
+
+/*
+ * Return (transport-specific) limit on the rpc payload.
+ */
+u32 svc_max_payload(const struct svc_rqst *rqstp)
+{
+	int max = RPCSVC_MAXPAYLOAD_TCP;
+
+	if (rqstp->rq_sock->sk_sock->type == SOCK_DGRAM)
+		max = RPCSVC_MAXPAYLOAD_UDP;
+	if (rqstp->rq_server->sv_bufsz < max)
+		max = rqstp->rq_server->sv_bufsz;
+	return max;
+}
+EXPORT_SYMBOL_GPL(svc_max_payload);

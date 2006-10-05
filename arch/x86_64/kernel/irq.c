@@ -74,7 +74,8 @@ int show_interrupts(struct seq_file *p, void *v)
 		for_each_online_cpu(j)
 			seq_printf(p, "%10u ", kstat_cpu(j).irqs[i]);
 #endif
-		seq_printf(p, " %14s", irq_desc[i].chip->typename);
+		seq_printf(p, " %8s", irq_desc[i].chip->name);
+		seq_printf(p, "-%s", handle_irq_name(irq_desc[i].handle_irq));
 
 		seq_printf(p, "  %s", action->name);
 		for (action=action->next; action; action = action->next)
@@ -104,7 +105,12 @@ skip:
 asmlinkage unsigned int do_IRQ(struct pt_regs *regs)
 {	
 	/* high bit used in ret_from_ code  */
-	unsigned irq = ~regs->orig_rax;
+	unsigned vector = ~regs->orig_rax;
+	unsigned irq;
+
+	exit_idle();
+	irq_enter();
+	irq = __get_cpu_var(vector_irq)[vector];
 
 	if (unlikely(irq >= NR_IRQS)) {
 		printk(KERN_EMERG "%s: cannot handle IRQ %d\n",
@@ -112,12 +118,10 @@ asmlinkage unsigned int do_IRQ(struct pt_regs *regs)
 		BUG();
 	}
 
-	exit_idle();
-	irq_enter();
 #ifdef CONFIG_DEBUG_STACKOVERFLOW
 	stack_overflow_check(regs);
 #endif
-	__do_IRQ(irq, regs);
+	generic_handle_irq(irq, regs);
 	irq_exit();
 
 	return 1;

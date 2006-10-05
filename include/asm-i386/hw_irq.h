@@ -17,8 +17,6 @@
 #include <asm/irq.h>
 #include <asm/sections.h>
 
-struct hw_interrupt_type;
-
 #define NMI_VECTOR		0x02
 
 /*
@@ -30,7 +28,6 @@ struct hw_interrupt_type;
 
 extern u8 irq_vector[NR_IRQ_VECTORS];
 #define IO_APIC_VECTOR(irq)	(irq_vector[irq])
-#define AUTO_ASSIGN		-1
 
 extern void (*interrupt[NR_IRQS])(void);
 

@@ -59,6 +59,7 @@
 #define IRQ_NOAUTOEN		0x08000000	/* IRQ will not be enabled on request irq */
 #define IRQ_DELAYED_DISABLE	0x10000000	/* IRQ disable (masking) happens delayed. */
 #define IRQ_WAKEUP		0x20000000	/* IRQ triggers system wakeup */
+#define IRQ_MOVE_PENDING	0x40000000	/* need to re-target IRQ destination */
 
 struct proc_dir_entry;
 
@@ -132,7 +133,6 @@ struct irq_chip {
  * @affinity:		IRQ affinity on SMP
  * @cpu:		cpu index useful for balancing
  * @pending_mask:	pending rebalanced interrupts
- * @move_irq:		need to re-target IRQ destination
  * @dir:		/proc/irq/ procfs entry
  * @affinity_entry:	/proc/irq/smp_affinity procfs entry on SMP
  *
@@ -159,7 +159,6 @@ struct irq_desc {
 #endif
 #if defined(CONFIG_GENERIC_PENDING_IRQ) || defined(CONFIG_IRQBALANCE)
 	cpumask_t		pending_mask;
-	unsigned int		move_irq;	/* need to re-target IRQ dest */
 #endif
 #ifdef CONFIG_PROC_FS
 	struct proc_dir_entry *dir;
@@ -206,36 +205,7 @@ static inline void set_native_irq_info(int irq, cpumask_t mask)
 
 void set_pending_irq(unsigned int irq, cpumask_t mask);
 void move_native_irq(int irq);
-
-#ifdef CONFIG_PCI_MSI
-/*
- * Wonder why these are dummies?
- * For e.g the set_ioapic_affinity_vector() calls the set_ioapic_affinity_irq()
- * counter part after translating the vector to irq info. We need to perform
- * this operation on the real irq, when we dont use vector, i.e when
- * pci_use_vector() is false.
- */
-static inline void move_irq(int irq)
-{
-}
-
-static inline void set_irq_info(int irq, cpumask_t mask)
-{
-}
-
-#else /* CONFIG_PCI_MSI */
-
-static inline void move_irq(int irq)
-{
-	move_native_irq(irq);
-}
-
-static inline void set_irq_info(int irq, cpumask_t mask)
-{
-	set_native_irq_info(irq, mask);
-}
-
-#endif /* CONFIG_PCI_MSI */
+void move_masked_irq(int irq);
 
 #else /* CONFIG_GENERIC_PENDING_IRQ || CONFIG_IRQBALANCE */
 
@@ -247,21 +217,20 @@ static inline void move_native_irq(int irq)
 {
 }
 
-static inline void set_pending_irq(unsigned int irq, cpumask_t mask)
+static inline void move_masked_irq(int irq)
 {
 }
 
-static inline void set_irq_info(int irq, cpumask_t mask)
+static inline void set_pending_irq(unsigned int irq, cpumask_t mask)
 {
-	set_native_irq_info(irq, mask);
 }
 
 #endif /* CONFIG_GENERIC_PENDING_IRQ */
 
 #else /* CONFIG_SMP */
 
-#define move_irq(x)
 #define move_native_irq(x)
+#define move_masked_irq(x)
 
 #endif /* CONFIG_SMP */
 
@@ -399,8 +368,22 @@ set_irq_chained_handler(unsigned int irq,
 	__set_irq_handler(irq, handle, 1);
 }
 
-/* Set/get chip/data for an IRQ: */
+/* Handle dynamic irq creation and destruction */
+extern int create_irq(void);
+extern void destroy_irq(unsigned int irq);
 
+/* Test to see if a driver has successfully requested an irq */
+static inline int irq_has_action(unsigned int irq)
+{
+	struct irq_desc *desc = irq_desc + irq;
+	return desc->action != NULL;
+}
+
+/* Dynamic irq helper functions */
+extern void dynamic_irq_init(unsigned int irq);
+extern void dynamic_irq_cleanup(unsigned int irq);
+
+/* Set/get chip/data for an IRQ: */
 extern int set_irq_chip(unsigned int irq, struct irq_chip *chip);
 extern int set_irq_data(unsigned int irq, void *data);
 extern int set_irq_chip_data(unsigned int irq, void *data);

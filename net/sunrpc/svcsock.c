@@ -313,7 +313,7 @@ svc_sock_release(struct svc_rqst *rqstp)
 
 	svc_release_skb(rqstp);
 
-	svc_free_allpages(rqstp);
+	svc_free_res_pages(rqstp);
 	rqstp->rq_res.page_len = 0;
 	rqstp->rq_res.page_base = 0;
 
@@ -412,7 +412,8 @@ svc_sendto(struct svc_rqst *rqstp, struct xdr_buf *xdr)
 	/* send head */
 	if (slen == xdr->head[0].iov_len)
 		flags = 0;
-	len = kernel_sendpage(sock, rqstp->rq_respages[0], 0, xdr->head[0].iov_len, flags);
+	len = kernel_sendpage(sock, rqstp->rq_respages[0], 0,
+				  xdr->head[0].iov_len, flags);
 	if (len != xdr->head[0].iov_len)
 		goto out;
 	slen -= xdr->head[0].iov_len;
@@ -437,8 +438,9 @@ svc_sendto(struct svc_rqst *rqstp, struct xdr_buf *xdr)
 	}
 	/* send tail */
 	if (xdr->tail[0].iov_len) {
-		result = kernel_sendpage(sock, rqstp->rq_respages[rqstp->rq_restailpage],
-					     ((unsigned long)xdr->tail[0].iov_base)& (PAGE_SIZE-1),
+		result = kernel_sendpage(sock, rqstp->rq_respages[0],
+					     ((unsigned long)xdr->tail[0].iov_base)
+					        & (PAGE_SIZE-1),
 					     xdr->tail[0].iov_len, 0);
 
 		if (result > 0)
@@ -492,7 +494,12 @@ svc_sock_names(char *buf, struct svc_serv *serv, char *toclose)
 	}
 	spin_unlock(&serv->sv_lock);
 	if (closesk)
+		/* Should unregister with portmap, but you cannot
+		 * unregister just one protocol...
+		 */
 		svc_delete_socket(closesk);
+	else if (toclose)
+		return -ENOENT;
 	return len;
 }
 EXPORT_SYMBOL(svc_sock_names);
@@ -703,9 +710,11 @@ svc_udp_recvfrom(struct svc_rqst *rqstp)
 	if (len <= rqstp->rq_arg.head[0].iov_len) {
 		rqstp->rq_arg.head[0].iov_len = len;
 		rqstp->rq_arg.page_len = 0;
+		rqstp->rq_respages = rqstp->rq_pages+1;
 	} else {
 		rqstp->rq_arg.page_len = len - rqstp->rq_arg.head[0].iov_len;
-		rqstp->rq_argused += (rqstp->rq_arg.page_len + PAGE_SIZE - 1)/ PAGE_SIZE;
+		rqstp->rq_respages = rqstp->rq_pages + 1 +
+			(rqstp->rq_arg.page_len + PAGE_SIZE - 1)/ PAGE_SIZE;
 	}
 
 	if (serv->sv_stats)
@@ -946,7 +955,7 @@ svc_tcp_recvfrom(struct svc_rqst *rqstp)
 	struct svc_sock	*svsk = rqstp->rq_sock;
 	struct svc_serv	*serv = svsk->sk_server;
 	int		len;
-	struct kvec vec[RPCSVC_MAXPAGES];
+	struct kvec *vec;
 	int pnum, vlen;
 
 	dprintk("svc: tcp_recv %p data %d conn %d close %d\n",
@@ -1044,15 +1053,17 @@ svc_tcp_recvfrom(struct svc_rqst *rqstp)
 	len = svsk->sk_reclen;
 	set_bit(SK_DATA, &svsk->sk_flags);
 
+	vec = rqstp->rq_vec;
 	vec[0] = rqstp->rq_arg.head[0];
 	vlen = PAGE_SIZE;
 	pnum = 1;
 	while (vlen < len) {
-		vec[pnum].iov_base = page_address(rqstp->rq_argpages[rqstp->rq_argused++]);
+		vec[pnum].iov_base = page_address(rqstp->rq_pages[pnum]);
 		vec[pnum].iov_len = PAGE_SIZE;
 		pnum++;
 		vlen += PAGE_SIZE;
 	}
+	rqstp->rq_respages = &rqstp->rq_pages[pnum];
 
 	/* Now receive data */
 	len = svc_recvfrom(rqstp, vec, pnum, len);
@@ -1204,7 +1215,7 @@ svc_recv(struct svc_rqst *rqstp, long timeout)
 	struct svc_sock		*svsk =NULL;
 	struct svc_serv		*serv = rqstp->rq_server;
 	struct svc_pool		*pool = rqstp->rq_pool;
-	int			len;
+	int			len, i;
 	int 			pages;
 	struct xdr_buf		*arg;
 	DECLARE_WAITQUEUE(wait, current);
@@ -1221,27 +1232,22 @@ svc_recv(struct svc_rqst *rqstp, long timeout)
 			"svc_recv: service %p, wait queue active!\n",
 			 rqstp);
 
-	/* Initialize the buffers */
-	/* first reclaim pages that were moved to response list */
-	svc_pushback_allpages(rqstp);
 
 	/* now allocate needed pages.  If we get a failure, sleep briefly */
 	pages = 2 + (serv->sv_bufsz + PAGE_SIZE -1) / PAGE_SIZE;
-	while (rqstp->rq_arghi < pages) {
-		struct page *p = alloc_page(GFP_KERNEL);
-		if (!p) {
-			schedule_timeout_uninterruptible(msecs_to_jiffies(500));
-			continue;
+	for (i=0; i < pages ; i++)
+		while (rqstp->rq_pages[i] == NULL) {
+			struct page *p = alloc_page(GFP_KERNEL);
+			if (!p)
+				schedule_timeout_uninterruptible(msecs_to_jiffies(500));
+			rqstp->rq_pages[i] = p;
 		}
-		rqstp->rq_argpages[rqstp->rq_arghi++] = p;
-	}
 
 	/* Make arg->head point to first page and arg->pages point to rest */
 	arg = &rqstp->rq_arg;
-	arg->head[0].iov_base = page_address(rqstp->rq_argpages[0]);
+	arg->head[0].iov_base = page_address(rqstp->rq_pages[0]);
 	arg->head[0].iov_len = PAGE_SIZE;
-	rqstp->rq_argused = 1;
-	arg->pages = rqstp->rq_argpages + 1;
+	arg->pages = rqstp->rq_pages + 1;
 	arg->page_base = 0;
 	/* save at least one page for response */
 	arg->page_len = (pages-2)*PAGE_SIZE;
@@ -1604,6 +1610,8 @@ svc_delete_socket(struct svc_sock *svsk)
 			sockfd_put(svsk->sk_sock);
 		else
 			sock_release(svsk->sk_sock);
+		if (svsk->sk_info_authunix != NULL)
+			svcauth_unix_info_release(svsk->sk_info_authunix);
 		kfree(svsk);
 	} else {
 		spin_unlock_bh(&serv->sv_lock);
@@ -1699,6 +1707,7 @@ static int svc_deferred_recv(struct svc_rqst *rqstp)
 	rqstp->rq_prot        = dr->prot;
 	rqstp->rq_addr        = dr->addr;
 	rqstp->rq_daddr       = dr->daddr;
+	rqstp->rq_respages    = rqstp->rq_pages;
 	return dr->argslen<<2;
 }
 

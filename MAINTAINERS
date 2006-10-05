@@ -898,6 +898,16 @@ M:	jack@suse.cz
 L:	linux-kernel@vger.kernel.org
 S:	Maintained
 
+DISTRIBUTED LOCK MANAGER
+P:	Patrick Caulfield
+M:	pcaulfie@redhat.com
+P:	David Teigland
+M:	teigland@redhat.com
+L:	cluster-devel@redhat.com
+W:	http://sources.redhat.com/cluster/
+T:	git kernel.org:/pub/scm/linux/kernel/git/steve/gfs-2.6.git
+S:	Supported
+
 DAVICOM FAST ETHERNET (DMFE) NETWORK DRIVER
 P:	Tobias Ringstrom
 M:	tori@unhappy.mine.nu
@@ -976,6 +986,13 @@ L:	ebtables-user@lists.sourceforge.net
 L:	ebtables-devel@lists.sourceforge.net
 W:	http://ebtables.sourceforge.net/
 S:	Maintained
+
+ECRYPT FILE SYSTEM
+P:	Mike Halcrow, Phillip Hellewell
+M:	mhalcrow@us.ibm.com, phillip@hellewell.homeip.net
+L:	ecryptfs-devel@lists.sourceforge.net
+W:	http://ecryptfs.sourceforge.net/
+S:	Supported
 
 EDAC-CORE
 P:	Doug Thompson
@@ -1165,6 +1182,14 @@ P:	Krzysztof Halasa
 M:	khc@pm.waw.pl
 W:	http://www.kernel.org/pub/linux/utils/net/hdlc/
 S:	Maintained
+
+GFS2 FILE SYSTEM
+P:	Steven Whitehouse
+M:	swhiteho@redhat.com
+L:	cluster-devel@redhat.com
+W:	http://sources.redhat.com/cluster/
+T:	git kernel.org:/pub/scm/linux/kernel/git/steve/gfs-2.6.git
+S:	Supported
 
 GIGASET ISDN DRIVERS
 P:	Hansjoerg Lipp
@@ -1893,11 +1918,6 @@ M: 	rroesler@syskonnect.de
 W: 	http://www.syskonnect.com
 S: 	Supported
 
-MAESTRO PCI SOUND DRIVERS
-P:	Zach Brown
-M:	zab@zabbo.net
-S:	Odd Fixes
-
 MAN-PAGES: MANUAL PAGES FOR LINUX -- Sections 2, 3, 4, 5, and 7
 P: Michael Kerrisk
 M: mtk-manpages@gmx.net
@@ -2434,6 +2454,19 @@ M:	mporter@kernel.crashing.org
 L:	linux-kernel@vger.kernel.org
 S:	Maintained
 
+READ-COPY UPDATE (RCU)
+P:	Dipankar Sarma
+M:	dipankar@in.ibm.com
+W:	http://www.rdrop.com/users/paulmck/rclock/
+L:	linux-kernel@vger.kernel.org
+S:	Supported
+
+RCUTORTURE MODULE
+P:	Josh Triplett
+M:	josh@freedesktop.org
+L:	linux-kernel@vger.kernel.org
+S:	Maintained
+
 REAL TIME CLOCK DRIVER
 P:	Paul Gortmaker
 M:	p_gortmaker@yahoo.com
@@ -2853,6 +2886,11 @@ P:	Hung Hing Lun, Mike
 M:	hlhung3i@gmail.com
 W:	http://tcp-lp-mod.sourceforge.net/
 S:	Maintained
+
+TI FLASH MEDIA INTERFACE DRIVER
+P:      Alex Dubov
+M:      oakad@yahoo.com
+S:      Maintained
 
 TI OMAP RANDOM NUMBER GENERATOR SUPPORT
 P:	Deepak Saxena
@@ -3376,12 +3414,6 @@ P:	Henk Vergonet
 M:	Henk.Vergonet@gmail.com
 L:	usbb2k-api-dev@nongnu.org
 S:	Maintained
-
-YMFPCI YAMAHA PCI SOUND (Use ALSA instead)
-P:	Pete Zaitcev
-M:	zaitcev@yahoo.com
-L:	linux-kernel@vger.kernel.org
-S:	Obsolete
 
 Z8530 DRIVER FOR AX.25
 P:	Joerg Reuter

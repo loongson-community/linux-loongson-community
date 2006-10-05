@@ -595,6 +595,7 @@ struct msix_entry {
 	u16	entry;	/* driver uses to specify entry, OS writes */
 };
 
+
 #ifndef CONFIG_PCI_MSI
 static inline void pci_scan_msi_device(struct pci_dev *dev) {}
 static inline int pci_enable_msi(struct pci_dev *dev) {return -1;}
@@ -612,6 +613,12 @@ extern int pci_enable_msix(struct pci_dev* dev,
 extern void pci_disable_msix(struct pci_dev *dev);
 extern void msi_remove_pci_irq_vectors(struct pci_dev *dev);
 #endif
+
+#ifdef CONFIG_HT_IRQ
+/* The functions a driver should call */
+int  ht_create_irq(struct pci_dev *dev, int idx);
+void ht_destroy_irq(unsigned int irq);
+#endif /* CONFIG_HT_IRQ */
 
 extern void pci_block_user_cfg_access(struct pci_dev *dev);
 extern void pci_unblock_user_cfg_access(struct pci_dev *dev);
