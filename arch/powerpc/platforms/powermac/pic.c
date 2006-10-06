@@ -227,7 +227,7 @@ static irqreturn_t gatwick_action(int cpl, void *dev_id, struct pt_regs *regs)
 			continue;
 		irq += __ilog2(bits);
 		spin_unlock_irqrestore(&pmac_pic_lock, flags);
-		__do_IRQ(irq, regs);
+		__do_IRQ(irq);
 		spin_lock_irqsave(&pmac_pic_lock, flags);
 		rc = IRQ_HANDLED;
 	}
@@ -440,14 +440,13 @@ static void __init pmac_pic_probe_oldstyle(void)
 }
 #endif /* CONFIG_PPC32 */
 
-static void pmac_u3_cascade(unsigned int irq, struct irq_desc *desc,
-			    struct pt_regs *regs)
+static void pmac_u3_cascade(unsigned int irq, struct irq_desc *desc)
 {
 	struct mpic *mpic = desc->handler_data;
 
-	unsigned int cascade_irq = mpic_get_one_irq(mpic, regs);
+	unsigned int cascade_irq = mpic_get_one_irq(mpic, get_irq_regs());
 	if (cascade_irq != NO_IRQ)
-		generic_handle_irq(cascade_irq, regs);
+		generic_handle_irq(cascade_irq);
 	desc->chip->eoi(irq);
 }
 
