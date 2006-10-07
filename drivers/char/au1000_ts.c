@@ -374,7 +374,7 @@ au1000_acq_timer(unsigned long data)
 }
 
 static void
-ssi0_interrupt(int irq, void *dev_id, struct pt_regs *regs)
+ssi0_interrupt(int irq, void *dev_id)
 {
 	au1000_ts_t *ts = (au1000_ts_t*)dev_id;
 	u32 stat, int_stat, data;

@@ -190,8 +190,7 @@ static void ip3106_enable_ms(struct uart_port *port)
 	mod_timer(&sport->timer, jiffies);
 }
 
-static void
-ip3106_rx_chars(struct ip3106_port *sport, struct pt_regs *regs)
+static void ip3106_rx_chars(struct ip3106_port *sport)
 {
 	struct tty_struct *tty = sport->port.info->tty;
 	unsigned int status, ch, flg, ignored = 0;
@@ -307,7 +306,7 @@ static void ip3106_tx_chars(struct ip3106_port *sport)
 		ip3106_stop_tx(&sport->port, 0);
 }
 
-static irqreturn_t ip3106_int(int irq, void *dev_id, struct pt_regs *regs)
+static irqreturn_t ip3106_int(int irq, void *dev_id)
 {
 	struct ip3106_port *sport = dev_id;
 	unsigned int status;

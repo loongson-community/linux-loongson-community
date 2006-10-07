@@ -231,10 +231,10 @@ static inline void transmit_char_pio(uart_state_t *us)
 /* 
  * Generic interrupt handler for both channels.  dev_id is a pointer
  * to the proper uart_states structure, so from that we can derive 
- * which port interrupted 
+ * which port interrupted
  */
 
-static irqreturn_t duart_int(int irq, void *dev_id, struct pt_regs *regs)
+static irqreturn_t duart_int(int irq, void *dev_id)
 {
 	uart_state_t *us = (uart_state_t *)dev_id;
 	struct tty_struct *tty = us->tty;

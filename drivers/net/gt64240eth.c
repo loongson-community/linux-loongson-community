@@ -643,8 +643,7 @@ static void gt64240_tx_complete(struct net_device *dev, u32 status)
 	}
 }
 
-static irqreturn_t gt64240_interrupt(int irq, void *dev_id,
-	struct pt_regs *regs)
+static irqreturn_t gt64240_interrupt(int irq, void *dev_id)
 {
 	struct net_device *dev = (struct net_device *) dev_id;
 	struct gt64240_private *gp = netdev_priv(dev);

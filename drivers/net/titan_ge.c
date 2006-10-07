@@ -370,8 +370,7 @@ static int titan_ge_change_mtu(struct net_device *netdev, int new_mtu)
  * only. Once an interrupt is triggered, figure out the port and then check
  * the channel.
  */
-static irqreturn_t titan_ge_int_handler(int irq, void *dev_id,
-	struct pt_regs *regs)
+static irqreturn_t titan_ge_int_handler(int irq, void *dev_id)
 {
 	struct net_device *netdev = (struct net_device *) dev_id;
 	titan_ge_port_info *titan_ge_eth = netdev_priv(netdev);

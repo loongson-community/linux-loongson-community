@@ -568,8 +568,7 @@ static int big_sur_ge_enet_fifo_recv(big_sur_ge * emac, u8 * buffer,
 	return 0;
 }
 
-static irqreturn_t big_sur_ge_int_handler(int irq, void *dev_id,
-				   struct pt_regs *regs)
+static irqreturn_t big_sur_ge_int_handler(int irq, void *dev_id)
 {
 	struct net_device *netdev = dev_id;
 	struct big_sur_ge_enet *lp = netdev->priv;
