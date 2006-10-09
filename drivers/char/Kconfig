@@ -365,14 +365,6 @@ config TS_AU1X00_ADS7846
 	tristate "Au1000/ADS7846 touchscreen support"
 	depends on MIPS && SOC_AU1X00
 
-config AU1X00_USB_TTY
-	tristate "Au1000 USB TTY Device support"
-	depends on MIPS && MIPS_AU1000 && AU1000_USB_DEVICE=y && AU1000_USB_DEVICE
-
-config AU1X00_USB_RAW
-	tristate "Au1000 USB Raw Device support"
-	depends on MIPS && MIPS_AU1000 && AU1000_USB_DEVICE=y && AU1000_USB_TTY!=y && AU1X00_USB_DEVICE
-
 config SIBYTE_SB1250_DUART
 	bool "Support for BCM1xxx onchip DUART"
 	depends on MIPS && SIBYTE_SB1xxx_SOC=y
