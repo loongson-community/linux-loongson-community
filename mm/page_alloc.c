@@ -495,17 +495,16 @@ static void __free_pages_ok(struct page *page, unsigned int order)
 	int i;
 	int reserved = 0;
 
-	arch_free_page(page, order);
-	if (!PageHighMem(page))
-		debug_check_no_locks_freed(page_address(page),
-					   PAGE_SIZE<<order);
-
 	for (i = 0 ; i < (1 << order) ; ++i)
 		reserved += free_pages_check(page + i);
 	if (reserved)
 		return;
 
+	if (!PageHighMem(page))
+		debug_check_no_locks_freed(page_address(page),PAGE_SIZE<<order);
+	arch_free_page(page, order);
 	kernel_map_pages(page, 1 << order, 0);
+
 	local_irq_save(flags);
 	__count_vm_events(PGFREE, 1 << order);
 	free_one_page(page_zone(page), page, order);
@@ -781,13 +780,14 @@ static void fastcall free_hot_cold_page(struct page *page, int cold)
 	struct per_cpu_pages *pcp;
 	unsigned long flags;
 
-	arch_free_page(page, 0);
-
 	if (PageAnon(page))
 		page->mapping = NULL;
 	if (free_pages_check(page))
 		return;
 
+	if (!PageHighMem(page))
+		debug_check_no_locks_freed(page_address(page), PAGE_SIZE);
+	arch_free_page(page, 0);
 	kernel_map_pages(page, 1, 0);
 
 	pcp = &zone_pcp(zone, get_cpu())->pcp[cold];
@@ -2294,19 +2294,6 @@ unsigned long __init zone_absent_pages_in_node(int nid,
 	return __absent_pages_in_range(nid, zone_start_pfn, zone_end_pfn);
 }
 
-/* Return the zone index a PFN is in */
-int memmap_zone_idx(struct page *lmem_map)
-{
-	int i;
-	unsigned long phys_addr = virt_to_phys(lmem_map);
-	unsigned long pfn = phys_addr >> PAGE_SHIFT;
-
-	for (i = 0; i < MAX_NR_ZONES; i++)
-		if (pfn < arch_zone_highest_possible_pfn[i])
-			break;
-
-	return i;
-}
 #else
 static inline unsigned long zone_spanned_pages_in_node(int nid,
 					unsigned long zone_type,
@@ -2325,10 +2312,6 @@ static inline unsigned long zone_absent_pages_in_node(int nid,
 	return zholes_size[zone_type];
 }
 
-static inline int memmap_zone_idx(struct page *lmem_map)
-{
-	return MAX_NR_ZONES;
-}
 #endif
 
 static void __init calculate_node_totalpages(struct pglist_data *pgdat,
