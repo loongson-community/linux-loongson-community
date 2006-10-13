@@ -19,9 +19,8 @@
 /* 
  * Driver support for the on-chip sb1250 dual-channel serial port,
  * running in asynchronous mode.  Also, support for doing a serial console
- * on one of those ports 
+ * on one of those ports
  */
-#include <linux/config.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/serial.h>

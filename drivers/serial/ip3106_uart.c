@@ -16,8 +16,6 @@
  *
  */
 
-#include <linux/config.h>
-
 #if defined(CONFIG_SERIAL_IP3106_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ)
 #define SUPPORT_SYSRQ
 #endif

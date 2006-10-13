@@ -32,7 +32,6 @@
 #ifndef _GT64240ETH_H
 #define _GT64240ETH_H
 
-#include <linux/config.h>
 #include <asm/gt64240.h>
 
 #define ETHERNET_PORTS_DIFFERENCE_OFFSETS	0x400

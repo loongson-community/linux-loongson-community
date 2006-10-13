@@ -1,10 +1,8 @@
 #ifndef _TITAN_GE_H_
 #define _TITAN_GE_H_
 
-#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/config.h>
 #include <linux/spinlock.h>
 #include <asm/byteorder.h>
 

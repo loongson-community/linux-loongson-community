@@ -46,7 +46,6 @@
  * -> Fast routing for IP forwarding
  */
 
-#include <linux/config.h>
 #include <linux/dma-mapping.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
