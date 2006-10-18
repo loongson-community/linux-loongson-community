@@ -135,12 +135,6 @@ out_unlock:
 
 out_free:
 	kfree(file);
-#ifdef CONFIG_LOCKD_V4
-	if (nfserr == 1)
-		nfserr = nlm4_stale_fh;
-	else
-#endif
-	nfserr = nlm_lck_denied;
 	goto out_unlock;
 }
 
@@ -324,7 +318,16 @@ nlmsvc_same_host(struct nlm_host *host, struct nlm_host *other)
 static int
 nlmsvc_is_client(struct nlm_host *host, struct nlm_host *dummy)
 {
-	return host->h_server;
+	if (host->h_server) {
+		/* we are destroying locks even though the client
+		 * hasn't asked us too, so don't unmonitor the
+		 * client
+		 */
+		if (host->h_nsmhandle)
+			host->h_nsmhandle->sm_sticky = 1;
+		return 1;
+	} else
+		return 0;
 }
 
 /*
