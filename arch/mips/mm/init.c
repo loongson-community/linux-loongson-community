@@ -228,23 +228,6 @@ void copy_user_highpage(struct page *to, struct page *from,
 
 EXPORT_SYMBOL(copy_user_highpage);
 
-void copy_user_page(void *vto, void *vfrom, unsigned long vaddr,
-	struct page *to)
-{
-	if (cpu_has_dc_aliases) {
-		struct page *from = virt_to_page(vfrom);
-		vfrom = kmap_coherent(from, vaddr);
-		copy_page(vto, vfrom);
-		kunmap_coherent(from);
-	} else
-		copy_page(vto, vfrom);
-	if (!cpu_has_ic_fills_f_dc ||
-	    pages_do_alias((unsigned long)vto, vaddr & PAGE_MASK))
-		flush_data_cache_page((unsigned long)vto);
-}
-
-EXPORT_SYMBOL(copy_user_page);
-
 void copy_to_user_page(struct vm_area_struct *vma,
 	struct page *page, unsigned long vaddr, void *dst, const void *src,
 	unsigned long len)
