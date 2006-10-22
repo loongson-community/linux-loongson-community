@@ -121,7 +121,7 @@ Step 3: implement rtc routines, board_time_init() and plat_timer_setup()
   if needed.
 
   board_time_init() -
-  	a) (optional) set up RTC routines, 
+  	a) (optional) set up RTC routines,
         b) (optional) calibrate and set the mips_hpt_frequency
  	    (only needed if you intended to use fixed_rate_gettimeoffset
  	     or use cpu counter as timer interrupt source)
