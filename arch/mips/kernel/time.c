@@ -324,22 +324,29 @@ static cycle_t read_mips_hpt(void)
 
 static struct clocksource clocksource_mips = {
 	.name		= "MIPS",
-	.rating		= 250,
 	.read		= read_mips_hpt,
-	.shift		= 24,
 	.is_continuous	= 1,
 };
 
 static void __init init_mips_clocksource(void)
 {
 	u64 temp;
+	u32 shift;
 
 	if (!mips_hpt_frequency || mips_hpt_read == null_hpt_read)
 		return;
 
-	temp = (u64) NSEC_PER_SEC << clocksource_mips.shift;
-	do_div(temp, mips_hpt_frequency);
-	clocksource_mips.mult = (unsigned)temp;
+	/* Calclate a somewhat reasonable rating value */
+	clocksource_mips.rating = 200 + mips_hpt_frequency / 10000000;
+	/* Find a shift value */
+	for (shift = 32; shift > 0; shift--) {
+		temp = (u64) NSEC_PER_SEC << shift;
+		do_div(temp, mips_hpt_frequency);
+		if ((temp >> 32) == 0)
+			break;
+	}
+	clocksource_mips.shift = shift;
+	clocksource_mips.mult = (u32)temp;
 	clocksource_mips.mask = mips_hpt_mask;
 
 	clocksource_register(&clocksource_mips);
