@@ -79,7 +79,6 @@ unsigned long wtimer;
 void mips_timer_interrupt(void)
 {
 	int irq = 63;
-	unsigned long count;
 
 	irq_enter();
 	kstat_this_cpu.irqs[irq]++;
