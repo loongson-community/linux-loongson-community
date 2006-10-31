@@ -127,7 +127,7 @@ static void gt64240_tx_timeout(struct net_device *dev);
 static void gt64240_set_rx_mode(struct net_device *dev);
 static struct net_device_stats *gt64240_get_stats(struct net_device *dev);
 
-extern char *__init prom_getcmdline(void);
+extern char * prom_getcmdline(void);
 extern int prom_get_mac_addrs(unsigned char
 			      station_addr[NUM_INTERFACES][6]);
 
