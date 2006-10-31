@@ -1275,6 +1275,7 @@ config CPU_RM9000
 	select CPU_SUPPORTS_32BIT_KERNEL
 	select CPU_SUPPORTS_64BIT_KERNEL
 	select CPU_SUPPORTS_HIGHMEM
+	select WEAK_ORDERING
 
 config CPU_SB1
 	bool "SB1"
@@ -1283,6 +1284,7 @@ config CPU_SB1
 	select CPU_SUPPORTS_32BIT_KERNEL
 	select CPU_SUPPORTS_64BIT_KERNEL
 	select CPU_SUPPORTS_HIGHMEM
+	select WEAK_ORDERING
 
 endchoice
 
@@ -1343,6 +1345,8 @@ config SYS_HAS_CPU_RM9000
 config SYS_HAS_CPU_SB1
 	bool
 
+config WEAK_ORDERING
+	bool
 endmenu
 
 #
