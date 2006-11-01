@@ -137,7 +137,7 @@ void __init qvga_init(void)
 	unsigned int h;
 	int i;
 
-#if LOAD_VGA_FONT
+#ifdef LOAD_VGA_FONT
 	qvga_load_font(vgafont16, 4096);
 #endif
 
