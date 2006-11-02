@@ -299,18 +299,6 @@ config MTD_CFI_FLAGADM
 	  Mapping for the Flaga digital module. If you don't have one, ignore
 	  this setting.
 
-config MTD_XXS1500
-	tristate "MyCable XXS1500 Flash device"
-	depends on MIPS && MIPS_XXS1500
-	help
-	  Flash memory access on MyCable XXS1500 Board
-
-config MTD_MTX1
-	tristate "4-G Systems MTX-1 Flash device"
-	depends on MIPS && MIPS_MTX1
-	help
-	  Flash memory access on 4-G Systems MTX-1 Board
-
 config MTD_BEECH
 	tristate "CFI Flash device mapped on IBM 405LP Beech"
 	depends on MTD_CFI && BEECH
