@@ -745,7 +745,13 @@ static inline int sk_stream_wmem_schedule(struct sock *sk, int size)
  */
 #define sock_owned_by_user(sk)	((sk)->sk_lock.owner)
 
-extern void FASTCALL(lock_sock(struct sock *sk));
+extern void FASTCALL(lock_sock_nested(struct sock *sk, int subclass));
+
+static inline void lock_sock(struct sock *sk)
+{
+	lock_sock_nested(sk, 0);
+}
+
 extern void FASTCALL(release_sock(struct sock *sk));
 
 /* BH context may only use the following locking interface. */
@@ -948,7 +954,8 @@ static inline void sock_put(struct sock *sk)
 		sk_free(sk);
 }
 
-extern int sk_receive_skb(struct sock *sk, struct sk_buff *skb);
+extern int sk_receive_skb(struct sock *sk, struct sk_buff *skb,
+			  const int nested);
 
 /* Detach socket from process context.
  * Announce socket dead, detach it from wait queue and inode.
@@ -1082,7 +1089,7 @@ static inline int skb_copy_to_page(struct sock *sk, char __user *from,
 {
 	if (skb->ip_summed == CHECKSUM_NONE) {
 		int err = 0;
-		unsigned int csum = csum_and_copy_from_user(from,
+		__wsum csum = csum_and_copy_from_user(from,
 						     page_address(page) + off,
 							    copy, 0, &err);
 		if (err)
