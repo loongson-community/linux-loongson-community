@@ -129,6 +129,7 @@ gss_import_sec_context_kerberos(const void *p,
 {
 	const void *end = (const void *)((const char *)p + len);
 	struct	krb5_ctx *ctx;
+	int tmp;
 
 	if (!(ctx = kzalloc(sizeof(*ctx), GFP_KERNEL)))
 		goto out_err;
@@ -136,17 +137,22 @@ gss_import_sec_context_kerberos(const void *p,
 	p = simple_get_bytes(p, end, &ctx->initiate, sizeof(ctx->initiate));
 	if (IS_ERR(p))
 		goto out_err_free_ctx;
-	p = simple_get_bytes(p, end, &ctx->seed_init, sizeof(ctx->seed_init));
+	/* The downcall format was designed before we completely understood
+	 * the uses of the context fields; so it includes some stuff we
+	 * just give some minimal sanity-checking, and some we ignore
+	 * completely (like the next twenty bytes): */
+	if (unlikely(p + 20 > end || p + 20 < p))
+		goto out_err_free_ctx;
+	p += 20;
+	p = simple_get_bytes(p, end, &tmp, sizeof(tmp));
 	if (IS_ERR(p))
 		goto out_err_free_ctx;
-	p = simple_get_bytes(p, end, ctx->seed, sizeof(ctx->seed));
+	if (tmp != SGN_ALG_DES_MAC_MD5)
+		goto out_err_free_ctx;
+	p = simple_get_bytes(p, end, &tmp, sizeof(tmp));
 	if (IS_ERR(p))
 		goto out_err_free_ctx;
-	p = simple_get_bytes(p, end, &ctx->signalg, sizeof(ctx->signalg));
-	if (IS_ERR(p))
-		goto out_err_free_ctx;
-	p = simple_get_bytes(p, end, &ctx->sealalg, sizeof(ctx->sealalg));
-	if (IS_ERR(p))
+	if (tmp != SEAL_ALG_DES)
 		goto out_err_free_ctx;
 	p = simple_get_bytes(p, end, &ctx->endtime, sizeof(ctx->endtime));
 	if (IS_ERR(p))
