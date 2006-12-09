@@ -436,7 +436,12 @@ struct signal_struct {
 	/* job control IDs */
 	pid_t pgrp;
 	pid_t tty_old_pgrp;
-	pid_t session;
+
+	union {
+		pid_t session __deprecated;
+		pid_t __session;
+	};
+
 	/* boolean value for session group leader */
 	int leader;
 
@@ -1040,11 +1045,29 @@ struct task_struct {
 #ifdef	CONFIG_TASK_DELAY_ACCT
 	struct task_delay_info *delays;
 #endif
+#ifdef CONFIG_FAULT_INJECTION
+	int make_it_fail;
+#endif
 };
 
 static inline pid_t process_group(struct task_struct *tsk)
 {
 	return tsk->signal->pgrp;
+}
+
+static inline pid_t signal_session(struct signal_struct *sig)
+{
+	return sig->__session;
+}
+
+static inline pid_t process_session(struct task_struct *tsk)
+{
+	return signal_session(tsk->signal);
+}
+
+static inline void set_signal_session(struct signal_struct *sig, pid_t session)
+{
+	sig->__session = session;
 }
 
 static inline struct pid *task_pid(struct task_struct *task)
@@ -1240,7 +1263,6 @@ extern struct   mm_struct init_mm;
 
 #define find_task_by_pid(nr)	find_task_by_pid_type(PIDTYPE_PID, nr)
 extern struct task_struct *find_task_by_pid_type(int type, int pid);
-extern void set_special_pids(pid_t session, pid_t pgrp);
 extern void __set_special_pids(pid_t session, pid_t pgrp);
 
 /* per-UID process charging. */
@@ -1381,7 +1403,6 @@ extern NORET_TYPE void do_group_exit(int);
 extern void daemonize(const char *, ...);
 extern int allow_signal(int);
 extern int disallow_signal(int);
-extern struct task_struct *child_reaper;
 
 extern int do_execve(char *, char __user * __user *, char __user * __user *, struct pt_regs *);
 extern long do_fork(unsigned long, unsigned long, struct pt_regs *, unsigned long, int __user *, int __user *);

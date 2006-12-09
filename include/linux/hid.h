@@ -6,6 +6,7 @@
  *
  *  Copyright (c) 1999 Andreas Gal
  *  Copyright (c) 2000-2001 Vojtech Pavlik
+ *  Copyright (c) 2006 Jiri Kosina
  */
 
 /*
@@ -33,6 +34,7 @@
 #include <linux/list.h>
 #include <linux/timer.h>
 #include <linux/workqueue.h>
+#include <linux/input.h>
 
 /*
  * USB HID (Human Interface Device) interface class code
@@ -260,7 +262,7 @@ struct hid_item {
 #define HID_QUIRK_POWERBOOK_HAS_FN		0x00001000
 #define HID_QUIRK_POWERBOOK_FN_ON		0x00002000
 #define HID_QUIRK_INVERT_HWHEEL			0x00004000
-#define HID_QUIRK_POWERBOOK_ISO_KEYBOARD	0x00008000
+#define HID_QUIRK_POWERBOOK_ISO_KEYBOARD        0x00008000
 #define HID_QUIRK_BAD_RELATIVE_KEYS		0x00010000
 
 /*
@@ -401,42 +403,14 @@ struct hid_device {							/* device report descriptor */
 	unsigned collection_size;					/* Number of allocated hid_collections */
 	unsigned maxcollection;						/* Number of parsed collections */
 	unsigned maxapplication;					/* Number of applications */
+	unsigned short bus;                                             /* BUS ID */
+	unsigned short vendor;                                          /* Vendor ID */
+	unsigned short product;                                         /* Product ID */
 	unsigned version;						/* HID version */
 	unsigned country;						/* HID country */
 	struct hid_report_enum report_enum[HID_REPORT_TYPES];
 
-	struct usb_device *dev;						/* USB device */
-	struct usb_interface *intf;					/* USB interface */
-	int ifnum;							/* USB interface number */
-
-	unsigned long iofl;						/* I/O flags (CTRL_RUNNING, OUT_RUNNING) */
-	struct timer_list io_retry;					/* Retry timer */
-	unsigned long stop_retry;					/* Time to give up, in jiffies */
-	unsigned int retry_delay;					/* Delay length in ms */
-	struct work_struct reset_work;					/* Task context for resets */
-
-	unsigned int bufsize;						/* URB buffer size */
-
-	struct urb *urbin;						/* Input URB */
-	char *inbuf;							/* Input buffer */
-	dma_addr_t inbuf_dma;						/* Input buffer dma */
-	spinlock_t inlock;						/* Input fifo spinlock */
-
-	struct urb *urbctrl;						/* Control URB */
-	struct usb_ctrlrequest *cr;					/* Control request struct */
-	dma_addr_t cr_dma;						/* Control request struct dma */
-	struct hid_control_fifo ctrl[HID_CONTROL_FIFO_SIZE];		/* Control fifo */
-	unsigned char ctrlhead, ctrltail;				/* Control fifo head & tail */
-	char *ctrlbuf;							/* Control buffer */
-	dma_addr_t ctrlbuf_dma;						/* Control buffer dma */
-	spinlock_t ctrllock;						/* Control fifo spinlock */
-
-	struct urb *urbout;						/* Output URB */
-	struct hid_report *out[HID_CONTROL_FIFO_SIZE];			/* Output pipe fifo */
-	unsigned char outhead, outtail;					/* Output pipe fifo head & tail */
-	char *outbuf;							/* Output buffer */
-	dma_addr_t outbuf_dma;						/* Output buffer dma */
-	spinlock_t outlock;						/* Output fifo spinlock */
+	struct device *dev;						/* device */
 
 	unsigned claimed;						/* Claimed by hidinput, hiddev? */
 	unsigned quirks;						/* Various quirks the device can pull on us */
@@ -452,7 +426,19 @@ struct hid_device {							/* device report descriptor */
 	char phys[64];							/* Device physical location */
 	char uniq[64];							/* Device unique identifier (serial #) */
 
+	void *driver_data;
+
+	/* device-specific function pointers */
+	int (*hidinput_input_event) (struct input_dev *, unsigned int, unsigned int, int);
+	int (*hidinput_open) (struct input_dev *);
+	void (*hidinput_close) (struct input_dev *);
+
+	/* hiddev event handler */
+	void (*hiddev_hid_event) (struct hid_device *, struct hid_field *field,
+				  struct hid_usage *, __s32);
+	void (*hiddev_report_event) (struct hid_device *, struct hid_report *);
 #ifdef CONFIG_USB_HIDINPUT_POWERBOOK
+	unsigned int  pb_fnmode;
 	unsigned long pb_pressed_fn[NBITS(KEY_MAX)];
 	unsigned long pb_pressed_numlock[NBITS(KEY_MAX)];
 #endif
@@ -496,31 +482,23 @@ struct hid_descriptor {
 #define resolv_event(a,b)	do { } while (0)
 #endif
 
-#endif
-
-#ifdef CONFIG_USB_HIDINPUT
 /* Applications from HID Usage Tables 4/8/99 Version 1.1 */
 /* We ignore a few input applications that are not widely used */
 #define IS_INPUT_APPLICATION(a) (((a >= 0x00010000) && (a <= 0x00010008)) || (a == 0x00010080) || (a == 0x000c0001))
+
+/* HID core API */
 extern void hidinput_hid_event(struct hid_device *, struct hid_field *, struct hid_usage *, __s32);
 extern void hidinput_report_event(struct hid_device *hid, struct hid_report *report);
 extern int hidinput_connect(struct hid_device *);
 extern void hidinput_disconnect(struct hid_device *);
-#else
-#define IS_INPUT_APPLICATION(a) (0)
-static inline void hidinput_hid_event(struct hid_device *hid, struct hid_field *field, struct hid_usage *usage, __s32 value) { }
-static inline void hidinput_report_event(struct hid_device *hid, struct hid_report *report) { }
-static inline int hidinput_connect(struct hid_device *hid) { return -ENODEV; }
-static inline void hidinput_disconnect(struct hid_device *hid) { }
-#endif
 
-int hid_open(struct hid_device *);
-void hid_close(struct hid_device *);
 int hid_set_field(struct hid_field *, unsigned, __s32);
-void hid_submit_report(struct hid_device *, struct hid_report *, unsigned char dir);
-void hid_init_reports(struct hid_device *hid);
-int hid_wait_io(struct hid_device* hid);
-
+int hid_input_report(struct hid_device *, int type, u8 *, int, int);
+int hidinput_find_field(struct hid_device *hid, unsigned int type, unsigned int code, struct hid_field **field);
+void hid_input_field(struct hid_device *hid, struct hid_field *field, __u8 *data, int interrupt);
+void hid_output_report(struct hid_report *report, __u8 *data);
+void hid_free_device(struct hid_device *device);
+struct hid_device *hid_parse_report(__u8 *start, unsigned size);
 
 #ifdef CONFIG_HID_FF
 int hid_ff_init(struct hid_device *hid);
@@ -536,5 +514,15 @@ static inline int hid_pidff_init(struct hid_device *hid) { return -ENODEV; }
 
 #else
 static inline int hid_ff_init(struct hid_device *hid) { return -1; }
+#endif
+#ifdef DEBUG
+#define dbg(format, arg...) printk(KERN_DEBUG "%s: " format "\n" , \
+		__FILE__ , ## arg)
+#else
+#define dbg(format, arg...) do {} while (0)
+#endif
+
+#define err(format, arg...) printk(KERN_ERR "%s: " format "\n" , \
+		__FILE__ , ## arg)
 #endif
 

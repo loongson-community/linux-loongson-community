@@ -487,6 +487,8 @@ config DDB5477
 config MACH_VR41XX
 	bool "NEC VR41XX-based machines"
 	select SYS_HAS_CPU_VR41XX
+	select SYS_SUPPORTS_32BIT_KERNEL
+	select SYS_SUPPORTS_64BIT_KERNEL if EXPERIMENTAL
 	select GENERIC_HARDIRQS_NO__DO_IRQ
 
 config PMC_YOSEMITE
@@ -827,6 +829,14 @@ config RWSEM_GENERIC_SPINLOCK
 
 config RWSEM_XCHGADD_ALGORITHM
 	bool
+
+config ARCH_HAS_ILOG2_U32
+	bool
+	default n
+
+config ARCH_HAS_ILOG2_U64
+	bool
+	default n
 
 config GENERIC_FIND_NEXT_BIT
 	bool

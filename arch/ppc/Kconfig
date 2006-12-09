@@ -19,6 +19,14 @@ config RWSEM_XCHGADD_ALGORITHM
 	bool
 	default y
 
+config ARCH_HAS_ILOG2_U32
+	bool
+	default y
+
+config ARCH_HAS_ILOG2_U64
+	bool
+	default n
+
 config GENERIC_HWEIGHT
 	bool
 	default y
@@ -51,6 +59,11 @@ config SCHED_NO_NO_OMIT_FRAME_POINTER
 config ARCH_MAY_HAVE_PC_FDC
 	bool
 	default y
+
+config GENERIC_BUG
+	bool
+	default y
+	depends on BUG
 
 source "init/Kconfig"
 
