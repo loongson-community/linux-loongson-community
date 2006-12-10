@@ -12,12 +12,10 @@
 #define INIT_FDTABLE \
 {							\
 	.max_fds	= NR_OPEN_DEFAULT, 		\
-	.max_fdset	= EMBEDDED_FD_SET_SIZE,		\
 	.fd		= &init_files.fd_array[0], 	\
 	.close_on_exec	= (fd_set *)&init_files.close_on_exec_init, \
 	.open_fds	= (fd_set *)&init_files.open_fds_init, 	\
 	.rcu		= RCU_HEAD_INIT, 		\
-	.free_files	= NULL,		 		\
 	.next		= NULL,		 		\
 }
 
