@@ -327,11 +327,12 @@ static int ncp_parse_options(struct ncp_mount_data_kernel *data, char *options) 
 	char *optarg;
 	unsigned long optint;
 	int version = 0;
+	int ret;
 
 	data->flags = 0;
 	data->int_flags = 0;
 	data->mounted_uid = 0;
-	data->wdog_pid = -1;
+	data->wdog_pid = NULL;
 	data->ncp_fd = ~0;
 	data->time_out = 10;
 	data->retry_count = 20;
@@ -343,8 +344,9 @@ static int ncp_parse_options(struct ncp_mount_data_kernel *data, char *options) 
 	data->mounted_vol[0] = 0;
 	
 	while ((optval = ncp_getopt("ncpfs", &options, ncp_opts, NULL, &optarg, &optint)) != 0) {
-		if (optval < 0)
-			return optval;
+		ret = optval;
+		if (ret < 0)
+			goto err;
 		switch (optval) {
 			case 'u':
 				data->uid = optint;
@@ -371,7 +373,7 @@ static int ncp_parse_options(struct ncp_mount_data_kernel *data, char *options) 
 				data->flags = optint;
 				break;
 			case 'w':
-				data->wdog_pid = optint;
+				data->wdog_pid = find_get_pid(optint);
 				break;
 			case 'n':
 				data->ncp_fd = optint;
@@ -380,18 +382,21 @@ static int ncp_parse_options(struct ncp_mount_data_kernel *data, char *options) 
 				data->info_fd = optint;
 				break;
 			case 'v':
-				if (optint < NCP_MOUNT_VERSION_V4) {
-					return -ECHRNG;
-				}
-				if (optint > NCP_MOUNT_VERSION_V5) {
-					return -ECHRNG;
-				}
+				ret = -ECHRNG;
+				if (optint < NCP_MOUNT_VERSION_V4)
+					goto err;
+				if (optint > NCP_MOUNT_VERSION_V5)
+					goto err;
 				version = optint;
 				break;
 			
 		}
 	}
 	return 0;
+err:
+	put_pid(data->wdog_pid);
+	data->wdog_pid = NULL;
+	return ret;
 }
 
 static int ncp_fill_super(struct super_block *sb, void *raw_data, int silent)
@@ -409,6 +414,7 @@ static int ncp_fill_super(struct super_block *sb, void *raw_data, int silent)
 #endif
 	struct ncp_entry_info finfo;
 
+	data.wdog_pid = NULL;
 	server = kzalloc(sizeof(struct ncp_server), GFP_KERNEL);
 	if (!server)
 		return -ENOMEM;
@@ -425,7 +431,7 @@ static int ncp_fill_super(struct super_block *sb, void *raw_data, int silent)
 				data.flags = md->flags;
 				data.int_flags = NCP_IMOUNT_LOGGEDIN_POSSIBLE;
 				data.mounted_uid = md->mounted_uid;
-				data.wdog_pid = md->wdog_pid;
+				data.wdog_pid = find_get_pid(md->wdog_pid);
 				data.ncp_fd = md->ncp_fd;
 				data.time_out = md->time_out;
 				data.retry_count = md->retry_count;
@@ -445,7 +451,7 @@ static int ncp_fill_super(struct super_block *sb, void *raw_data, int silent)
 				data.flags = md->flags;
 				data.int_flags = 0;
 				data.mounted_uid = md->mounted_uid;
-				data.wdog_pid = md->wdog_pid;
+				data.wdog_pid = find_get_pid(md->wdog_pid);
 				data.ncp_fd = md->ncp_fd;
 				data.time_out = md->time_out;
 				data.retry_count = md->retry_count;
@@ -679,6 +685,7 @@ out_fput:
 	 */
 	fput(ncp_filp);
 out:
+	put_pid(data.wdog_pid);
 	sb->s_fs_info = NULL;
 	kfree(server);
 	return error;
@@ -711,7 +718,8 @@ static void ncp_put_super(struct super_block *sb)
 	if (server->info_filp)
 		fput(server->info_filp);
 	fput(server->ncp_filp);
-	kill_proc(server->m.wdog_pid, SIGTERM, 1);
+	kill_pid(server->m.wdog_pid, SIGTERM, 1);
+	put_pid(server->m.wdog_pid);
 
 	kfree(server->priv.data);
 	kfree(server->auth.object_name);

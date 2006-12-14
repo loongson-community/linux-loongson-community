@@ -72,18 +72,7 @@ static struct dentry *debugfs_dir;
 #define CR8_RESEVED_BITS (~0x0fULL)
 #define EFER_RESERVED_BITS 0xfffffffffffff2fe
 
-struct vmx_msr_entry *find_msr_entry(struct kvm_vcpu *vcpu, u32 msr)
-{
-	int i;
-
-	for (i = 0; i < vcpu->nmsrs; ++i)
-		if (vcpu->guest_msrs[i].index == msr)
-			return &vcpu->guest_msrs[i];
-	return 0;
-}
-EXPORT_SYMBOL_GPL(find_msr_entry);
-
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 // LDT or TSS descriptor in the GDT. 16 bytes.
 struct segment_descriptor_64 {
 	struct segment_descriptor s;
@@ -115,7 +104,7 @@ unsigned long segment_base(u16 selector)
 	}
 	d = (struct segment_descriptor *)(table_base + (selector & ~7));
 	v = d->base_low | ((ul)d->base_mid << 16) | ((ul)d->base_high << 24);
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 	if (d->system == 0
 	    && (d->type == 2 || d->type == 9 || d->type == 11))
 		v |= ((ul)((struct segment_descriptor_64 *)d)->base_higher) << 32;
@@ -216,7 +205,6 @@ static struct kvm_vcpu *vcpu_load(struct kvm *kvm, int vcpu_slot)
 static void vcpu_put(struct kvm_vcpu *vcpu)
 {
 	kvm_arch_ops->vcpu_put(vcpu);
-	put_cpu();
 	mutex_unlock(&vcpu->mutex);
 }
 
@@ -351,7 +339,7 @@ void set_cr0(struct kvm_vcpu *vcpu, unsigned long cr0)
 	}
 
 	if (!is_paging(vcpu) && (cr0 & CR0_PG_MASK)) {
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 		if ((vcpu->shadow_efer & EFER_LME)) {
 			int cs_db, cs_l;
 
@@ -1120,12 +1108,10 @@ static int get_msr(struct kvm_vcpu *vcpu, u32 msr_index, u64 *pdata)
 	return kvm_arch_ops->get_msr(vcpu, msr_index, pdata);
 }
 
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 
 void set_efer(struct kvm_vcpu *vcpu, u64 efer)
 {
-	struct vmx_msr_entry *msr;
-
 	if (efer & EFER_RESERVED_BITS) {
 		printk(KERN_DEBUG "set_efer: 0x%llx #GP, reserved bits\n",
 		       efer);
@@ -1140,16 +1126,12 @@ void set_efer(struct kvm_vcpu *vcpu, u64 efer)
 		return;
 	}
 
+	kvm_arch_ops->set_efer(vcpu, efer);
+
 	efer &= ~EFER_LMA;
 	efer |= vcpu->shadow_efer & EFER_LMA;
 
 	vcpu->shadow_efer = efer;
-
-	msr = find_msr_entry(vcpu, MSR_EFER);
-
-	if (!(efer & EFER_LMA))
-	    efer &= ~EFER_LME;
-	msr->data = efer;
 }
 EXPORT_SYMBOL_GPL(set_efer);
 
@@ -1243,7 +1225,7 @@ static int kvm_dev_ioctl_get_regs(struct kvm *kvm, struct kvm_regs *regs)
 	regs->rdi = vcpu->regs[VCPU_REGS_RDI];
 	regs->rsp = vcpu->regs[VCPU_REGS_RSP];
 	regs->rbp = vcpu->regs[VCPU_REGS_RBP];
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 	regs->r8 = vcpu->regs[VCPU_REGS_R8];
 	regs->r9 = vcpu->regs[VCPU_REGS_R9];
 	regs->r10 = vcpu->regs[VCPU_REGS_R10];
@@ -1287,7 +1269,7 @@ static int kvm_dev_ioctl_set_regs(struct kvm *kvm, struct kvm_regs *regs)
 	vcpu->regs[VCPU_REGS_RDI] = regs->rdi;
 	vcpu->regs[VCPU_REGS_RSP] = regs->rsp;
 	vcpu->regs[VCPU_REGS_RBP] = regs->rbp;
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 	vcpu->regs[VCPU_REGS_R8] = regs->r8;
 	vcpu->regs[VCPU_REGS_R9] = regs->r9;
 	vcpu->regs[VCPU_REGS_R10] = regs->r10;
@@ -1401,7 +1383,7 @@ static int kvm_dev_ioctl_set_sregs(struct kvm *kvm, struct kvm_sregs *sregs)
 	vcpu->cr8 = sregs->cr8;
 
 	mmu_reset_needed |= vcpu->shadow_efer != sregs->efer;
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 	kvm_arch_ops->set_efer(vcpu, sregs->efer);
 #endif
 	vcpu->apic_base = sregs->apic_base;
@@ -1434,7 +1416,7 @@ static int kvm_dev_ioctl_set_sregs(struct kvm *kvm, struct kvm_sregs *sregs)
 static u32 msrs_to_save[] = {
 	MSR_IA32_SYSENTER_CS, MSR_IA32_SYSENTER_ESP, MSR_IA32_SYSENTER_EIP,
 	MSR_K6_STAR,
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 	MSR_CSTAR, MSR_KERNEL_GS_BASE, MSR_SYSCALL_MASK, MSR_LSTAR,
 #endif
 	MSR_IA32_TIME_STAMP_COUNTER,

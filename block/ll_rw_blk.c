@@ -129,13 +129,6 @@ struct backing_dev_info *blk_get_backing_dev_info(struct block_device *bdev)
 }
 EXPORT_SYMBOL(blk_get_backing_dev_info);
 
-void blk_queue_activity_fn(request_queue_t *q, activity_fn *fn, void *data)
-{
-	q->activity_fn = fn;
-	q->activity_data = data;
-}
-EXPORT_SYMBOL(blk_queue_activity_fn);
-
 /**
  * blk_queue_prep_rq - set a prepare_request function for queue
  * @q:		queue
@@ -238,8 +231,6 @@ void blk_queue_make_request(request_queue_t * q, make_request_fn * mfn)
 	 * by default assume old behaviour and bounce for any highmem page
 	 */
 	blk_queue_bounce_limit(q, BLK_BOUNCE_HIGH);
-
-	blk_queue_activity_fn(q, NULL, NULL);
 }
 
 EXPORT_SYMBOL(blk_queue_make_request);
@@ -2067,15 +2058,16 @@ static void freed_request(request_queue_t *q, int rw, int priv)
  * Returns NULL on failure, with queue_lock held.
  * Returns !NULL on success, with queue_lock *not held*.
  */
-static struct request *get_request(request_queue_t *q, int rw, struct bio *bio,
-				   gfp_t gfp_mask)
+static struct request *get_request(request_queue_t *q, int rw_flags,
+				   struct bio *bio, gfp_t gfp_mask)
 {
 	struct request *rq = NULL;
 	struct request_list *rl = &q->rq;
 	struct io_context *ioc = NULL;
+	const int rw = rw_flags & 0x01;
 	int may_queue, priv;
 
-	may_queue = elv_may_queue(q, rw);
+	may_queue = elv_may_queue(q, rw_flags);
 	if (may_queue == ELV_MQUEUE_NO)
 		goto rq_starved;
 
@@ -2123,7 +2115,7 @@ static struct request *get_request(request_queue_t *q, int rw, struct bio *bio,
 
 	spin_unlock_irq(q->queue_lock);
 
-	rq = blk_alloc_request(q, rw, priv, gfp_mask);
+	rq = blk_alloc_request(q, rw_flags, priv, gfp_mask);
 	if (unlikely(!rq)) {
 		/*
 		 * Allocation failed presumably due to memory. Undo anything
@@ -2171,12 +2163,13 @@ out:
  *
  * Called with q->queue_lock held, and returns with it unlocked.
  */
-static struct request *get_request_wait(request_queue_t *q, int rw,
+static struct request *get_request_wait(request_queue_t *q, int rw_flags,
 					struct bio *bio)
 {
+	const int rw = rw_flags & 0x01;
 	struct request *rq;
 
-	rq = get_request(q, rw, bio, GFP_NOIO);
+	rq = get_request(q, rw_flags, bio, GFP_NOIO);
 	while (!rq) {
 		DEFINE_WAIT(wait);
 		struct request_list *rl = &q->rq;
@@ -2184,7 +2177,7 @@ static struct request *get_request_wait(request_queue_t *q, int rw,
 		prepare_to_wait_exclusive(&rl->wait[rw], &wait,
 				TASK_UNINTERRUPTIBLE);
 
-		rq = get_request(q, rw, bio, GFP_NOIO);
+		rq = get_request(q, rw_flags, bio, GFP_NOIO);
 
 		if (!rq) {
 			struct io_context *ioc;
@@ -2696,9 +2689,6 @@ static inline void add_request(request_queue_t * q, struct request * req)
 {
 	drive_stat_acct(req, req->nr_sectors, 1);
 
-	if (q->activity_fn)
-		q->activity_fn(q->activity_data, rq_data_dir(req));
-
 	/*
 	 * elevator indicated where it wants this request to be
 	 * inserted at elevator_merge time
@@ -2922,6 +2912,7 @@ static int __make_request(request_queue_t *q, struct bio *bio)
 	int el_ret, nr_sectors, barrier, err;
 	const unsigned short prio = bio_prio(bio);
 	const int sync = bio_sync(bio);
+	int rw_flags;
 
 	nr_sectors = bio_sectors(bio);
 
@@ -2996,10 +2987,19 @@ static int __make_request(request_queue_t *q, struct bio *bio)
 
 get_rq:
 	/*
+	 * This sync check and mask will be re-done in init_request_from_bio(),
+	 * but we need to set it earlier to expose the sync flag to the
+	 * rq allocator and io schedulers.
+	 */
+	rw_flags = bio_data_dir(bio);
+	if (sync)
+		rw_flags |= REQ_RW_SYNC;
+
+	/*
 	 * Grab a free request. This is might sleep but can not fail.
 	 * Returns with the queue unlocked.
 	 */
-	req = get_request_wait(q, bio_data_dir(bio), bio);
+	req = get_request_wait(q, rw_flags, bio);
 
 	/*
 	 * After dropping the lock and possibly sleeping here, our request

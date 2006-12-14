@@ -3335,18 +3335,13 @@ static void __do_SAK(struct work_struct *work)
 	int session;
 	int		i;
 	struct file	*filp;
-	struct tty_ldisc *disc;
 	struct fdtable *fdt;
 	
 	if (!tty)
 		return;
 	session = tty->session;
 	
-	/* We don't want an ldisc switch during this */
-	disc = tty_ldisc_ref(tty);
-	if (disc && disc->flush_buffer)
-		disc->flush_buffer(tty);
-	tty_ldisc_deref(disc);
+	tty_ldisc_flush(tty);
 
 	if (tty->driver->flush_buffer)
 		tty->driver->flush_buffer(tty);
@@ -3821,6 +3816,7 @@ struct tty_struct *get_current_tty(void)
 	barrier();
 	return tty;
 }
+EXPORT_SYMBOL_GPL(get_current_tty);
 
 /*
  * Initialize the console device. This is called *early*, so

@@ -22,6 +22,7 @@
 #include <linux/mm.h>
 #include <linux/highmem.h>
 #include <asm/io.h>
+#include <asm/desc.h>
 
 #include "segment_descriptor.h"
 
@@ -33,7 +34,7 @@ MODULE_LICENSE("GPL");
 static DEFINE_PER_CPU(struct vmcs *, vmxarea);
 static DEFINE_PER_CPU(struct vmcs *, current_vmcs);
 
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 #define HOST_IS_64 1
 #else
 #define HOST_IS_64 0
@@ -70,14 +71,12 @@ static struct kvm_vmx_segment_field {
 };
 
 static const u32 vmx_msr_index[] = {
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 	MSR_SYSCALL_MASK, MSR_LSTAR, MSR_CSTAR, MSR_KERNEL_GS_BASE,
 #endif
 	MSR_EFER, MSR_K6_STAR,
 };
 #define NR_VMX_MSR (sizeof(vmx_msr_index) / sizeof(*vmx_msr_index))
-
-struct vmx_msr_entry *find_msr_entry(struct kvm_vcpu *vcpu, u32 msr);
 
 static inline int is_page_fault(u32 intr_info)
 {
@@ -90,6 +89,16 @@ static inline int is_external_interrupt(u32 intr_info)
 {
 	return (intr_info & (INTR_INFO_INTR_TYPE_MASK | INTR_INFO_VALID_MASK))
 		== (INTR_TYPE_EXT_INTR | INTR_INFO_VALID_MASK);
+}
+
+static struct vmx_msr_entry *find_msr_entry(struct kvm_vcpu *vcpu, u32 msr)
+{
+	int i;
+
+	for (i = 0; i < vcpu->nmsrs; ++i)
+		if (vcpu->guest_msrs[i].index == msr)
+			return &vcpu->guest_msrs[i];
+	return 0;
 }
 
 static void vmcs_clear(struct vmcs *vmcs)
@@ -137,7 +146,7 @@ static u32 vmcs_read32(unsigned long field)
 
 static u64 vmcs_read64(unsigned long field)
 {
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 	return vmcs_readl(field);
 #else
 	return vmcs_readl(field) | ((u64)vmcs_readl(field+1) << 32);
@@ -167,7 +176,7 @@ static void vmcs_write32(unsigned long field, u32 value)
 
 static void vmcs_write64(unsigned long field, u64 value)
 {
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 	vmcs_writel(field, value);
 #else
 	vmcs_writel(field, value);
@@ -296,7 +305,7 @@ static void guest_write_tsc(u64 guest_tsc)
 
 static void reload_tss(void)
 {
-#ifndef __x86_64__
+#ifndef CONFIG_X86_64
 
 	/*
 	 * VT restores TR but not its size.  Useless.
@@ -327,7 +336,7 @@ static int vmx_get_msr(struct kvm_vcpu *vcpu, u32 msr_index, u64 *pdata)
 	}
 
 	switch (msr_index) {
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 	case MSR_FS_BASE:
 		data = vmcs_readl(GUEST_FS_BASE);
 		break;
@@ -390,7 +399,7 @@ static int vmx_set_msr(struct kvm_vcpu *vcpu, u32 msr_index, u64 data)
 {
 	struct vmx_msr_entry *msr;
 	switch (msr_index) {
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 	case MSR_FS_BASE:
 		vmcs_writel(GUEST_FS_BASE, data);
 		break;
@@ -525,7 +534,7 @@ static __init void hardware_enable(void *garbage)
 	u64 old;
 
 	rdmsrl(MSR_IA32_FEATURE_CONTROL, old);
-	if ((old & 5) == 0)
+	if ((old & 5) != 5)
 		/* enable and lock */
 		wrmsrl(MSR_IA32_FEATURE_CONTROL, old | 5);
 	write_cr4(read_cr4() | CR4_VMXE); /* FIXME: not cpu hotplug safe */
@@ -725,7 +734,7 @@ static void enter_rmode(struct kvm_vcpu *vcpu)
 	fix_rmode_seg(VCPU_SREG_FS, &vcpu->rmode.fs);
 }
 
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 
 static void enter_lmode(struct kvm_vcpu *vcpu)
 {
@@ -767,7 +776,7 @@ static void vmx_set_cr0(struct kvm_vcpu *vcpu, unsigned long cr0)
 	if (!vcpu->rmode.active && !(cr0 & CR0_PE_MASK))
 		enter_rmode(vcpu);
 
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 	if (vcpu->shadow_efer & EFER_LME) {
 		if (!is_paging(vcpu) && (cr0 & CR0_PG_MASK))
 			enter_lmode(vcpu);
@@ -808,7 +817,7 @@ static void vmx_set_cr4(struct kvm_vcpu *vcpu, unsigned long cr4)
 	vcpu->cr4 = cr4;
 }
 
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 
 static void vmx_set_efer(struct kvm_vcpu *vcpu, u64 efer)
 {
@@ -883,6 +892,8 @@ static void vmx_set_segment(struct kvm_vcpu *vcpu,
 		ar |= (var->db & 1) << 14;
 		ar |= (var->g & 1) << 15;
 	}
+	if (ar == 0) /* a 0 value means unusable */
+		ar = AR_UNUSABLE_MASK;
 	vmcs_write32(sf->ar_bytes, ar);
 }
 
@@ -1095,7 +1106,7 @@ static int vmx_vcpu_setup(struct kvm_vcpu *vcpu)
 	vmcs_write16(HOST_FS_SELECTOR, read_fs());    /* 22.2.4 */
 	vmcs_write16(HOST_GS_SELECTOR, read_gs());    /* 22.2.4 */
 	vmcs_write16(HOST_SS_SELECTOR, __KERNEL_DS);  /* 22.2.4 */
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 	rdmsrl(MSR_FS_BASE, a);
 	vmcs_writel(HOST_FS_BASE, a); /* 22.2.4 */
 	rdmsrl(MSR_GS_BASE, a);
@@ -1164,8 +1175,10 @@ static int vmx_vcpu_setup(struct kvm_vcpu *vcpu)
                                VM_ENTRY_CONTROLS, 0);
 	vmcs_write32(VM_ENTRY_INTR_INFO_FIELD, 0);  /* 22.2.1 */
 
+#ifdef CONFIG_X86_64
 	vmcs_writel(VIRTUAL_APIC_PAGE_ADDR, 0);
 	vmcs_writel(TPR_THRESHOLD, 0);
+#endif
 
 	vmcs_writel(CR0_GUEST_HOST_MASK, KVM_GUEST_CR0_MASK);
 	vmcs_writel(CR4_GUEST_HOST_MASK, KVM_GUEST_CR4_MASK);
@@ -1173,7 +1186,7 @@ static int vmx_vcpu_setup(struct kvm_vcpu *vcpu)
 	vcpu->cr0 = 0x60000010;
 	vmx_set_cr0(vcpu, vcpu->cr0); // enter rmode
 	vmx_set_cr4(vcpu, 0);
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 	vmx_set_efer(vcpu, 0);
 #endif
 
@@ -1689,7 +1702,7 @@ again:
 		vmcs_write16(HOST_GS_SELECTOR, 0);
 	}
 
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 	vmcs_writel(HOST_FS_BASE, read_msr(MSR_FS_BASE));
 	vmcs_writel(HOST_GS_BASE, read_msr(MSR_GS_BASE));
 #else
@@ -1713,7 +1726,7 @@ again:
 	asm (
 		/* Store host registers */
 		"pushf \n\t"
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 		"push %%rax; push %%rbx; push %%rdx;"
 		"push %%rsi; push %%rdi; push %%rbp;"
 		"push %%r8;  push %%r9;  push %%r10; push %%r11;"
@@ -1727,7 +1740,7 @@ again:
 		/* Check if vmlaunch of vmresume is needed */
 		"cmp $0, %1 \n\t"
 		/* Load guest registers.  Don't clobber flags. */
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 		"mov %c[cr2](%3), %%rax \n\t"
 		"mov %%rax, %%cr2 \n\t"
 		"mov %c[rax](%3), %%rax \n\t"
@@ -1764,7 +1777,7 @@ again:
 		".globl kvm_vmx_return \n\t"
 		"kvm_vmx_return: "
 		/* Save guest registers, load host registers, keep flags */
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 		"xchg %3,     0(%%rsp) \n\t"
 		"mov %%rax, %c[rax](%3) \n\t"
 		"mov %%rbx, %c[rbx](%3) \n\t"
@@ -1816,7 +1829,7 @@ again:
 		[rsi]"i"(offsetof(struct kvm_vcpu, regs[VCPU_REGS_RSI])),
 		[rdi]"i"(offsetof(struct kvm_vcpu, regs[VCPU_REGS_RDI])),
 		[rbp]"i"(offsetof(struct kvm_vcpu, regs[VCPU_REGS_RBP])),
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 		[r8 ]"i"(offsetof(struct kvm_vcpu, regs[VCPU_REGS_R8 ])),
 		[r9 ]"i"(offsetof(struct kvm_vcpu, regs[VCPU_REGS_R9 ])),
 		[r10]"i"(offsetof(struct kvm_vcpu, regs[VCPU_REGS_R10])),
@@ -1837,7 +1850,7 @@ again:
 	fx_save(vcpu->guest_fx_image);
 	fx_restore(vcpu->host_fx_image);
 
-#ifndef __x86_64__
+#ifndef CONFIG_X86_64
 	asm ("mov %0, %%ds; mov %0, %%es" : : "r"(__USER_DS));
 #endif
 
@@ -1855,7 +1868,7 @@ again:
 			 */
 			local_irq_disable();
 			load_gs(gs_sel);
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 			wrmsrl(MSR_GS_BASE, vmcs_readl(HOST_GS_BASE));
 #endif
 			local_irq_enable();
@@ -1965,7 +1978,7 @@ static struct kvm_arch_ops vmx_arch_ops = {
 	.set_cr0_no_modeswitch = vmx_set_cr0_no_modeswitch,
 	.set_cr3 = vmx_set_cr3,
 	.set_cr4 = vmx_set_cr4,
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 	.set_efer = vmx_set_efer,
 #endif
 	.get_idt = vmx_get_idt,
@@ -1989,8 +2002,7 @@ static struct kvm_arch_ops vmx_arch_ops = {
 
 static int __init vmx_init(void)
 {
-	kvm_init_arch(&vmx_arch_ops, THIS_MODULE);
-	return 0;
+	return kvm_init_arch(&vmx_arch_ops, THIS_MODULE);
 }
 
 static void __exit vmx_exit(void)

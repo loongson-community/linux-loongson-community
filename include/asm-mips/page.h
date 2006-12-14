@@ -35,7 +35,6 @@
 #ifndef __ASSEMBLY__
 
 #include <linux/pfn.h>
-#include <asm/cpu-features.h>
 #include <asm/io.h>
 
 extern void clear_page(void * page);

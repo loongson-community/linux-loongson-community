@@ -287,7 +287,7 @@ static void svm_hardware_enable(void *garbage)
 
 	struct svm_cpu_data *svm_data;
 	uint64_t efer;
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 	struct desc_ptr gdt_descr;
 #else
 	struct Xgt_desc_struct gdt_descr;
@@ -377,6 +377,7 @@ static __init int svm_hardware_setup(void)
 	void *msrpm_va;
 	int r;
 
+	kvm_emulator_want_group7_invlpg();
 
 	iopm_pages = alloc_pages(GFP_KERNEL, IOPM_ALLOC_ORDER);
 
@@ -397,7 +398,7 @@ static __init int svm_hardware_setup(void)
 	memset(msrpm_va, 0xff, PAGE_SIZE * (1 << MSRPM_ALLOC_ORDER));
 	msrpm_base = page_to_pfn(msrpm_pages) << PAGE_SHIFT;
 
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 	set_msr_interception(msrpm_va, MSR_GS_BASE, 1, 1);
 	set_msr_interception(msrpm_va, MSR_FS_BASE, 1, 1);
 	set_msr_interception(msrpm_va, MSR_KERNEL_GS_BASE, 1, 1);
@@ -704,7 +705,7 @@ static void svm_set_gdt(struct kvm_vcpu *vcpu, struct descriptor_table *dt)
 
 static void svm_set_cr0(struct kvm_vcpu *vcpu, unsigned long cr0)
 {
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 	if (vcpu->shadow_efer & KVM_EFER_LME) {
 		if (!is_paging(vcpu) && (cr0 & CR0_PG_MASK)) {
 			vcpu->shadow_efer |= KVM_EFER_LMA;
@@ -1097,7 +1098,7 @@ static int svm_get_msr(struct kvm_vcpu *vcpu, unsigned ecx, u64 *data)
 	case MSR_IA32_APICBASE:
 		*data = vcpu->apic_base;
 		break;
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 	case MSR_STAR:
 		*data = vcpu->svm->vmcb->save.star;
 		break;
@@ -1149,7 +1150,7 @@ static int rdmsr_interception(struct kvm_vcpu *vcpu, struct kvm_run *kvm_run)
 static int svm_set_msr(struct kvm_vcpu *vcpu, unsigned ecx, u64 data)
 {
 	switch (ecx) {
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 	case MSR_EFER:
 		set_efer(vcpu, data);
 		break;
@@ -1172,7 +1173,7 @@ static int svm_set_msr(struct kvm_vcpu *vcpu, unsigned ecx, u64 data)
 	case MSR_IA32_APICBASE:
 		vcpu->apic_base = data;
 		break;
-#ifdef __x86_64___
+#ifdef CONFIG_X86_64_
 	case MSR_STAR:
 		vcpu->svm->vmcb->save.star = data;
 		break;
@@ -1345,53 +1346,18 @@ static void kvm_reput_irq(struct kvm_vcpu *vcpu)
 
 static void save_db_regs(unsigned long *db_regs)
 {
-#ifdef __x86_64__
-	asm ("mov %%dr0, %%rax \n\t"
-	     "mov %%rax, %[dr0] \n\t"
-	     "mov %%dr1, %%rax \n\t"
-	     "mov %%rax, %[dr1] \n\t"
-	     "mov %%dr2, %%rax \n\t"
-	     "mov %%rax, %[dr2] \n\t"
-	     "mov %%dr3, %%rax \n\t"
-	     "mov %%rax, %[dr3] \n\t"
-	     : [dr0] "=m"(db_regs[0]),
-	       [dr1] "=m"(db_regs[1]),
-	       [dr2] "=m"(db_regs[2]),
-	       [dr3] "=m"(db_regs[3])
-	     : : "rax");
-#else
-	asm ("mov %%dr0, %%eax \n\t"
-	     "mov %%eax, %[dr0] \n\t"
-	     "mov %%dr1, %%eax \n\t"
-	     "mov %%eax, %[dr1] \n\t"
-	     "mov %%dr2, %%eax \n\t"
-	     "mov %%eax, %[dr2] \n\t"
-	     "mov %%dr3, %%eax \n\t"
-	     "mov %%eax, %[dr3] \n\t"
-	     : [dr0] "=m"(db_regs[0]),
-	       [dr1] "=m"(db_regs[1]),
-	       [dr2] "=m"(db_regs[2]),
-	       [dr3] "=m"(db_regs[3])
-	     : : "eax");
-#endif
+	asm volatile ("mov %%dr0, %0" : "=r"(db_regs[0]));
+	asm volatile ("mov %%dr1, %0" : "=r"(db_regs[1]));
+	asm volatile ("mov %%dr2, %0" : "=r"(db_regs[2]));
+	asm volatile ("mov %%dr3, %0" : "=r"(db_regs[3]));
 }
 
 static void load_db_regs(unsigned long *db_regs)
 {
-	asm volatile ("mov %[dr0], %%dr0 \n\t"
-	     "mov %[dr1], %%dr1 \n\t"
-	     "mov %[dr2], %%dr2 \n\t"
-	     "mov %[dr3], %%dr3 \n\t"
-	     :
-	     : [dr0] "r"(db_regs[0]),
-	       [dr1] "r"(db_regs[1]),
-	       [dr2] "r"(db_regs[2]),
-	       [dr3] "r"(db_regs[3])
-#ifdef __x86_64__
-	     : "rax");
-#else
-	     : "eax");
-#endif
+	asm volatile ("mov %0, %%dr0" : : "r"(db_regs[0]));
+	asm volatile ("mov %0, %%dr1" : : "r"(db_regs[1]));
+	asm volatile ("mov %0, %%dr2" : : "r"(db_regs[2]));
+	asm volatile ("mov %0, %%dr3" : : "r"(db_regs[3]));
 }
 
 static int svm_vcpu_run(struct kvm_vcpu *vcpu, struct kvm_run *kvm_run)
@@ -1422,7 +1388,7 @@ again:
 		load_db_regs(vcpu->svm->db_regs);
 	}
 	asm volatile (
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 		"push %%rbx; push %%rcx; push %%rdx;"
 		"push %%rsi; push %%rdi; push %%rbp;"
 		"push %%r8;  push %%r9;  push %%r10; push %%r11;"
@@ -1432,7 +1398,7 @@ again:
 		"push %%esi; push %%edi; push %%ebp;"
 #endif
 
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 		"mov %c[rbx](%[vcpu]), %%rbx \n\t"
 		"mov %c[rcx](%[vcpu]), %%rcx \n\t"
 		"mov %c[rdx](%[vcpu]), %%rdx \n\t"
@@ -1456,7 +1422,7 @@ again:
 		"mov %c[rbp](%[vcpu]), %%ebp \n\t"
 #endif
 
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 		/* Enter guest mode */
 		"push %%rax \n\t"
 		"mov %c[svm](%[vcpu]), %%rax \n\t"
@@ -1477,7 +1443,7 @@ again:
 #endif
 
 		/* Save guest registers, load host registers */
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 		"mov %%rbx, %c[rbx](%[vcpu]) \n\t"
 		"mov %%rcx, %c[rcx](%[vcpu]) \n\t"
 		"mov %%rdx, %c[rdx](%[vcpu]) \n\t"
@@ -1518,7 +1484,7 @@ again:
 		  [rsi]"i"(offsetof(struct kvm_vcpu, regs[VCPU_REGS_RSI])),
 		  [rdi]"i"(offsetof(struct kvm_vcpu, regs[VCPU_REGS_RDI])),
 		  [rbp]"i"(offsetof(struct kvm_vcpu, regs[VCPU_REGS_RBP]))
-#ifdef __x86_64__
+#ifdef CONFIG_X86_64
 		  ,[r8 ]"i"(offsetof(struct kvm_vcpu, regs[VCPU_REGS_R8 ])),
 		  [r9 ]"i"(offsetof(struct kvm_vcpu, regs[VCPU_REGS_R9 ])),
 		  [r10]"i"(offsetof(struct kvm_vcpu, regs[VCPU_REGS_R10])),
@@ -1663,9 +1629,7 @@ static struct kvm_arch_ops svm_arch_ops = {
 
 static int __init svm_init(void)
 {
-	kvm_emulator_want_group7_invlpg();
-	kvm_init_arch(&svm_arch_ops, THIS_MODULE);
-	return 0;
+	return kvm_init_arch(&svm_arch_ops, THIS_MODULE);
 }
 
 static void __exit svm_exit(void)

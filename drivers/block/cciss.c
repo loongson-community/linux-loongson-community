@@ -1039,7 +1039,7 @@ static int cciss_ioctl(struct inode *inode, struct file *filep,
 				status = -ENOMEM;
 				goto cleanup1;
 			}
-			buff_size = (int *)kmalloc(MAXSGENTRIES * sizeof(int),
+			buff_size = kmalloc(MAXSGENTRIES * sizeof(int),
 						   GFP_KERNEL);
 			if (!buff_size) {
 				status = -ENOMEM;
@@ -2837,7 +2837,7 @@ static int cciss_pci_init(ctlr_info_t *c, struct pci_dev *pdev)
 	if (err) {
 		printk(KERN_ERR "cciss: Cannot obtain PCI resources, "
 		       "aborting\n");
-		goto err_out_disable_pdev;
+		return err;
 	}
 
 	subsystem_vendor_id = pdev->subsystem_vendor;
@@ -2865,7 +2865,7 @@ static int cciss_pci_init(ctlr_info_t *c, struct pci_dev *pdev)
 #ifdef CCISS_DEBUG
 	printk("address 0 = %x\n", c->paddr);
 #endif				/* CCISS_DEBUG */
-	c->vaddr = remap_pci_mem(c->paddr, 200);
+	c->vaddr = remap_pci_mem(c->paddr, 0x250);
 
 	/* Wait for the board to become ready.  (PCI hotplug needs this.)
 	 * We poll for up to 120 secs, once per 100ms. */
@@ -3004,11 +3004,12 @@ static int cciss_pci_init(ctlr_info_t *c, struct pci_dev *pdev)
 	}
 	return 0;
 
-      err_out_free_res:
+err_out_free_res:
+	/*
+	 * Deliberately omit pci_disable_device(): it does something nasty to
+	 * Smart Array controllers that pci_enable_device does not undo
+	 */
 	pci_release_regions(pdev);
-
-      err_out_disable_pdev:
-	pci_disable_device(pdev);
 	return err;
 }
 
@@ -3382,8 +3383,11 @@ static int __devinit cciss_init_one(struct pci_dev *pdev,
 		if (drv->queue)
 			blk_cleanup_queue(drv->queue);
 	}
+	/*
+	 * Deliberately omit pci_disable_device(): it does something nasty to
+	 * Smart Array controllers that pci_enable_device does not undo
+	 */
 	pci_release_regions(pdev);
-	pci_disable_device(pdev);
 	pci_set_drvdata(pdev, NULL);
 	free_hba(i);
 	return -1;
@@ -3452,8 +3456,11 @@ static void __devexit cciss_remove_one(struct pci_dev *pdev)
 #ifdef CONFIG_CISS_SCSI_TAPE
 	kfree(hba[i]->scsi_rejects.complete);
 #endif
+	/*
+	 * Deliberately omit pci_disable_device(): it does something nasty to
+	 * Smart Array controllers that pci_enable_device does not undo
+	 */
 	pci_release_regions(pdev);
-	pci_disable_device(pdev);
 	pci_set_drvdata(pdev, NULL);
 	free_hba(i);
 }
