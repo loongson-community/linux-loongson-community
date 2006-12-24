@@ -1567,6 +1567,7 @@ int fastcall wake_up_state(struct task_struct *p, unsigned int state)
 	return try_to_wake_up(p, state, 0);
 }
 
+static void task_running_tick(struct rq *rq, struct task_struct *p);
 /*
  * Perform scheduler related setup for a newly forked process p.
  * p is forked by current.
@@ -1627,7 +1628,7 @@ void fastcall sched_fork(struct task_struct *p, int clone_flags)
 		 * runqueue lock is not a problem.
 		 */
 		current->time_slice = 1;
-		scheduler_tick();
+		task_running_tick(cpu_rq(cpu), current);
 	}
 	local_irq_enable();
 	put_cpu();
@@ -4618,8 +4619,10 @@ asmlinkage long sys_sched_yield(void)
 
 static inline int __resched_legal(int expected_preempt_count)
 {
+#ifdef CONFIG_PREEMPT
 	if (unlikely(preempt_count() != expected_preempt_count))
 		return 0;
+#endif
 	if (unlikely(system_state != SYSTEM_RUNNING))
 		return 0;
 	return 1;
@@ -5607,7 +5610,7 @@ static void cpu_attach_domain(struct sched_domain *sd, int cpu)
 }
 
 /* cpus with isolated domains */
-static cpumask_t __cpuinitdata cpu_isolated_map = CPU_MASK_NONE;
+static cpumask_t cpu_isolated_map = CPU_MASK_NONE;
 
 /* Setup the mask of cpus configured for isolated domains */
 static int __init isolated_cpu_setup(char *str)

@@ -402,6 +402,14 @@ static const struct pci_device_id ahci_pci_tbl[] = {
 	{ PCI_VDEVICE(NVIDIA, 0x044d), board_ahci },		/* MCP65 */
 	{ PCI_VDEVICE(NVIDIA, 0x044e), board_ahci },		/* MCP65 */
 	{ PCI_VDEVICE(NVIDIA, 0x044f), board_ahci },		/* MCP65 */
+	{ PCI_VDEVICE(NVIDIA, 0x045c), board_ahci },		/* MCP65 */
+	{ PCI_VDEVICE(NVIDIA, 0x045d), board_ahci },		/* MCP65 */
+	{ PCI_VDEVICE(NVIDIA, 0x045e), board_ahci },		/* MCP65 */
+	{ PCI_VDEVICE(NVIDIA, 0x045f), board_ahci },		/* MCP65 */
+	{ PCI_VDEVICE(NVIDIA, 0x0550), board_ahci },		/* MCP67 */
+	{ PCI_VDEVICE(NVIDIA, 0x0551), board_ahci },		/* MCP67 */
+	{ PCI_VDEVICE(NVIDIA, 0x0552), board_ahci },		/* MCP67 */
+	{ PCI_VDEVICE(NVIDIA, 0x0553), board_ahci },		/* MCP67 */
 	{ PCI_VDEVICE(NVIDIA, 0x0554), board_ahci },		/* MCP67 */
 	{ PCI_VDEVICE(NVIDIA, 0x0555), board_ahci },		/* MCP67 */
 	{ PCI_VDEVICE(NVIDIA, 0x0556), board_ahci },		/* MCP67 */
@@ -645,8 +653,6 @@ static int ahci_reset_controller(void __iomem *mmio, struct pci_dev *pdev)
 	u32 cap_save, impl_save, tmp;
 
 	cap_save = readl(mmio + HOST_CAP);
-	cap_save &= ( (1<<28) | (1<<17) );
-	cap_save |= (1 << 27);
 	impl_save = readl(mmio + HOST_PORTS_IMPL);
 
 	/* global controller reset */

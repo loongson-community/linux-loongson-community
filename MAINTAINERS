@@ -406,14 +406,14 @@ S:	Maintained
 
 ARM/S3C2410 ARM ARCHITECTURE
 P:	Ben Dooks
-M:	ben-s3c2410@fluff.org
+M:	ben-linux@fluff.org
 L:	linux-arm-kernel@lists.arm.linux.org.uk	(subscribers-only)
 W:	http://www.fluff.org/ben/linux/
 S:	Maintained
 
 ARM/S3C2440 ARM ARCHITECTURE
 P:	Ben Dooks
-M:	ben-s3c2440@fluff.org
+M:	ben-linux@fluff.org
 L:	linux-arm-kernel@lists.arm.linux.org.uk	(subscribers-only)
 W:	http://www.fluff.org/ben/linux/
 S:	Maintained
@@ -943,11 +943,8 @@ L:	linux-kernel@vger.kernel.org
 S:	Maintained
 
 DOCBOOK FOR DOCUMENTATION
-P:	Martin Waitz
-M:	tali@admingilde.org
 P:	Randy Dunlap
 M:	rdunlap@xenotime.net
-T:	git http://tali.admingilde.org/git/linux-docbook.git
 S:	Maintained
 
 DOCKING STATION DRIVER
@@ -1277,6 +1274,12 @@ L:	linux-nvidia@lists.surfsouth.com
 W:	http://drama.obuda.kando.hu/~fero/cgi-bin/hgafb.shtml
 S:	Maintained
 
+HID CORE LAYER
+P:	Jiri Kosina
+M:	jkosina@suse.cz
+L:	linux-input@atrey.karlin.mff.cuni.cz
+S:	Maintained
+
 HIGH-SPEED SCC DRIVER FOR AX.25
 P:	Klaus Kudielka
 M:	klaus.kudielka@ieee.org
@@ -1395,6 +1398,15 @@ M:	tony.luck@intel.com
 L:	linux-ia64@vger.kernel.org
 W:	http://www.ia64-linux.org/
 T:	git kernel.org:/pub/scm/linux/kernel/git/aegl/linux-2.6.git
+S:	Maintained
+
+IBM ACPI EXTRAS DRIVER
+P:	Henrique de Moraes Holschuh
+M:	ibm-acpi@hmh.eng.br
+L:	ibm-acpi-devel@lists.sourceforge.net
+W:	http://ibm-acpi.sourceforge.net
+W:	http://thinkwiki.org/wiki/Ibm-acpi
+T:	git repo.or.cz/linux-2.6/linux-acpi-2.6/ibm-acpi-2.6.git
 S:	Maintained
 
 SN-IA64 (Itanium) SUB-PLATFORM
@@ -3124,7 +3136,7 @@ USB EHCI DRIVER
 P:	David Brownell
 M:	dbrownell@users.sourceforge.net
 L:	linux-usb-devel@lists.sourceforge.net
-S:	Maintained
+S:	Odd Fixes
 
 USB ET61X[12]51 DRIVER
 P:	Luca Risolia
@@ -3177,11 +3189,11 @@ S:	Maintained
 W:	http://www.one-eyed-alien.net/~mdharm/linux-usb/
 
 USB OHCI DRIVER
-P:	Roman Weissgaerber
-M:	weissg@vienna.at
+P:	David Brownell
+M:	dbrownell@users.sourceforge.net
 L:	linux-usb-users@lists.sourceforge.net
 L:	linux-usb-devel@lists.sourceforge.net
-S:	Maintained
+S:	Odd Fixes
 
 USB OPTION-CARD DRIVER
 P:	Matthias Urlichs

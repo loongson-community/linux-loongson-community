@@ -51,6 +51,26 @@ static inline void truncate_partial_page(struct page *page, unsigned partial)
 		do_invalidatepage(page, partial);
 }
 
+void cancel_dirty_page(struct page *page, unsigned int account_size)
+{
+	/* If we're cancelling the page, it had better not be mapped any more */
+	if (page_mapped(page)) {
+		static unsigned int warncount;
+
+		WARN_ON(++warncount < 5);
+	}
+		
+	if (TestClearPageDirty(page)) {
+		struct address_space *mapping = page->mapping;
+		if (mapping && mapping_cap_account_dirty(mapping)) {
+			dec_zone_page_state(page, NR_FILE_DIRTY);
+			if (account_size)
+				task_io_account_cancelled_write(account_size);
+		}
+	}
+}
+EXPORT_SYMBOL(cancel_dirty_page);
+
 /*
  * If truncate cannot remove the fs-private metadata from the page, the page
  * becomes anonymous.  It will be left on the LRU and may even be mapped into
@@ -67,11 +87,11 @@ truncate_complete_page(struct address_space *mapping, struct page *page)
 	if (page->mapping != mapping)
 		return;
 
+	cancel_dirty_page(page, PAGE_CACHE_SIZE);
+
 	if (PagePrivate(page))
 		do_invalidatepage(page, 0);
 
-	if (test_clear_page_dirty(page))
-		task_io_account_cancelled_write(PAGE_CACHE_SIZE);
 	ClearPageUptodate(page);
 	ClearPageMappedToDisk(page);
 	remove_from_page_cache(page);
@@ -350,7 +370,6 @@ int invalidate_inode_pages2_range(struct address_space *mapping,
 		for (i = 0; !ret && i < pagevec_count(&pvec); i++) {
 			struct page *page = pvec.pages[i];
 			pgoff_t page_index;
-			int was_dirty;
 
 			lock_page(page);
 			if (page->mapping != mapping) {
@@ -386,12 +405,8 @@ int invalidate_inode_pages2_range(struct address_space *mapping,
 					  PAGE_CACHE_SIZE, 0);
 				}
 			}
-			was_dirty = test_clear_page_dirty(page);
-			if (!invalidate_complete_page2(mapping, page)) {
-				if (was_dirty)
-					set_page_dirty(page);
+			if (!invalidate_complete_page2(mapping, page))
 				ret = -EIO;
-			}
 			unlock_page(page);
 		}
 		pagevec_release(&pvec);

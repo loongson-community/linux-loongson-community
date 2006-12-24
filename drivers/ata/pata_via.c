@@ -161,10 +161,15 @@ static int via_pre_reset(struct ata_port *ap)
 			return -ENOENT;
 	}
 
-	if ((config->flags & VIA_UDMA) >= VIA_UDMA_66)
+	if ((config->flags & VIA_UDMA) >= VIA_UDMA_100)
 		ap->cbl = via_cable_detect(ap);
-	else
+	/* The UDMA66 series has no cable detect so do drive side detect */
+	else if ((config->flags & VIA_UDMA) < VIA_UDMA_66)
 		ap->cbl = ATA_CBL_PATA40;
+	else
+		ap->cbl = ATA_CBL_PATA_UNK;
+		
+
 	return ata_std_prereset(ap);
 }
 
@@ -390,7 +395,7 @@ static void via_config_fifo(struct pci_dev *pdev, unsigned int flags)
 	enable &= 3;
 	
 	if (flags & VIA_SET_FIFO) {
-		u8 fifo_setting[4] = {0x00, 0x60, 0x00, 0x20};
+		static const u8 fifo_setting[4] = {0x00, 0x60, 0x00, 0x20};
 		u8 fifo;
 
 		pci_read_config_byte(pdev, 0x43, &fifo);

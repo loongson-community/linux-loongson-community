@@ -14,16 +14,14 @@
  * Modified for LH7A404 from ohci-sa1111.c
  *  by Durgesh Pattamatta <pattamattad@sharpsec.com>
  *
- * Modified for pxa27x from ohci-lh7a404.c
- *  by Nick Bane <nick@cecomputing.co.uk> 26-8-2004
- *
- * Modified for PNX8550 from ohci-pxa27x.c
- *  by Embedded Alley Solutions, Inc. 
+ * Modified for PNX8550 from ohci-sa1111.c and sa-omap.c
+ *  by Vitaly Wool <vitalywool@gmail.com>
  *
  * This file is licenced under the GPL.
  */
 
 #include <linux/device.h>
+#include <linux/platform_device.h>
 #include <asm/mach-pnx8550/usb.h>
 #include <asm/mach-pnx8550/int.h>
 #include <asm/mach-pnx8550/pci.h>
@@ -78,8 +76,9 @@ int usb_hcd_pnx8550_probe (const struct hc_driver *driver,
 	int retval;
 	struct usb_hcd *hcd;
 
-	if (dev->resource[1].flags != IORESOURCE_IRQ) {
-		pr_debug ("resource[1] is not IORESOURCE_IRQ");
+	if (dev->resource[0].flags != IORESOURCE_MEM ||
+			dev->resource[1].flags != IORESOURCE_IRQ) {
+		dev_err (&dev->dev,"invalid resource type\n");
 		return -ENOMEM;
 	}
 
@@ -90,14 +89,16 @@ int usb_hcd_pnx8550_probe (const struct hc_driver *driver,
 	hcd->rsrc_len = dev->resource[0].end - dev->resource[0].start + 1;
 
 	if (!request_mem_region(hcd->rsrc_start, hcd->rsrc_len, hcd_name)) {
-		pr_debug("request_mem_region failed");
+		dev_err(&dev->dev, "request_mem_region [0x%08llx, 0x%08llx] "
+				"failed\n", hcd->rsrc_start, hcd->rsrc_len);
 		retval = -EBUSY;
 		goto err1;
 	}
 
 	hcd->regs = ioremap(hcd->rsrc_start, hcd->rsrc_len);
 	if (!hcd->regs) {
-		pr_debug("ioremap failed");
+		dev_err(&dev->dev, "ioremap [[0x%08llx, 0x%08llx] failed\n",
+				hcd->rsrc_start, hcd->rsrc_len);
 		retval = -ENOMEM;
 		goto err2;
 	}
@@ -200,20 +201,19 @@ static const struct hc_driver ohci_pnx8550_hc_driver = {
 	 */
 	.hub_status_data =	ohci_hub_status_data,
 	.hub_control =		ohci_hub_control,
-#ifdef  CONFIG_USB_SUSPEND
-	.hub_suspend =		ohci_hub_suspend,
-	.hub_resume =		ohci_hub_resume,
+	.hub_irq_enable =	ohci_rhsc_enable,
+#ifdef	CONFIG_PM
+	.bus_suspend =		ohci_bus_suspend,
+	.bus_resume =		ohci_bus_resume,
 #endif
+	.start_port_reset =	ohci_start_port_reset,
 };
 
 /*-------------------------------------------------------------------------*/
 
-static int ohci_hcd_pnx8550_drv_probe(struct device *dev)
+static int ohci_hcd_pnx8550_drv_probe(struct platform_device *pdev)
 {
-	struct platform_device *pdev = to_platform_device(dev);
 	int ret;
-
-	pr_debug ("In ohci_hcd_pnx8550_drv_probe");
 
 	if (usb_disabled())
 		return -ENODEV;
@@ -222,41 +222,22 @@ static int ohci_hcd_pnx8550_drv_probe(struct device *dev)
 	return ret;
 }
 
-static int ohci_hcd_pnx8550_drv_remove(struct device *dev)
+static int ohci_hcd_pnx8550_drv_remove(struct platform_device *pdev)
 {
-	struct platform_device *pdev = to_platform_device(dev);
-	struct usb_hcd *hcd = dev_get_drvdata(dev);
+	struct usb_hcd *hcd = platform_get_drvdata(pdev);
 
 	usb_hcd_pnx8550_remove(hcd, pdev);
 	return 0;
 }
 
-static int ohci_hcd_pnx8550_drv_suspend(struct device *dev, u32 state, u32 level)
-{
-//	struct platform_device *pdev = to_platform_device(dev);
-//	struct usb_hcd *hcd = dev_get_drvdata(dev);
-	printk("%s: not implemented yet\n", __FUNCTION__);
+MODULE_ALIAS("pnx8550-ohci");
 
-	return 0;
-}
-
-static int ohci_hcd_pnx8550_drv_resume(struct device *dev, u32 state)
-{
-//	struct platform_device *pdev = to_platform_device(dev);
-//	struct usb_hcd *hcd = dev_get_drvdata(dev);
-	printk("%s: not implemented yet\n", __FUNCTION__);
-
-	return 0;
-}
-
-
-static struct device_driver ohci_hcd_pnx8550_driver = {
-	.name		= "pnx8550-ohci",
-	.bus		= &platform_bus_type,
+static struct platform_driver ohci_hcd_pnx8550_driver = {
+	.driver = {
+		.name		= "pnx8550-ohci",
+	},
 	.probe		= ohci_hcd_pnx8550_drv_probe,
 	.remove		= ohci_hcd_pnx8550_drv_remove,
-	.suspend	= ohci_hcd_pnx8550_drv_suspend, 
-	.resume		= ohci_hcd_pnx8550_drv_resume, 
 };
 
 static int __init ohci_hcd_pnx8550_init (void)
@@ -265,12 +246,12 @@ static int __init ohci_hcd_pnx8550_init (void)
 	pr_debug ("block sizes: ed %d td %d\n",
 		sizeof (struct ed), sizeof (struct td));
 
-	return driver_register(&ohci_hcd_pnx8550_driver);
+	return platform_driver_register(&ohci_hcd_pnx8550_driver);
 }
 
 static void __exit ohci_hcd_pnx8550_cleanup (void)
 {
-	driver_unregister(&ohci_hcd_pnx8550_driver);
+	platform_driver_unregister(&ohci_hcd_pnx8550_driver);
 }
 
 module_init (ohci_hcd_pnx8550_init);

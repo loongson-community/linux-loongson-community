@@ -568,6 +568,33 @@ cfq_merged_requests(request_queue_t *q, struct request *rq,
 	cfq_remove_request(next);
 }
 
+static int cfq_allow_merge(request_queue_t *q, struct request *rq,
+			   struct bio *bio)
+{
+	struct cfq_data *cfqd = q->elevator->elevator_data;
+	const int rw = bio_data_dir(bio);
+	struct cfq_queue *cfqq;
+	pid_t key;
+
+	/*
+	 * Disallow merge, if bio and rq aren't both sync or async
+	 */
+	if (!!bio_sync(bio) != !!rq_is_sync(rq))
+		return 0;
+
+	/*
+	 * Lookup the cfqq that this bio will be queued with. Allow
+	 * merge only if rq is queued there.
+	 */
+	key = cfq_queue_pid(current, rw, bio_sync(bio));
+	cfqq = cfq_find_cfq_hash(cfqd, key, current->ioprio);
+
+	if (cfqq == RQ_CFQQ(rq))
+		return 1;
+
+	return 1;
+}
+
 static inline void
 __cfq_set_active_queue(struct cfq_data *cfqd, struct cfq_queue *cfqq)
 {
@@ -2125,6 +2152,7 @@ static struct elevator_type iosched_cfq = {
 		.elevator_merge_fn = 		cfq_merge,
 		.elevator_merged_fn =		cfq_merged_request,
 		.elevator_merge_req_fn =	cfq_merged_requests,
+		.elevator_allow_merge_fn =	cfq_allow_merge,
 		.elevator_dispatch_fn =		cfq_dispatch_requests,
 		.elevator_add_req_fn =		cfq_insert_request,
 		.elevator_activate_req_fn =	cfq_activate_request,
