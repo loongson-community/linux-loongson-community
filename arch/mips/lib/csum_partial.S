@@ -279,8 +279,7 @@ small_csumcpy:
  * checksum and copy routines based on memcpy.S
  *
  *	csum_partial_copy_nocheck(src, dst, len, sum)
- *	__csum_partial_copy_from_user(src, dst, len, sum, errp)
- *	__csum_and_copy_to_user(src, dst, len, sum, errp)
+ *	__csum_partial_copy_user(src, dst, len, sum, errp)
  *
  * See "Spec" in memcpy.S for details.  Unlike __copy_user, all
  * function in this file use the standard calling convention.
@@ -291,8 +290,8 @@ small_csumcpy:
 #define len a2
 #define psum a3
 #define sum v0
-#define odd t5
-#define errptr t6
+#define odd t8
+#define errptr t9
 
 /*
  * The exception handler for loads requires that:
@@ -376,30 +375,20 @@ small_csumcpy:
 
 	.set	noat
 
-LEAF(csum_partial_copy_nocheck)
-	move	AT, zero
-	b	__csum_partial_copy
-	 move	errptr, zero
-FEXPORT(__csum_partial_copy_from_user)
-	b	__csum_partial_copy_user
-	 PTR_ADDU	AT, src, len	/* See (1) above. */
-FEXPORT(__csum_and_copy_to_user)
-	move	AT, zero
-__csum_partial_copy_user:
+LEAF(__csum_partial_copy_user)
+	PTR_ADDU	AT, src, len	/* See (1) above. */
 #ifdef CONFIG_64BIT
 	move	errptr, a4
 #else
 	lw	errptr, 16(sp)
 #endif
-__csum_partial_copy:
+FEXPORT(csum_partial_copy_nocheck)
 	move	sum, zero
 	move	odd, zero
 	/*
 	 * Note: dst & src may be unaligned, len may be 0
 	 * Temps
 	 */
-#define rem t8
-
 	/*
 	 * The "issue break"s below are very approximate.
 	 * Issue delays for dcache fills will perturb the schedule, as will
@@ -422,51 +411,45 @@ __csum_partial_copy:
 both_aligned:
 	 SRL	t0, len, LOG_NBYTES+3    # +3 for 8 units/iter
 	beqz	t0, cleanup_both_aligned # len < 8*NBYTES
-	 and	rem, len, (8*NBYTES-1)	 # rem = len % (8*NBYTES)
-	/*
-	 * We can not do this loop if LOAD might fail, otherwize
-	 * l_exc_copy can not calclate sum correctly.
-	 * AT==0 means LOAD should not fail.
-	 */
-	bnez	AT, cleanup_both_aligned
 	 nop
+	SUB	len, 8*NBYTES		# subtract here for bgez loop
 	.align	4
 1:
-	LOAD	t0, UNIT(0)(src)
-	LOAD	t1, UNIT(1)(src)
-	LOAD	t2, UNIT(2)(src)
-	LOAD	t3, UNIT(3)(src)
+EXC(	LOAD	t0, UNIT(0)(src),	l_exc)
+EXC(	LOAD	t1, UNIT(1)(src),	l_exc_copy)
+EXC(	LOAD	t2, UNIT(2)(src),	l_exc_copy)
+EXC(	LOAD	t3, UNIT(3)(src),	l_exc_copy)
+EXC(	LOAD	t4, UNIT(4)(src),	l_exc_copy)
+EXC(	LOAD	t5, UNIT(5)(src),	l_exc_copy)
+EXC(	LOAD	t6, UNIT(6)(src),	l_exc_copy)
+EXC(	LOAD	t7, UNIT(7)(src),	l_exc_copy)
 	SUB	len, len, 8*NBYTES
-	LOAD	t4, UNIT(4)(src)
-	LOAD	t7, UNIT(5)(src)
+	ADD	src, src, 8*NBYTES
 EXC(	STORE	t0, UNIT(0)(dst),	s_exc)
 	ADDC(sum, t0)
 EXC(	STORE	t1, UNIT(1)(dst),	s_exc)
 	ADDC(sum, t1)
-	LOAD	t0, UNIT(6)(src)
-	LOAD	t1, UNIT(7)(src)
-	ADD	src, src, 8*NBYTES
-	ADD	dst, dst, 8*NBYTES
-EXC(	STORE	t2, UNIT(-6)(dst),	s_exc)
+EXC(	STORE	t2, UNIT(2)(dst),	s_exc)
 	ADDC(sum, t2)
-EXC(	STORE	t3, UNIT(-5)(dst),	s_exc)
+EXC(	STORE	t3, UNIT(3)(dst),	s_exc)
 	ADDC(sum, t3)
-EXC(	STORE	t4, UNIT(-4)(dst),	s_exc)
+EXC(	STORE	t4, UNIT(4)(dst),	s_exc)
 	ADDC(sum, t4)
-EXC(	STORE	t7, UNIT(-3)(dst),	s_exc)
+EXC(	STORE	t5, UNIT(5)(dst),	s_exc)
+	ADDC(sum, t5)
+EXC(	STORE	t6, UNIT(6)(dst),	s_exc)
+	ADDC(sum, t6)
+EXC(	STORE	t7, UNIT(7)(dst),	s_exc)
 	ADDC(sum, t7)
-EXC(	STORE	t0, UNIT(-2)(dst),	s_exc)
-	ADDC(sum, t0)
-EXC(	STORE	t1, UNIT(-1)(dst),	s_exc)
-	.set reorder
-	ADDC(sum, t1)
-	bne	len, rem, 1b
-	.set noreorder
+	bgez	len, 1b
+	 ADD	dst, dst, 8*NBYTES
+	ADD	len, 8*NBYTES		# revert len (see above)
 
 	/*
-	 * len == rem == the number of bytes left to copy < 8*NBYTES
+	 * len == the number of bytes left to copy < 8*NBYTES
 	 */
 cleanup_both_aligned:
+#define rem t7
 	beqz	len, done
 	 sltu	t0, len, 4*NBYTES
 	bnez	t0, less_than_4units
@@ -729,4 +712,4 @@ s_exc:
 	li	v1, -EFAULT
 	jr	ra
 	 sw	v1, (errptr)
-	END(csum_partial_copy_nocheck)
+	END(__csum_partial_copy_user)

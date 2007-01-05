@@ -29,10 +29,8 @@
  */
 __wsum csum_partial(const void *buff, int len, __wsum sum);
 
-__wsum __csum_partial_copy_from_user(const void __user *src, void *dst,
-				     int len, __wsum sum, int *err_ptr);
-__wsum __csum_and_copy_to_user(const void *src, void __user *dst,
-			       int len, __wsum sum, int *err_ptr);
+__wsum __csum_partial_copy_user(const void *src, void *dst,
+				int len, __wsum sum, int *err_ptr);
 
 /*
  * this is a new version of the above that records errors it finds in *errp,
@@ -43,7 +41,8 @@ __wsum csum_partial_copy_from_user(const void __user *src, void *dst, int len,
 				   __wsum sum, int *err_ptr)
 {
 	might_sleep();
-	return __csum_partial_copy_from_user(src, dst, len, sum, err_ptr);
+	return __csum_partial_copy_user((__force void *)src, dst,
+					len, sum, err_ptr);
 }
 
 /*
@@ -56,7 +55,8 @@ __wsum csum_and_copy_to_user(const void *src, void __user *dst, int len,
 {
 	might_sleep();
 	if (access_ok(VERIFY_WRITE, dst, len))
-		return __csum_and_copy_to_user(src, dst, len, sum, err_ptr);
+		return __csum_partial_copy_user(src, (__force void *)dst,
+						len, sum, err_ptr);
 	if (len)
 		*err_ptr = -EFAULT;
 
