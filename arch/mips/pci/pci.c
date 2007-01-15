@@ -103,10 +103,15 @@ static u8 __init common_swizzle(struct pci_dev *dev, u8 *pinp)
 	return PCI_SLOT(dev->devfn);
 }
 
+int mips_system_has_legacy_ide;
+
+EXPORT_SYMBOL_GPL(mips_system_has_legacy_ide);
+
 static int __init pcibios_init(void)
 {
 	struct pci_controller *hose;
 	struct pci_bus *bus;
+	struct pci_dev *dev;
 	int next_busno;
 	int need_domain_info = 0;
 
@@ -149,6 +154,13 @@ out:
 	if (!pci_probe_only)
 		pci_assign_unassigned_resources();
 	pci_fixup_irqs(common_swizzle, pcibios_map_irq);
+
+	if ((dev = pci_get_class(PCI_CLASS_BRIDGE_EISA << 8, NULL)) != NULL ||
+	    (dev = pci_get_class(PCI_CLASS_BRIDGE_ISA << 8, NULL)) != NULL) {
+		pci_dev_put(dev);
+
+		mips_system_has_legacy_ide = 1;
+	}
 
 	return 0;
 }
