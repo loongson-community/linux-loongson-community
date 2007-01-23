@@ -1579,7 +1579,7 @@ config MIPS_MT_SMTC_INSTANT_REPLAY
 	  to user mode, or on entry into the kernel idle loop. The
 	  INSTANT_REPLAY option dispatches them as part of local_irq_restore()
 	  processing, which adds runtime overhead (hence the option to turn
-	  it off), but ensures that IPIs are handled promptly even under 
+	  it off), but ensures that IPIs are handled promptly even under
 	  heavy I/O interrupt load.
 
 config MIPS_VPE_LOADER_TOM

@@ -1144,7 +1144,7 @@ void smtc_idle_loop_hook(void)
 		printk("CPU%d: %s", smp_processor_id(), id_ho_db_msg);
 #endif /* SMTC_IDLE_HOOK_DEBUG */
 
-	/* 
+	/*
 	 * Replay any accumulated deferred IPIs. If "Instant Replay"
 	 * is in use, there should never be any.
 	 */
