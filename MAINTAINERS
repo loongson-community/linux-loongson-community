@@ -1137,9 +1137,9 @@ T:	git kernel.org:/pub/scm/linux/kernel/git/airlied/drm-2.6.git
 S:	Maintained
 
 DSCC4 DRIVER
-P:	François Romieu
-M:	romieu@cogenit.fr
-M:	romieu@ensta.fr
+P:	Francois Romieu
+M:	romieu@fr.zoreil.com
+L:	netdev@vger.kernel.org
 S:	Maintained
 
 DVB SUBSYSTEM AND DRIVERS
@@ -1928,11 +1928,10 @@ S:	Maintained
 
 KERNEL NFSD
 P:	Neil Brown
-M:	neilb@cse.unsw.edu.au
+M:	neilb@suse.de
 L:	nfs@lists.sourceforge.net
 W:	http://nfs.sourceforge.net/
-W:	http://www.cse.unsw.edu.au/~neilb/patches/linux-devel/
-S:	Maintained
+S:	Supported
 
 KERNEL VIRTUAL MACHINE (KVM)
 P:	Avi Kivity
@@ -2993,9 +2992,9 @@ SOFTWARE RAID (Multiple Disks) SUPPORT
 P:	Ingo Molnar
 M:	mingo@redhat.com
 P:	Neil Brown
-M:	neilb@cse.unsw.edu.au
+M:	neilb@suse.de
 L:	linux-raid@vger.kernel.org
-S:	Maintained
+S:	Supported
 
 SOFTWARE SUSPEND:
 P:	Pavel Machek
@@ -3573,6 +3572,12 @@ VIAPRO SMBUS DRIVER
 P:	Jean Delvare
 M:	khali@linux-fr.org
 L:	i2c@lm-sensors.org
+S:	Maintained
+
+VIA VELOCITY NETWORK DRIVER
+P:	Francois Romieu
+M:	romieu@fr.zoreil.com
+L:	netdev@vger.kernel.org
 S:	Maintained
 
 UCLINUX (AND M68KNOMMU)
