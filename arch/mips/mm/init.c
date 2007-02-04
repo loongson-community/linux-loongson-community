@@ -492,8 +492,6 @@ void free_initrd_mem(unsigned long start, unsigned long end)
 }
 #endif
 
-extern unsigned long prom_free_prom_memory(void);
-
 void free_initmem(void)
 {
 	prom_free_prom_memory();
