@@ -2045,9 +2045,6 @@ config BINFMT_ELF32
 	bool
 	default y if MIPS32_O32 || MIPS32_N32
 
-endmenu
-
-
 config PM
 	bool "Power Management support (EXPERIMENTAL)"
 	depends on EXPERIMENTAL && SOC_AU1X00
