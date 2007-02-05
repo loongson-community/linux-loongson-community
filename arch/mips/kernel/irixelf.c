@@ -333,7 +333,7 @@ static unsigned int load_irix_interp(struct elfhdr * interp_elf_ex,
 			pr_debug("INTERP do_mmap"
 			         "(%p, %08lx, %08lx, %08lx, %08lx, %08lx) ",
 			         interpreter, vaddr,
-				 (unsigned long)
+			         (unsigned long)
 			         (eppnt->p_filesz + (eppnt->p_vaddr & 0xfff)),
 			         (unsigned long)
 			         elf_prot, (unsigned long) elf_type,
