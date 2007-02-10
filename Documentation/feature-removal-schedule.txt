@@ -50,22 +50,6 @@ Who:	Dan Dennedy <dan@dennedy.org>, Stefan Richter <stefanr@s5r6.in-berlin.de>
 
 ---------------------------
 
-What:	ieee1394 core's unused exports (CONFIG_IEEE1394_EXPORT_FULL_API)
-When:	January 2007
-Why:	There are no projects known to use these exported symbols, except
-	dfg1394 (uses one symbol whose functionality is core-internal now).
-Who:	Stefan Richter <stefanr@s5r6.in-berlin.de>
-
----------------------------
-
-What:	ieee1394's *_oui sysfs attributes (CONFIG_IEEE1394_OUI_DB)
-When:	January 2007
-Files:	drivers/ieee1394/: oui.db, oui2c.sh
-Why:	big size, little value
-Who:	Stefan Richter <stefanr@s5r6.in-berlin.de>
-
----------------------------
-
 What:	Video4Linux API 1 ioctls and video_decoder.h from Video devices.
 When:	December 2006
 Why:	V4L1 AP1 was replaced by V4L2 API. during migration from 2.4 to 2.6
@@ -183,18 +167,6 @@ Why:	The USB subsystem has changed a lot over time, and it has been
 	linux-usb-devel@lists.sourceforge.net mailing list, and the developers
 	there will be glad to help you out.
 Who:	Greg Kroah-Hartman <gregkh@suse.de>
-
----------------------------
-
-What:	find_trylock_page
-When:	January 2007
-Why:	The interface no longer has any callers left in the kernel. It
-	is an odd interface (compared with other find_*_page functions), in
-	that it does not take a refcount to the page, only the page lock.
-	It should be replaced with find_get_page or find_lock_page if possible.
-	This feature removal can be reevaluated if users of the interface
-	cannot cleanly use something else.
-Who:	Nick Piggin <npiggin@suse.de>
 
 ---------------------------
 

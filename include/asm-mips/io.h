@@ -528,12 +528,6 @@ static inline void memcpy_toio(volatile void __iomem *dst, const void *src, int 
 #define __ISA_IO_base ((char *)(isa_slot_offset))
 
 /*
- * We don't have csum_partial_copy_fromio() yet, so we cheat here and
- * just copy it. The net code will then do the checksum later.
- */
-#define eth_io_copy_and_sum(skb,src,len,unused) memcpy_fromio((skb)->data,(src),(len))
-
-/*
  * The caches on some architectures aren't dma-coherent and have need to
  * handle this in software.  There are three types of operations that
  * can be applied to dma buffers.
