@@ -1119,19 +1119,18 @@ kill_pg_info(int sig, struct siginfo *info, pid_t pgrp)
 int kill_pid_info(int sig, struct siginfo *info, struct pid *pid)
 {
 	int error;
-	int acquired_tasklist_lock = 0;
 	struct task_struct *p;
 
 	rcu_read_lock();
-	if (unlikely(sig_needs_tasklist(sig))) {
+	if (unlikely(sig_needs_tasklist(sig)))
 		read_lock(&tasklist_lock);
-		acquired_tasklist_lock = 1;
-	}
+
 	p = pid_task(pid, PIDTYPE_PID);
 	error = -ESRCH;
 	if (p)
 		error = group_send_sig_info(sig, info, p);
-	if (unlikely(acquired_tasklist_lock))
+
+	if (unlikely(sig_needs_tasklist(sig)))
 		read_unlock(&tasklist_lock);
 	rcu_read_unlock();
 	return error;
@@ -2283,7 +2282,7 @@ static int do_tkill(int tgid, int pid, int sig)
  *  @pid: the PID of the thread
  *  @sig: signal to be sent
  *
- *  This syscall also checks the tgid and returns -ESRCH even if the PID
+ *  This syscall also checks the @tgid and returns -ESRCH even if the PID
  *  exists but it's not belonging to the target process anymore. This
  *  method solves the problem of threads exiting and PIDs getting reused.
  */

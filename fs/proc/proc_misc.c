@@ -121,15 +121,10 @@ static int meminfo_read_proc(char *page, char **start, off_t off,
 {
 	struct sysinfo i;
 	int len;
-	unsigned long inactive;
-	unsigned long active;
-	unsigned long free;
 	unsigned long committed;
 	unsigned long allowed;
 	struct vmalloc_info vmi;
 	long cached;
-
-	get_zone_counts(&active, &inactive, &free);
 
 /*
  * display in kilobytes.
@@ -187,8 +182,8 @@ static int meminfo_read_proc(char *page, char **start, off_t off,
 		K(i.bufferram),
 		K(cached),
 		K(total_swapcache_pages),
-		K(active),
-		K(inactive),
+		K(global_page_state(NR_ACTIVE)),
+		K(global_page_state(NR_INACTIVE)),
 #ifdef CONFIG_HIGHMEM
 		K(i.totalhigh),
 		K(i.freehigh),
@@ -672,7 +667,6 @@ void create_seq_entry(char *name, mode_t mode, const struct file_operations *f)
 
 void __init proc_misc_init(void)
 {
-	struct proc_dir_entry *entry;
 	static struct {
 		char *name;
 		int (*read_proc)(char*,char**,off_t,int,int*,void*);
@@ -700,9 +694,12 @@ void __init proc_misc_init(void)
 
 	/* And now for trickier ones */
 #ifdef CONFIG_PRINTK
-	entry = create_proc_entry("kmsg", S_IRUSR, &proc_root);
-	if (entry)
-		entry->proc_fops = &proc_kmsg_operations;
+	{
+		struct proc_dir_entry *entry;
+		entry = create_proc_entry("kmsg", S_IRUSR, &proc_root);
+		if (entry)
+			entry->proc_fops = &proc_kmsg_operations;
+	}
 #endif
 	create_seq_entry("devices", 0, &proc_devinfo_operations);
 	create_seq_entry("cpuinfo", 0, &proc_cpuinfo_operations);
@@ -743,8 +740,11 @@ void __init proc_misc_init(void)
 		proc_vmcore->proc_fops = &proc_vmcore_operations;
 #endif
 #ifdef CONFIG_MAGIC_SYSRQ
-	entry = create_proc_entry("sysrq-trigger", S_IWUSR, NULL);
-	if (entry)
-		entry->proc_fops = &proc_sysrq_trigger_operations;
+	{
+		struct proc_dir_entry *entry;
+		entry = create_proc_entry("sysrq-trigger", S_IWUSR, NULL);
+		if (entry)
+			entry->proc_fops = &proc_sysrq_trigger_operations;
+	}
 #endif
 }
