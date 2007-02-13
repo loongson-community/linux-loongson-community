@@ -222,7 +222,7 @@ out_free:
 	return ret;
 }
 
-static struct file_operations ct_file_ops = {
+static const struct file_operations ct_file_ops = {
 	.owner   = THIS_MODULE,
 	.open    = ct_open,
 	.read    = seq_read,
@@ -298,7 +298,7 @@ static int exp_open(struct inode *inode, struct file *file)
 	return seq_open(file, &exp_seq_ops);
 }
 
-static struct file_operations exp_file_ops = {
+static const struct file_operations exp_file_ops = {
 	.owner   = THIS_MODULE,
 	.open    = exp_open,
 	.read    = seq_read,
@@ -386,7 +386,7 @@ static int ct_cpu_seq_open(struct inode *inode, struct file *file)
 	return seq_open(file, &ct_cpu_seq_ops);
 }
 
-static struct file_operations ct_cpu_seq_fops = {
+static const struct file_operations ct_cpu_seq_fops = {
 	.owner   = THIS_MODULE,
 	.open    = ct_cpu_seq_open,
 	.read    = seq_read,
@@ -796,7 +796,7 @@ int ip_conntrack_protocol_register(struct ip_conntrack_protocol *proto)
 		ret = -EBUSY;
 		goto out;
 	}
-	ip_ct_protos[proto->proto] = proto;
+	rcu_assign_pointer(ip_ct_protos[proto->proto], proto);
  out:
 	write_unlock_bh(&ip_conntrack_lock);
 	return ret;
@@ -805,11 +805,10 @@ int ip_conntrack_protocol_register(struct ip_conntrack_protocol *proto)
 void ip_conntrack_protocol_unregister(struct ip_conntrack_protocol *proto)
 {
 	write_lock_bh(&ip_conntrack_lock);
-	ip_ct_protos[proto->proto] = &ip_conntrack_generic_protocol;
+	rcu_assign_pointer(ip_ct_protos[proto->proto],
+			   &ip_conntrack_generic_protocol);
 	write_unlock_bh(&ip_conntrack_lock);
-
-	/* Somebody could be still looking at the proto in bh. */
-	synchronize_net();
+	synchronize_rcu();
 
 	/* Remove all contrack entries for this protocol */
 	ip_ct_iterate_cleanup(kill_proto, &proto->proto);

@@ -197,8 +197,8 @@ struct tty_struct {
 	struct mutex termios_mutex;
 	struct ktermios *termios, *termios_locked;
 	char name[64];
-	int pgrp;
-	int session;
+	struct pid *pgrp;
+	struct pid *session;
 	unsigned long flags;
 	int count;
 	struct winsize winsize;
@@ -303,7 +303,7 @@ extern int tty_read_raw_data(struct tty_struct *tty, unsigned char *bufp,
 			     int buflen);
 extern void tty_write_message(struct tty_struct *tty, char *msg);
 
-extern int is_orphaned_pgrp(int pgrp);
+extern int is_current_pgrp_orphaned(void);
 extern int is_ignored(int sig);
 extern int tty_signal(int sig, struct tty_struct *tty);
 extern void tty_hangup(struct tty_struct * tty);
@@ -333,7 +333,6 @@ extern int tty_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 
 extern dev_t tty_devnum(struct tty_struct *tty);
 extern void proc_clear_tty(struct task_struct *p);
-extern void __proc_set_tty(struct task_struct *tsk, struct tty_struct *tty);
 extern void proc_set_tty(struct task_struct *tsk, struct tty_struct *tty);
 extern struct tty_struct *get_current_tty(void);
 
