@@ -235,13 +235,13 @@ static ctl_table kernel_table2[] = {
 	  .data = &sysctl_vsyscall, .maxlen = sizeof(int), .mode = 0644,
 	  .strategy = vsyscall_sysctl_nostrat,
 	  .proc_handler = vsyscall_sysctl_change },
-	{ 0, }
+	{}
 };
 
 static ctl_table kernel_root_table2[] = {
 	{ .ctl_name = CTL_KERN, .procname = "kernel", .mode = 0555,
 	  .child = kernel_table2 },
-	{ 0 },
+	{}
 };
 
 #endif
@@ -301,7 +301,7 @@ static int __init vsyscall_init(void)
 	BUG_ON((unsigned long) &vgetcpu != VSYSCALL_ADDR(__NR_vgetcpu));
 	map_vsyscall();
 #ifdef CONFIG_SYSCTL
-	register_sysctl_table(kernel_root_table2, 0);
+	register_sysctl_table(kernel_root_table2);
 #endif
 	on_each_cpu(cpu_vsyscall_init, NULL, 0, 1);
 	hotcpu_notifier(cpu_vsyscall_notifier, 0);
