@@ -1,224 +1,138 @@
-/*
- *  linux/arch/i386/kernel/time_hpet.c
- *  This code largely copied from arch/x86_64/kernel/time.c
- *  See that file for credits.
- *
- *  2003-06-30    Venkatesh Pallipadi - Additional changes for HPET support
- */
-
-#include <linux/errno.h>
 #include <linux/kernel.h>
-#include <linux/param.h>
-#include <linux/string.h>
+#include <linux/sched.h>
 #include <linux/init.h>
-#include <linux/smp.h>
-
-#include <asm/timer.h>
-#include <asm/fixmap.h>
-#include <asm/apic.h>
-
-#include <linux/timex.h>
-
-#include <asm/hpet.h>
+#include <linux/mc146818rtc.h>
+#include <linux/time.h>
+#include <linux/clocksource.h>
+#include <linux/ioport.h>
+#include <linux/acpi.h>
 #include <linux/hpet.h>
+#include <asm/pgtable.h>
+#include <asm/vsyscall.h>
+#include <asm/timex.h>
+#include <asm/hpet.h>
 
-static unsigned long hpet_period;	/* fsecs / HPET clock */
-unsigned long hpet_tick;		/* hpet clks count per tick */
-unsigned long hpet_address;		/* hpet memory map physical address */
-int hpet_use_timer;
+int nohpet __initdata;
 
-static int use_hpet; 		/* can be used for runtime check of hpet */
-static int boot_hpet_disable; 	/* boottime override for HPET timer */
-static void __iomem * hpet_virt_address;	/* hpet kernel virtual address */
+unsigned long hpet_address;
+unsigned long hpet_period;	/* fsecs / HPET clock */
+unsigned long hpet_tick;	/* HPET clocks / interrupt */
 
-#define FSEC_TO_USEC (1000000000UL)
+int hpet_use_timer;		/* Use counter of hpet for time keeping,
+				 * otherwise PIT
+				 */
 
-int hpet_readl(unsigned long a)
+#ifdef	CONFIG_HPET
+static __init int late_hpet_init(void)
 {
-	return readl(hpet_virt_address + a);
-}
+	struct hpet_data	hd;
+	unsigned int 		ntimer;
 
-static void hpet_writel(unsigned long d, unsigned long a)
-{
-	writel(d, hpet_virt_address + a);
-}
+	if (!hpet_address)
+        	return 0;
 
-#ifdef CONFIG_X86_LOCAL_APIC
-/*
- * HPET counters dont wrap around on every tick. They just change the
- * comparator value and continue. Next tick can be caught by checking
- * for a change in the comparator value. Used in apic.c.
- */
-static void __devinit wait_hpet_tick(void)
-{
-	unsigned int start_cmp_val, end_cmp_val;
+	memset(&hd, 0, sizeof(hd));
 
-	start_cmp_val = hpet_readl(HPET_T0_CMP);
-	do {
-		end_cmp_val = hpet_readl(HPET_T0_CMP);
-	} while (start_cmp_val == end_cmp_val);
+	ntimer = hpet_readl(HPET_ID);
+	ntimer = (ntimer & HPET_ID_NUMBER) >> HPET_ID_NUMBER_SHIFT;
+	ntimer++;
+
+	/*
+	 * Register with driver.
+	 * Timer0 and Timer1 is used by platform.
+	 */
+	hd.hd_phys_address = hpet_address;
+	hd.hd_address = (void __iomem *)fix_to_virt(FIX_HPET_BASE);
+	hd.hd_nirqs = ntimer;
+	hd.hd_flags = HPET_DATA_PLATFORM;
+	hpet_reserve_timer(&hd, 0);
+#ifdef	CONFIG_HPET_EMULATE_RTC
+	hpet_reserve_timer(&hd, 1);
+#endif
+	hd.hd_irq[0] = HPET_LEGACY_8254;
+	hd.hd_irq[1] = HPET_LEGACY_RTC;
+	if (ntimer > 2) {
+		struct hpet		*hpet;
+		struct hpet_timer	*timer;
+		int			i;
+
+		hpet = (struct hpet *) fix_to_virt(FIX_HPET_BASE);
+		timer = &hpet->hpet_timers[2];
+		for (i = 2; i < ntimer; timer++, i++)
+			hd.hd_irq[i] = (timer->hpet_config &
+					Tn_INT_ROUTE_CNF_MASK) >>
+				Tn_INT_ROUTE_CNF_SHIFT;
+
+	}
+
+	hpet_alloc(&hd);
+	return 0;
 }
+fs_initcall(late_hpet_init);
 #endif
 
-static int hpet_timer_stop_set_go(unsigned long tick)
+int hpet_timer_stop_set_go(unsigned long tick)
 {
 	unsigned int cfg;
 
-	/*
-	 * Stop the timers and reset the main counter.
-	 */
+/*
+ * Stop the timers and reset the main counter.
+ */
+
 	cfg = hpet_readl(HPET_CFG);
-	cfg &= ~HPET_CFG_ENABLE;
+	cfg &= ~(HPET_CFG_ENABLE | HPET_CFG_LEGACY);
 	hpet_writel(cfg, HPET_CFG);
 	hpet_writel(0, HPET_COUNTER);
 	hpet_writel(0, HPET_COUNTER + 4);
 
+/*
+ * Set up timer 0, as periodic with first interrupt to happen at hpet_tick,
+ * and period also hpet_tick.
+ */
 	if (hpet_use_timer) {
-		/*
-		 * Set up timer 0, as periodic with first interrupt to happen at
-		 * hpet_tick, and period also hpet_tick.
-		 */
-		cfg = hpet_readl(HPET_T0_CFG);
-		cfg |= HPET_TN_ENABLE | HPET_TN_PERIODIC |
-		       HPET_TN_SETVAL | HPET_TN_32BIT;
-		hpet_writel(cfg, HPET_T0_CFG);
-
-		/*
-		 * The first write after writing TN_SETVAL to the config register sets
-		 * the counter value, the second write sets the threshold.
-		 */
-		hpet_writel(tick, HPET_T0_CMP);
-		hpet_writel(tick, HPET_T0_CMP);
-	}
-	/*
- 	 * Go!
- 	 */
-	cfg = hpet_readl(HPET_CFG);
-	if (hpet_use_timer)
+		hpet_writel(HPET_TN_ENABLE | HPET_TN_PERIODIC | HPET_TN_SETVAL |
+		    HPET_TN_32BIT, HPET_T0_CFG);
+		hpet_writel(hpet_tick, HPET_T0_CMP); /* next interrupt */
+		hpet_writel(hpet_tick, HPET_T0_CMP); /* period */
 		cfg |= HPET_CFG_LEGACY;
+	}
+/*
+ * Go!
+ */
+
 	cfg |= HPET_CFG_ENABLE;
 	hpet_writel(cfg, HPET_CFG);
 
 	return 0;
 }
 
-/*
- * Check whether HPET was found by ACPI boot parse. If yes setup HPET
- * counter 0 for kernel base timer.
- */
-int __init hpet_enable(void)
+int hpet_arch_init(void)
 {
 	unsigned int id;
-	unsigned long tick_fsec_low, tick_fsec_high; /* tick in femto sec */
-	unsigned long hpet_tick_rem;
 
-	if (boot_hpet_disable)
+	if (!hpet_address)
 		return -1;
+	set_fixmap_nocache(FIX_HPET_BASE, hpet_address);
+	__set_fixmap(VSYSCALL_HPET, hpet_address, PAGE_KERNEL_VSYSCALL_NOCACHE);
 
-	if (!hpet_address) {
-		return -1;
-	}
-	hpet_virt_address = ioremap_nocache(hpet_address, HPET_MMAP_SIZE);
-	/*
-	 * Read the period, compute tick and quotient.
-	 */
+/*
+ * Read the period, compute tick and quotient.
+ */
+
 	id = hpet_readl(HPET_ID);
 
-	/*
-	 * We are checking for value '1' or more in number field if
-	 * CONFIG_HPET_EMULATE_RTC is set because we will need an
-	 * additional timer for RTC emulation.
-	 * However, we can do with one timer otherwise using the
-	 * the single HPET timer for system time.
-	 */
-#ifdef CONFIG_HPET_EMULATE_RTC
-	if (!(id & HPET_ID_NUMBER)) {
-		iounmap(hpet_virt_address);
-		hpet_virt_address = NULL;
+	if (!(id & HPET_ID_VENDOR) || !(id & HPET_ID_NUMBER))
 		return -1;
-	}
-#endif
-
 
 	hpet_period = hpet_readl(HPET_PERIOD);
-	if ((hpet_period < HPET_MIN_PERIOD) || (hpet_period > HPET_MAX_PERIOD)) {
-		iounmap(hpet_virt_address);
-		hpet_virt_address = NULL;
+	if (hpet_period < 100000 || hpet_period > 100000000)
 		return -1;
-	}
 
-	/*
-	 * 64 bit math
-	 * First changing tick into fsec
-	 * Then 64 bit div to find number of hpet clk per tick
-	 */
-	ASM_MUL64_REG(tick_fsec_low, tick_fsec_high,
-			KERNEL_TICK_USEC, FSEC_TO_USEC);
-	ASM_DIV64_REG(hpet_tick, hpet_tick_rem,
-			hpet_period, tick_fsec_low, tick_fsec_high);
+	hpet_tick = (FSEC_PER_TICK + hpet_period / 2) / hpet_period;
 
-	if (hpet_tick_rem > (hpet_period >> 1))
-		hpet_tick++; /* rounding the result */
+	hpet_use_timer = (id & HPET_ID_LEGSUP);
 
-	hpet_use_timer = id & HPET_ID_LEGSUP;
-
-	if (hpet_timer_stop_set_go(hpet_tick)) {
-		iounmap(hpet_virt_address);
-		hpet_virt_address = NULL;
-		return -1;
-	}
-
-	use_hpet = 1;
-
-#ifdef	CONFIG_HPET
-	{
-		struct hpet_data	hd;
-		unsigned int 		ntimer;
-
-		memset(&hd, 0, sizeof (hd));
-
-		ntimer = hpet_readl(HPET_ID);
-		ntimer = (ntimer & HPET_ID_NUMBER) >> HPET_ID_NUMBER_SHIFT;
-		ntimer++;
-
-		/*
-		 * Register with driver.
-		 * Timer0 and Timer1 is used by platform.
-		 */
-		hd.hd_phys_address = hpet_address;
-		hd.hd_address = hpet_virt_address;
-		hd.hd_nirqs = ntimer;
-		hd.hd_flags = HPET_DATA_PLATFORM;
-		hpet_reserve_timer(&hd, 0);
-#ifdef	CONFIG_HPET_EMULATE_RTC
-		hpet_reserve_timer(&hd, 1);
-#endif
-		hd.hd_irq[0] = HPET_LEGACY_8254;
-		hd.hd_irq[1] = HPET_LEGACY_RTC;
-		if (ntimer > 2) {
-			struct hpet __iomem	*hpet;
-			struct hpet_timer __iomem *timer;
-			int			i;
-
-			hpet = hpet_virt_address;
-
-			for (i = 2, timer = &hpet->hpet_timers[2]; i < ntimer;
-				timer++, i++)
-				hd.hd_irq[i] = (timer->hpet_config &
-					Tn_INT_ROUTE_CNF_MASK) >>
-					Tn_INT_ROUTE_CNF_SHIFT;
-
-		}
-
-		hpet_alloc(&hd);
-	}
-#endif
-
-#ifdef CONFIG_X86_LOCAL_APIC
-	if (hpet_use_timer)
-		wait_timer_tick = wait_hpet_tick;
-#endif
-	return 0;
+	return hpet_timer_stop_set_go(hpet_tick);
 }
 
 int hpet_reenable(void)
@@ -226,28 +140,51 @@ int hpet_reenable(void)
 	return hpet_timer_stop_set_go(hpet_tick);
 }
 
-int is_hpet_enabled(void)
+/*
+ * calibrate_tsc() calibrates the processor TSC in a very simple way, comparing
+ * it to the HPET timer of known frequency.
+ */
+
+#define TICK_COUNT 100000000
+#define TICK_MIN   5000
+
+/*
+ * Some platforms take periodic SMI interrupts with 5ms duration. Make sure none
+ * occurs between the reads of the hpet & TSC.
+ */
+static void __init read_hpet_tsc(int *hpet, int *tsc)
 {
-	return use_hpet;
+	int tsc1, tsc2, hpet1;
+
+	do {
+		tsc1 = get_cycles_sync();
+		hpet1 = hpet_readl(HPET_COUNTER);
+		tsc2 = get_cycles_sync();
+	} while (tsc2 - tsc1 > TICK_MIN);
+	*hpet = hpet1;
+	*tsc = tsc2;
 }
 
-int is_hpet_capable(void)
+unsigned int __init hpet_calibrate_tsc(void)
 {
-	if (!boot_hpet_disable && hpet_address)
-		return 1;
-	return 0;
-}
+	int tsc_start, hpet_start;
+	int tsc_now, hpet_now;
+	unsigned long flags;
 
-static int __init hpet_setup(char* str)
-{
-	if (str) {
-		if (!strncmp("disable", str, 7))
-			boot_hpet_disable = 1;
-	}
-	return 1;
-}
+	local_irq_save(flags);
 
-__setup("hpet=", hpet_setup);
+	read_hpet_tsc(&hpet_start, &tsc_start);
+
+	do {
+		local_irq_disable();
+		read_hpet_tsc(&hpet_now, &tsc_now);
+		local_irq_restore(flags);
+	} while ((tsc_now - tsc_start) < TICK_COUNT &&
+		(hpet_now - hpet_start) < TICK_COUNT);
+
+	return (tsc_now - tsc_start) * 1000000000L
+		/ ((hpet_now - hpet_start) * hpet_period / 1000);
+}
 
 #ifdef CONFIG_HPET_EMULATE_RTC
 /* HPET in LegacyReplacement Mode eats up RTC interrupt line. When, HPET
@@ -264,7 +201,6 @@ __setup("hpet=", hpet_setup);
  * For (3), we use interrupts at 64Hz or user specified periodic
  * frequency, whichever is higher.
  */
-#include <linux/mc146818rtc.h>
 #include <linux/rtc.h>
 
 #define DEFAULT_RTC_INT_FREQ 	64
@@ -282,6 +218,11 @@ static unsigned long PIE_count;
 
 static unsigned long hpet_rtc_int_freq; /* RTC interrupt frequency */
 static unsigned int hpet_t1_cmp; /* cached comparator register */
+
+int is_hpet_enabled(void)
+{
+	return hpet_address != 0;
+}
 
 /*
  * Timer 1 for RTC, we do not use periodic interrupt feature,
@@ -367,8 +308,9 @@ static void hpet_rtc_timer_reinit(void)
 		if (PIE_on)
 			PIE_count += lost_ints;
 
-		printk(KERN_WARNING "rtc: lost some interrupts at %ldHz.\n",
-		       hpet_rtc_int_freq);
+		if (printk_ratelimit())
+			printk(KERN_WARNING "rtc: lost some interrupts at %ldHz.\n",
+			       hpet_rtc_int_freq);
 	}
 }
 
@@ -450,7 +392,7 @@ int hpet_rtc_dropped_irq(void)
 	return 1;
 }
 
-irqreturn_t hpet_rtc_interrupt(int irq, void *dev_id)
+irqreturn_t hpet_rtc_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	struct rtc_time curr_time;
 	unsigned long rtc_int_flag = 0;
@@ -495,3 +437,75 @@ irqreturn_t hpet_rtc_interrupt(int irq, void *dev_id)
 }
 #endif
 
+static int __init nohpet_setup(char *s)
+{
+	nohpet = 1;
+	return 1;
+}
+
+__setup("nohpet", nohpet_setup);
+
+#define HPET_MASK	0xFFFFFFFF
+#define HPET_SHIFT	22
+
+/* FSEC = 10^-15 NSEC = 10^-9 */
+#define FSEC_PER_NSEC	1000000
+
+static void *hpet_ptr;
+
+static cycle_t read_hpet(void)
+{
+	return (cycle_t)readl(hpet_ptr);
+}
+
+static cycle_t __vsyscall_fn vread_hpet(void)
+{
+	return readl((void __iomem *)fix_to_virt(VSYSCALL_HPET) + 0xf0);
+}
+
+struct clocksource clocksource_hpet = {
+	.name		= "hpet",
+	.rating		= 250,
+	.read		= read_hpet,
+	.mask		= (cycle_t)HPET_MASK,
+	.mult		= 0, /* set below */
+	.shift		= HPET_SHIFT,
+	.flags		= CLOCK_SOURCE_IS_CONTINUOUS,
+	.vread		= vread_hpet,
+};
+
+static int __init init_hpet_clocksource(void)
+{
+	unsigned long hpet_period;
+	void __iomem *hpet_base;
+	u64 tmp;
+
+	if (!hpet_address)
+		return -ENODEV;
+
+	/* calculate the hpet address: */
+	hpet_base = ioremap_nocache(hpet_address, HPET_MMAP_SIZE);
+	hpet_ptr = hpet_base + HPET_COUNTER;
+
+	/* calculate the frequency: */
+	hpet_period = readl(hpet_base + HPET_PERIOD);
+
+	/*
+	 * hpet period is in femto seconds per cycle
+	 * so we need to convert this to ns/cyc units
+	 * aproximated by mult/2^shift
+	 *
+	 *  fsec/cyc * 1nsec/1000000fsec = nsec/cyc = mult/2^shift
+	 *  fsec/cyc * 1ns/1000000fsec * 2^shift = mult
+	 *  fsec/cyc * 2^shift * 1nsec/1000000fsec = mult
+	 *  (fsec/cyc << shift)/1000000 = mult
+	 *  (hpet_period << shift)/FSEC_PER_NSEC = mult
+	 */
+	tmp = (u64)hpet_period << HPET_SHIFT;
+	do_div(tmp, FSEC_PER_NSEC);
+	clocksource_hpet.mult = (u32)tmp;
+
+	return clocksource_register(&clocksource_hpet);
+}
+
+module_init(init_hpet_clocksource);
