@@ -340,7 +340,7 @@ NORET_TYPE void ATTRIB_NORET die(const char * str, struct pt_regs * regs)
 extern const struct exception_table_entry __start___dbe_table[];
 extern const struct exception_table_entry __stop___dbe_table[];
 
-void __declare_dbe_table(void)
+static void __attribute_used__ __declare_dbe_table(void)
 {
 	__asm__ __volatile__(
 	".section\t__dbe_table,\"a\"\n\t"
