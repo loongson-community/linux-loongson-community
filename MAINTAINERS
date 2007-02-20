@@ -247,6 +247,13 @@ L:	linux-acpi@vger.kernel.org
 W:	http://acpi.sourceforge.net/
 S:	Supported
 
+ACPI VIDEO DRIVER
+P:	Luming Yu
+M:	luming.yu@intel.com
+L:	linux-acpi@vger.kernel.org
+W:	http://acpi.sourceforge.net/
+S:	Supported
+
 AD1816 SOUND DRIVER
 P:	Thorsten Knabe
 M:	Thorsten Knabe <linux@thorsten-knabe.de>
@@ -265,6 +272,12 @@ S:	Maintained
 ADM1025 HARDWARE MONITOR DRIVER
 P:	Jean Delvare
 M:	khali@linux-fr.org
+L:	lm-sensors@lm-sensors.org
+S:	Maintained
+
+ADM1029 HARDWARE MONITOR DRIVER
+P:	Corentin Labbe
+M:	corentin.labbe@geomatys.fr
 L:	lm-sensors@lm-sensors.org
 S:	Maintained
 
@@ -2623,8 +2636,8 @@ T:	git kernel.org:/pub/scm/linux/kernel/git/brodo/pcmcia-2.6.git
 S:	Maintained
 
 PCNET32 NETWORK DRIVER
-P:	Thomas Bogendörfer
-M:	tsbogend@alpha.franken.de
+P:	Don Fry
+M:	pcnet32@verizon.net
 L:	netdev@vger.kernel.org
 S:	Maintained
 
@@ -3061,6 +3074,8 @@ S:	Maintained
 SONY VAIO CONTROL DEVICE DRIVER
 P:	Stelian Pop
 M:	stelian@popies.net
+P:	Mattia Dongili
+M:	malattia@linux.it
 W:	http://popies.net/sonypi/
 S:	Maintained
 
