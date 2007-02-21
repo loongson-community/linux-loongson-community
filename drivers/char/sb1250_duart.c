@@ -469,7 +469,6 @@ static inline void duart_set_cflag(unsigned int line, unsigned int cflag)
 	case B1800:	clk_divisor = 2776;		break;
 	case B2400:	clk_divisor = 2082;		break;
 	case B4800:	clk_divisor = 1040;		break;
-	default:
 	case B9600:	clk_divisor = 519;		break;
 	case B19200:	clk_divisor = 259;		break;
 	case B38400:	clk_divisor = 129;		break;
