@@ -202,16 +202,16 @@ int rtlx_open(int index, int can_sleep)
 		}
 
 		if ((ret = rtlx_init(*p)) < 0)
-  			goto out_ret;
+			goto out_ret;
 	}
 
 	chan = &rtlx->channel[index];
 
 	state = xchg(&chan->lx_state, RTLX_STATE_OPENED);
- 	if (state == RTLX_STATE_OPENED) {
-  		ret = -EBUSY;
+	if (state == RTLX_STATE_OPENED) {
+		ret = -EBUSY;
 		goto out_fail;
- 	}
+	}
 
 out_fail:
 	smp_mb();

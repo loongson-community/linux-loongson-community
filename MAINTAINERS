@@ -1494,6 +1494,12 @@ M:	jkosina@suse.cz
 L:	linux-input@atrey.karlin.mff.cuni.cz
 S:	Maintained
 
+HIGH-RESOLUTION TIMERS, CLOCKEVENTS, DYNTICKS
+P:	Thomas Gleixner
+M:	tglx@linutronix.de
+L:	linux-kernel@vger.kernel.org
+S:	Maintained
+
 HIGH-SPEED SCC DRIVER FOR AX.25
 P:	Klaus Kudielka
 M:	klaus.kudielka@ieee.org
@@ -3391,6 +3397,13 @@ L:	linux-usb-users@lists.sourceforge.net
 L:	linux-usb-devel@lists.sourceforge.net
 S:	Maintained
 W:	http://www.kroah.com/linux-usb/
+
+USB DAVICOM DM9601 DRIVER
+P:	Peter Korsgaard
+M:	jacmet@sunsite.dk
+L:	linux-usb-devel@lists.sourceforge.net
+W:	http://www.linux-usb.org/usbnet
+S:	Maintained
 
 USB EHCI DRIVER
 P:	David Brownell
