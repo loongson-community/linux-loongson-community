@@ -176,8 +176,6 @@ static cycle_t read_cr16(void)
 	return get_cycles();
 }
 
-static int cr16_update_callback(void);
-
 static struct clocksource clocksource_cr16 = {
 	.name			= "cr16",
 	.rating			= 300,
@@ -185,25 +183,29 @@ static struct clocksource clocksource_cr16 = {
 	.mask			= CLOCKSOURCE_MASK(BITS_PER_LONG),
 	.mult			= 0, /* to be set */
 	.shift			= 22,
-	.update_callback	= cr16_update_callback,
-	.is_continuous		= 1,
+	.flags			= CLOCK_SOURCE_IS_CONTINUOUS,
 };
 
-static int cr16_update_callback(void)
+#ifdef CONFIG_SMP
+int update_cr16_clocksource(void)
 {
 	int change = 0;
 
 	/* since the cr16 cycle counters are not syncronized across CPUs,
 	   we'll check if we should switch to a safe clocksource: */
 	if (clocksource_cr16.rating != 0 && num_online_cpus() > 1) {
-		clocksource_cr16.rating = 0;
-		clocksource_reselect();
+		clocksource_change_rating(&clocksource_cr16, 0);
 		change = 1;
 	}
 
 	return change;
 }
-
+#else
+int update_cr16_clocksource(void)
+{
+	return 0; /* no change */
+}
+#endif /*CONFIG_SMP*/
 
 void __init start_cpu_itimer(void)
 {
