@@ -19,9 +19,7 @@
  */
 #include <linux/console.h>
 #include <linux/init.h>
-#include <linux/kernel.h>
 #include <linux/serial_reg.h>
-#include <linux/spinlock.h>
 #include <asm/io.h>
 
 #ifdef CONFIG_MIPS_ATLAS
@@ -67,32 +65,4 @@ int prom_putchar(char c)
 	serial_out(UART_TX, c);
 
 	return 1;
-}
-
-static void mb_console_write(struct console *con, const char *s,
-	unsigned n)
-{
-	while (n-- && *s) {
-		if (*s == '\n')
-			prom_putchar('\r');
-		prom_putchar(*s);
-		s++;
-	}
-}
-
-static struct console mb_console = {
-	.name	= "mb",
-	.write	= mb_console_write,
-	.flags	= CON_PRINTBUFFER | CON_BOOT,
-	.index	= -1
-};
-
-void __init mb_setup_console(void)
-{
-	register_console(&mb_console);
-}
-
-void __init disable_early_printk(void)
-{
-	unregister_console(&mb_console);
 }

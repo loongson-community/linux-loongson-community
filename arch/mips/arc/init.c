@@ -32,7 +32,7 @@ void __init prom_init(void)
 	_prom_envp = (LONG *) fw_arg2;
 
 	if (pb->magic != 0x53435241) {
-		prom_printf("Aieee, bad prom vector magic %08lx\n", pb->magic);
+		printk(KERN_CRIT "Aieee, bad prom vector magic %08lx\n", pb->magic);
 		while(1)
 			;
 	}
@@ -44,7 +44,7 @@ void __init prom_init(void)
 	prom_meminit();
 
 #ifdef DEBUG_PROM_INIT
-	prom_printf("Press a key to reboot\n");
+	pr_info("Press a key to reboot\n");
 	ArcRead(0, &c, 1, &cnt);
 	ArcEnterInteractiveMode();
 #endif
