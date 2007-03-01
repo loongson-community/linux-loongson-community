@@ -34,7 +34,7 @@ static inline void serial_out(int offset, int value)
 	outb(value, 0x3f8 + offset);
 }
 
-int putPromChar(char c)
+int prom_putchar(char c)
 {
 	while ((serial_in(UART_LSR) & UART_LSR_THRE) == 0)
 		;
@@ -68,7 +68,7 @@ void prom_printf(char *fmt, ...)
 	for (p = buf; p < buf_end; p++) {
 		/* Crude cr/nl handling is better than none */
 		if (*p == '\n')
-			putPromChar('\r');
-		putPromChar(*p);
+			prom_putchar('\r');
+		prom_putchar(*p);
 	}
 }
