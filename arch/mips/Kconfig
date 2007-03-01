@@ -256,6 +256,7 @@ config MIPS_ATLAS
 	bool "MIPS Atlas board"
 	select BOOT_ELF32
 	select DMA_NONCOHERENT
+	select EARLY_PRINTK
 	select IRQ_CPU
 	select HW_HAS_PCI
 	select MIPS_BOARDS_GEN
@@ -286,6 +287,7 @@ config MIPS_MALTA
 	select BOOT_ELF32
 	select HAVE_STD_PC_SERIAL_PORT
 	select DMA_NONCOHERENT
+	select EARLY_PRINTK
 	select GENERIC_ISA_DMA
 	select IRQ_CPU
 	select HW_HAS_PCI
@@ -316,6 +318,7 @@ config MIPS_SEAD
 	depends on EXPERIMENTAL
 	select IRQ_CPU
 	select DMA_NONCOHERENT
+	select EARLY_PRINTK
 	select MIPS_BOARDS_GEN
 	select SYS_HAS_CPU_MIPS32_R1
 	select SYS_HAS_CPU_MIPS32_R2

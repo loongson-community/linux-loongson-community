@@ -383,6 +383,14 @@ void __init prom_init(void)
 	board_nmi_handler_setup = mips_nmi_setup;
 	board_ejtag_handler_setup = mips_ejtag_setup;
 
+#ifdef CONFIG_EARLY_PRINTK
+	{
+		extern void mb_setup_console(void);
+
+		mb_setup_console();
+	}
+#endif
+
 	pr_info("\nLINUX started...\n");
 	prom_init_cmdline();
 	prom_meminit();
