@@ -353,6 +353,7 @@ config WR_PPMC
 config MIPS_SIM
 	bool 'MIPS simulator (MIPSsim)'
 	select DMA_NONCOHERENT
+	select EARLY_PRINTK
 	select IRQ_CPU
 	select SYS_HAS_CPU_MIPS32_R1
 	select SYS_HAS_CPU_MIPS32_R2

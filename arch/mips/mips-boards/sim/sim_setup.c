@@ -48,9 +48,15 @@ const char *get_system_type(void)
 	return "MIPSsim";
 }
 
+extern void mipssim_setup_console(void);
+
 void __init plat_mem_setup(void)
 {
 	set_io_port_base(0xbfd00000);
+
+#ifdef CONFIG_EARLY_PRINTK
+	mipssim_setup_console();
+#endif
 
 	serial_init();
 
