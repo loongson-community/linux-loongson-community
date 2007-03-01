@@ -24,6 +24,9 @@ void __init prom_init(void)
 {
 	PSYSTEM_PARAMETER_BLOCK pb = PROMBLOCK;
 	romvec = ROMVECTOR;
+	ULONG cnt;
+	CHAR c;
+
 	prom_argc = fw_arg0;
 	_prom_argv = (LONG *) fw_arg1;
 	_prom_envp = (LONG *) fw_arg2;
@@ -42,7 +45,7 @@ void __init prom_init(void)
 
 #ifdef DEBUG_PROM_INIT
 	prom_printf("Press a key to reboot\n");
-	prom_getchar();
+	ArcRead(0, &c, 1, &cnt);
 	ArcEnterInteractiveMode();
 #endif
 }
