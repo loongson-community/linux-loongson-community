@@ -7,10 +7,8 @@
  * Copyright (C) 2007 MIPS Technologies, Inc.
  *   written by Ralf Baechle (ralf@linux-mips.org)
  */
-#include <stdarg.h>
 #include <linux/console.h>
 #include <linux/init.h>
-#include <linux/kernel.h>
 
 extern void prom_putchar(char);
 
