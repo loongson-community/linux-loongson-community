@@ -117,9 +117,11 @@ int setup_sigcontext(struct pt_regs *regs, struct sigcontext __user *sc)
 			own_fpu();
 			restore_fp(current);
 		}
-		err |= save_fp_context(sc);
 
 		preempt_enable();
+		enable_fp_in_kernel();
+		err |= save_fp_context(sc);
+		disable_fp_in_kernel();
 	}
 	return err;
 }
@@ -193,14 +195,16 @@ int restore_sigcontext(struct pt_regs *regs, struct sigcontext __user *sc)
 	if (used_math()) {
 		/* restore fpu context if we have used it before */
 		own_fpu();
+		preempt_enable();
+		enable_fp_in_kernel();
 		if (!err)
 			err = check_and_restore_fp_context(sc);
+		disable_fp_in_kernel();
 	} else {
 		/* signal handler may have used FPU.  Give it up. */
 		lose_fpu();
+		preempt_enable();
 	}
-
-	preempt_enable();
 
 	return err;
 }

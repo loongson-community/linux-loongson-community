@@ -769,12 +769,11 @@ asmlinkage void do_cpu(struct pt_regs *regs)
 {
 	unsigned int cpid;
 
-	die_if_kernel("do_cpu invoked from kernel context!", regs);
-
 	cpid = (regs->cp0_cause >> CAUSEB_CE) & 3;
 
 	switch (cpid) {
 	case 0:
+		die_if_kernel("do_cpu invoked from kernel context!", regs);
 		if (!cpu_has_llsc)
 			if (!simulate_llsc(regs))
 				return;
@@ -785,6 +784,9 @@ asmlinkage void do_cpu(struct pt_regs *regs)
 		break;
 
 	case 1:
+		if (!test_thread_flag(TIF_ALLOW_FP_IN_KERNEL))
+			die_if_kernel("do_cpu invoked from kernel context!",
+				      regs);
 		preempt_disable();
 
 		own_fpu();
@@ -797,6 +799,17 @@ asmlinkage void do_cpu(struct pt_regs *regs)
 
 		if (cpu_has_fpu) {
 			preempt_enable();
+			if (test_thread_flag(TIF_ALLOW_FP_IN_KERNEL)) {
+				local_irq_disable();
+				if (cpu_has_fpu)
+					regs->cp0_status |= ST0_CU1;
+				/*
+				 * We must return without enabling
+				 * interrupts to ensure keep FPU
+				 * ownership until resume.
+				 */
+				return;
+			}
 		} else {
 			int sig;
 			preempt_enable();
