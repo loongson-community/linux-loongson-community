@@ -620,15 +620,8 @@ asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 		 * register operands before invoking the emulator, which seems
 		 * a bit extreme for what should be an infrequent event.
 		 */
-		preempt_disable();
-
-		/* We might have lost fpu before disabling preempt... */
-		if (is_fpu_owner())
-			save_fp(current);
 		/* Ensure 'resume' not overwrite saved fp context again. */
-		lose_fpu();
-
-		preempt_enable();
+		lose_fpu(1);
 
 		/* Run the emulator */
 		sig = fpu_emulator_cop1Handler (regs, &current->thread.fpu, 1);
@@ -639,13 +632,8 @@ asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 		 */
 		current->thread.fpu.fcr31 &= ~FPU_CSR_ALL_X;
 
-		preempt_disable();
-
-		own_fpu();	/* Using the FPU again.  */
 		/* Restore the hardware register state */
-		restore_fp(current);
-
-		preempt_enable();
+		own_fpu(1);	/* Using the FPU again.  */
 
 		/* If something went wrong, signal */
 		if (sig)
@@ -787,18 +775,14 @@ asmlinkage void do_cpu(struct pt_regs *regs)
 		if (!test_thread_flag(TIF_ALLOW_FP_IN_KERNEL))
 			die_if_kernel("do_cpu invoked from kernel context!",
 				      regs);
-		preempt_disable();
-
-		own_fpu();
-		if (used_math()) {	/* Using the FPU again.  */
-			restore_fp(current);
-		} else {			/* First time FPU user.  */
+		if (used_math())	/* Using the FPU again.  */
+			own_fpu(1);
+		else {			/* First time FPU user.  */
 			init_fpu();
 			set_used_math();
 		}
 
-		if (cpu_has_fpu) {
-			preempt_enable();
+		if (raw_cpu_has_fpu) {
 			if (test_thread_flag(TIF_ALLOW_FP_IN_KERNEL)) {
 				local_irq_disable();
 				if (cpu_has_fpu)
@@ -812,7 +796,6 @@ asmlinkage void do_cpu(struct pt_regs *regs)
 			}
 		} else {
 			int sig;
-			preempt_enable();
 			sig = fpu_emulator_cop1Handler(regs,
 						&current->thread.fpu, 0);
 			if (sig)
@@ -1278,14 +1261,14 @@ extern asmlinkage int fpu_emulator_restore_context(struct sigcontext *sc);
 #ifdef CONFIG_SMP
 static int smp_save_fp_context(struct sigcontext *sc)
 {
-	return cpu_has_fpu
+	return raw_cpu_has_fpu
 	       ? _save_fp_context(sc)
 	       : fpu_emulator_save_context(sc);
 }
 
 static int smp_restore_fp_context(struct sigcontext *sc)
 {
-	return cpu_has_fpu
+	return raw_cpu_has_fpu
 	       ? _restore_fp_context(sc)
 	       : fpu_emulator_restore_context(sc);
 }

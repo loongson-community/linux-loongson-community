@@ -95,31 +95,47 @@ static inline int is_fpu_owner(void)
 	return cpu_has_fpu && __is_fpu_owner();
 }
 
-static inline void own_fpu(void)
+static inline void __own_fpu(void)
 {
-	if (cpu_has_fpu) {
-		__enable_fpu();
-		KSTK_STATUS(current) |= ST0_CU1;
-		set_thread_flag(TIF_USEDFPU);
-	}
+	__enable_fpu();
+	KSTK_STATUS(current) |= ST0_CU1;
+	set_thread_flag(TIF_USEDFPU);
 }
 
-static inline void lose_fpu(void)
+static inline void own_fpu(int restore)
 {
-	if (cpu_has_fpu) {
+	preempt_disable();
+	if (cpu_has_fpu && !__is_fpu_owner()) {
+		__own_fpu();
+		if (restore)
+			_restore_fp(current);
+	}
+	preempt_enable();
+}
+
+static inline void lose_fpu(int save)
+{
+	preempt_disable();
+	if (is_fpu_owner()) {
+		if (save)
+			_save_fp(current);
 		KSTK_STATUS(current) &= ~ST0_CU1;
 		clear_thread_flag(TIF_USEDFPU);
 		__disable_fpu();
 	}
+	preempt_enable();
 }
 
 static inline void init_fpu(void)
 {
+	preempt_disable();
 	if (cpu_has_fpu) {
+		__own_fpu();
 		_init_fpu();
 	} else {
 		fpu_emulator_init_fpu();
 	}
+	preempt_enable();
 }
 
 static inline void save_fp(struct task_struct *tsk)
