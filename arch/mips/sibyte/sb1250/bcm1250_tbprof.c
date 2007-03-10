@@ -354,7 +354,7 @@ static int sbprof_zbprof_stop(void)
 		pr_debug(DEVNAME ": wait for disarm\n");
 		err = wait_event_interruptible(sbp.tb_sync, !sbp.tb_armed);
 		pr_debug(DEVNAME ": disarm complete, stat %d\n", err);
-		
+
 		if (err)
 			return err;
 
