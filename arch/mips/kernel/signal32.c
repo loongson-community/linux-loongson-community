@@ -181,6 +181,7 @@ static int setup_sigcontext32(struct pt_regs *regs,
 {
 	int err = 0;
 	int i;
+	u32 used_math;
 
 	err |= __put_user(regs->cp0_epc, &sc->sc_pc);
 
@@ -200,9 +201,10 @@ static int setup_sigcontext32(struct pt_regs *regs,
 		err |= __put_user(mflo3(), &sc->sc_lo3);
 	}
 
-	err |= __put_user(!!used_math(), &sc->sc_used_math);
+	used_math = !!used_math();
+	err |= __put_user(used_math, &sc->sc_used_math);
 
-	if (used_math()) {
+	if (used_math) {
 		/*
 		 * Save FPU state to signal context.  Signal handler
 		 * will "inherit" current FPU state.
@@ -257,7 +259,7 @@ static int restore_sigcontext32(struct pt_regs *regs,
 	err |= __get_user(used_math, &sc->sc_used_math);
 	conditional_used_math(used_math);
 
-	if (used_math()) {
+	if (used_math) {
 		/* restore fpu context if we have used it before */
 		own_fpu(0);
 		enable_fp_in_kernel();

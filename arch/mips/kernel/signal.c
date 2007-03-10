@@ -82,6 +82,7 @@ int setup_sigcontext(struct pt_regs *regs, struct sigcontext __user *sc)
 {
 	int err = 0;
 	int i;
+	unsigned int used_math;
 
 	err |= __put_user(regs->cp0_epc, &sc->sc_pc);
 
@@ -104,9 +105,10 @@ int setup_sigcontext(struct pt_regs *regs, struct sigcontext __user *sc)
 		err |= __put_user(rddsp(DSP_MASK), &sc->sc_dsp);
 	}
 
-	err |= __put_user(!!used_math(), &sc->sc_used_math);
+	used_math = !!used_math();
+	err |= __put_user(used_math, &sc->sc_used_math);
 
-	if (used_math()) {
+	if (used_math) {
 		/*
 		 * Save FPU state to signal context. Signal handler
 		 * will "inherit" current FPU state.
@@ -183,7 +185,7 @@ int restore_sigcontext(struct pt_regs *regs, struct sigcontext __user *sc)
 	err |= __get_user(used_math, &sc->sc_used_math);
 	conditional_used_math(used_math);
 
-	if (used_math()) {
+	if (used_math) {
 		/* restore fpu context if we have used it before */
 		own_fpu(0);
 		enable_fp_in_kernel();
