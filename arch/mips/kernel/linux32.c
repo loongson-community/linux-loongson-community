@@ -370,7 +370,7 @@ sys32_ipc (u32 call, int first, int second, int third, u32 ptr, u32 fifth)
 	return err;
 }
 
-#else 
+#else
 
 asmlinkage long
 sys32_ipc (u32 call, int first, int second, int third, u32 ptr, u32 fifth)
