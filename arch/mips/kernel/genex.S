@@ -220,7 +220,11 @@ NESTED(except_vec_vi_handler, 0, sp)
 	_ehb
 #endif /* CONFIG_MIPS_MT_SMTC */
 	CLI
+#ifdef CONFIG_TRACE_IRQFLAGS
+	LONG_S	$2, PT_R2(sp)
 	TRACE_IRQS_OFF
+	LONG_L	$2, PT_R2(sp)
+#endif
 
 	LONG_L	s0, TI_REGS($28)
 	LONG_S	sp, TI_REGS($28)
