@@ -221,9 +221,15 @@ NESTED(except_vec_vi_handler, 0, sp)
 #endif /* CONFIG_MIPS_MT_SMTC */
 	CLI
 #ifdef CONFIG_TRACE_IRQFLAGS
-	LONG_S	$2, PT_R2(sp)
+	move	s0, v0
+#ifdef CONFIG_MIPS_MT_SMTC
+	move	s1, a0
+#endif
 	TRACE_IRQS_OFF
-	LONG_L	$2, PT_R2(sp)
+#ifdef CONFIG_MIPS_MT_SMTC
+	move	a0, s1
+#endif
+	move	v0, s0
 #endif
 
 	LONG_L	s0, TI_REGS($28)
