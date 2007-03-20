@@ -376,10 +376,6 @@ config AU1X00_GPIO
 	tristate "Alchemy Au1000 GPIO device support"
 	depends on MIPS && SOC_AU1X00
 
-config TS_AU1X00_ADS7846
-	tristate "Au1000/ADS7846 touchscreen support"
-	depends on MIPS && SOC_AU1X00
-
 config SIBYTE_SB1250_DUART
 	bool "Support for BCM1xxx onchip DUART"
 	depends on MIPS && SIBYTE_SB1xxx_SOC=y
