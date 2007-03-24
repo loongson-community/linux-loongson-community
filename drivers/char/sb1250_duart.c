@@ -107,25 +107,26 @@ static struct tty_driver *sb1250_duart_driver; //, sb1250_duart_callout_driver;
 static DEFINE_SPINLOCK(open_lock);
 
 typedef struct {
-	unsigned char       outp_buf[SERIAL_XMIT_SIZE];
-	unsigned int        outp_head;
-	unsigned int        outp_tail;
-	unsigned int        outp_count;
-	spinlock_t          outp_lock;
-	unsigned int        open;
-	unsigned int        line;
-	unsigned int        last_cflags;
-	unsigned long       flags;
-	struct tty_struct   *tty;
+	unsigned char		outp_buf[SERIAL_XMIT_SIZE];
+	unsigned int		outp_head;
+	unsigned int		outp_tail;
+	unsigned int		outp_count;
+	spinlock_t		outp_lock;
+	unsigned int		open;
+	unsigned int		line;
+	unsigned int		last_cflags;
+	unsigned long		flags;
+	struct tty_struct	*tty;
+
 	/* CSR addresses */
-	volatile u32	    *status;
-	volatile u32	    *imr;
-	volatile u32	    *tx_hold;
-	volatile u32	    *rx_hold;
-	volatile u32	    *mode_1;
-	volatile u32	    *mode_2;
-	volatile u32	    *clk_sel;
-	volatile u32	    *cmd;
+	unsigned int		*status;
+	unsigned int		*imr;
+	unsigned int		*tx_hold;
+	unsigned int		*rx_hold;
+	unsigned int		*mode_1;
+	unsigned int		*mode_2;
+	unsigned int		*clk_sel;
+	unsigned int		*cmd;
 } uart_state_t;
 
 static uart_state_t uart_states[DUART_MAX_LINE];
