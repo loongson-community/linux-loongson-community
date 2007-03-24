@@ -49,11 +49,10 @@ static inline void flush_dcache_page(struct page *page)
 #define flush_dcache_mmap_unlock(mapping)	do { } while (0)
 
 #define ARCH_HAS_FLUSH_ANON_PAGE
+extern void __flush_anon_page(struct page *, unsigned long);
 static inline void flush_anon_page(struct vm_area_struct *vma,
 	struct page *page, unsigned long vmaddr)
 {
-	extern void __flush_anon_page(struct page *, unsigned long);
-
 	if (cpu_has_dc_aliases && PageAnon(page))
 		__flush_anon_page(page, vmaddr);
 }
