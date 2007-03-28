@@ -614,7 +614,9 @@ int setup_irq_smtc(unsigned int irq, struct irqaction * new,
 	unsigned int vpe = current_cpu_data.vpe_id;
 
 	irq_hwmask[irq] = hwmask;
+#ifdef CONFIG_SMTC_IDLE_HOOK_DEBUG
 	vpemask[vpe][irq - MIPSCPU_INT_BASE] = 1;
+#endif
 
 	return setup_irq(irq, new);
 }
