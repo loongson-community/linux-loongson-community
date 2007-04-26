@@ -177,7 +177,7 @@ void *kmap_coherent(struct page *page, unsigned long addr)
 
 #define UNIQUE_ENTRYHI(idx) (CKSEG0 + ((idx) << (PAGE_SHIFT + 1)))
 
-void kunmap_coherent(struct page *page)
+void kunmap_coherent(void)
 {
 #ifndef CONFIG_MIPS_MT_SMTC
 	unsigned int wired;
