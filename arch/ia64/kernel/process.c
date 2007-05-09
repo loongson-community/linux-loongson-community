@@ -20,20 +20,19 @@
 #include <linux/personality.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
-#include <linux/smp_lock.h>
 #include <linux/stddef.h>
 #include <linux/thread_info.h>
 #include <linux/unistd.h>
 #include <linux/efi.h>
 #include <linux/interrupt.h>
 #include <linux/delay.h>
+#include <linux/kdebug.h>
 
 #include <asm/cpu.h>
 #include <asm/delay.h>
 #include <asm/elf.h>
 #include <asm/ia32.h>
 #include <asm/irq.h>
-#include <asm/kdebug.h>
 #include <asm/kexec.h>
 #include <asm/pgalloc.h>
 #include <asm/processor.h>

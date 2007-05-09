@@ -93,7 +93,7 @@ void die(const char *msg, struct pt_regs *regs, int err)
 		__attribute__((noreturn));
 
 struct siginfo;
-void notify_die(const char *str, struct pt_regs *regs, struct siginfo *info,
+void arm_notify_die(const char *str, struct pt_regs *regs, struct siginfo *info,
 		unsigned long err, unsigned long trap);
 
 void hook_fault_code(int nr, int (*fn)(unsigned long, unsigned int,
@@ -102,8 +102,6 @@ void hook_fault_code(int nr, int (*fn)(unsigned long, unsigned int,
 
 #define xchg(ptr,x) \
 	((__typeof__(*(ptr)))__xchg((unsigned long)(x),(ptr),sizeof(*(ptr))))
-
-#define tas(ptr) (xchg((ptr),1))
 
 extern asmlinkage void __backtrace(void);
 extern asmlinkage void c_backtrace(unsigned long fp, int pmode);

@@ -382,6 +382,12 @@ L:	linux-laptop@vger.kernel.org
 W:	http://www.canb.auug.org.au/~sfr/
 S:	Supported
 
+APPLE SMC DRIVER
+P:	Nicolas Boichat
+M:	nicolas@boichat.ch
+L:	mactel-linux-devel@lists.sourceforge.net
+S:	Maintained
+
 APPLETALK NETWORK LAYER
 P:	Arnaldo Carvalho de Melo
 M:	acme@ghostprotocols.net
@@ -673,6 +679,7 @@ AUXILIARY DISPLAY DRIVERS
 P:	Miguel Ojeda Sandonis
 M:	maxextreme@gmail.com
 L:	linux-kernel@vger.kernel.org
+W:	http://auxdisplay.googlepages.com/
 S:	Maintained
 
 AVR32 ARCHITECTURE
@@ -937,12 +944,14 @@ CFAG12864B LCD DRIVER
 P:	Miguel Ojeda Sandonis
 M:	maxextreme@gmail.com
 L:	linux-kernel@vger.kernel.org
+W:	http://auxdisplay.googlepages.com/
 S:	Maintained
 
 CFAG12864BFB LCD FRAMEBUFFER DRIVER
 P:	Miguel Ojeda Sandonis
 M:	maxextreme@gmail.com
 L:	linux-kernel@vger.kernel.org
+W:	http://auxdisplay.googlepages.com/
 S:	Maintained
 
 CFG80211 and NL80211
@@ -1029,6 +1038,12 @@ S:	Maintained
 CONEXANT ACCESSRUNNER USB DRIVER
 P:	Simon Arlott
 M:	cxacru@fire.lp0.eu
+S:	Maintained
+
+CORETEMP HARDWARE MONITORING DRIVER
+P:	Rudolf Marek
+M:	r.marek@assembler.cz
+L:	lm-sensors@lm-sensors.org
 S:	Maintained
 
 COSA/SRP SYNC SERIAL DRIVER
@@ -2021,7 +2036,7 @@ P:	Vivek Goyal
 M:	vgoyal@in.ibm.com
 P:	Haren Myneni
 M:	hbabu@us.ibm.com
-L:	fastboot@lists.linux-foundation.org
+L:	kexec@lists.infradead.org
 L:	linux-kernel@vger.kernel.org
 W:	http://lse.sourceforge.net/kdump/
 S:	Maintained
@@ -2071,7 +2086,7 @@ P:	Eric Biederman
 M:	ebiederm@xmission.com
 W:	http://www.xmission.com/~ebiederm/files/kexec/
 L:	linux-kernel@vger.kernel.org
-L:	fastboot@lists.linux-foundation.org
+L:	kexec@lists.infradead.org
 S:	Maintained
 
 KPROBES
@@ -2090,6 +2105,7 @@ KS0108 LCD CONTROLLER DRIVER
 P:	Miguel Ojeda Sandonis
 M:	maxextreme@gmail.com
 L:	linux-kernel@vger.kernel.org
+W:	http://auxdisplay.googlepages.com/
 S:	Maintained
 
 LAPB module
@@ -2302,6 +2318,12 @@ MATROX FRAMEBUFFER DRIVER
 P:	Petr Vandrovec
 M:	vandrove@vc.cvut.cz
 L:	linux-fbdev-devel@lists.sourceforge.net (subscribers-only)
+S:	Maintained
+
+MAX6650 HARDWARE MONITOR AND FAN CONTROLLER DRIVER
+P:	Hans J. Koch
+M:	hjk@linutronix.de
+L:	lm-sensors@lm-sensors.org
 S:	Maintained
 
 MEGARAID SCSI DRIVERS
@@ -3097,6 +3119,11 @@ L:	linux-kernel@vger.kernel.org (kernel issues)
 L: 	selinux@tycho.nsa.gov (subscribers-only, general discussion)
 W:	http://www.nsa.gov/selinux
 S:	Supported
+
+SENSABLE PHANTOM
+P:	Jiri Slaby
+M:	jirislaby@gmail.com
+S:	Maintained
 
 SERIAL ATA (SATA) SUBSYSTEM:
 P:	Jeff Garzik

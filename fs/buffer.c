@@ -24,7 +24,6 @@
 #include <linux/mm.h>
 #include <linux/percpu.h>
 #include <linux/slab.h>
-#include <linux/smp_lock.h>
 #include <linux/capability.h>
 #include <linux/blkdev.h>
 #include <linux/file.h>
@@ -1727,6 +1726,7 @@ recover:
 	} while ((bh = bh->b_this_page) != head);
 	SetPageError(page);
 	BUG_ON(PageWriteback(page));
+	mapping_set_error(page->mapping, err);
 	set_page_writeback(page);
 	do {
 		struct buffer_head *next = bh->b_this_page;

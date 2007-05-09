@@ -194,6 +194,14 @@ extern void sched_init_smp(void);
 extern void init_idle(struct task_struct *idle, int cpu);
 
 extern cpumask_t nohz_cpu_mask;
+#if defined(CONFIG_SMP) && defined(CONFIG_NO_HZ)
+extern int select_nohz_load_balancer(int cpu);
+#else
+static inline int select_nohz_load_balancer(int cpu)
+{
+	return 0;
+}
+#endif
 
 /*
  * Only dump TASK_* tasks. (0 for all tasks)
@@ -226,6 +234,7 @@ extern void scheduler_tick(void);
 extern void softlockup_tick(void);
 extern void spawn_softlockup_task(void);
 extern void touch_softlockup_watchdog(void);
+extern void touch_all_softlockup_watchdogs(void);
 #else
 static inline void softlockup_tick(void)
 {
@@ -234,6 +243,9 @@ static inline void spawn_softlockup_task(void)
 {
 }
 static inline void touch_softlockup_watchdog(void)
+{
+}
+static inline void touch_all_softlockup_watchdogs(void)
 {
 }
 #endif
@@ -668,8 +680,14 @@ struct sched_group {
 	/*
 	 * CPU power of this group, SCHED_LOAD_SCALE being max power for a
 	 * single CPU. This is read only (except for setup, hotplug CPU).
+	 * Note : Never change cpu_power without recompute its reciprocal
 	 */
-	unsigned long cpu_power;
+	unsigned int __cpu_power;
+	/*
+	 * reciprocal value of cpu_power to avoid expensive divides
+	 * (see include/linux/reciprocal_div.h)
+	 */
+	u32 reciprocal_cpu_power;
 };
 
 struct sched_domain {
@@ -801,8 +819,8 @@ struct task_struct {
 	volatile long state;	/* -1 unrunnable, 0 runnable, >0 stopped */
 	struct thread_info *thread_info;
 	atomic_t usage;
-	unsigned long flags;	/* per process flags, defined below */
-	unsigned long ptrace;
+	unsigned int flags;	/* per process flags, defined below */
+	unsigned int ptrace;
 
 	int lock_depth;		/* BKL lock depth */
 
@@ -825,7 +843,7 @@ struct task_struct {
 	unsigned long long sched_time; /* sched_clock time spent running */
 	enum sleep_type sleep_type;
 
-	unsigned long policy;
+	unsigned int policy;
 	cpumask_t cpus_allowed;
 	unsigned int time_slice, first_time_slice;
 
@@ -845,11 +863,11 @@ struct task_struct {
 
 /* task state */
 	struct linux_binfmt *binfmt;
-	long exit_state;
+	int exit_state;
 	int exit_code, exit_signal;
 	int pdeath_signal;  /*  The signal sent when the parent dies  */
 	/* ??? */
-	unsigned long personality;
+	unsigned int personality;
 	unsigned did_exec:1;
 	pid_t pid;
 	pid_t tgid;
@@ -881,7 +899,7 @@ struct task_struct {
 	int __user *set_child_tid;		/* CLONE_CHILD_SETTID */
 	int __user *clear_child_tid;		/* CLONE_CHILD_CLEARTID */
 
-	unsigned long rt_priority;
+	unsigned int rt_priority;
 	cputime_t utime, stime;
 	unsigned long nvcsw, nivcsw; /* context switch counts */
 	struct timespec start_time;
@@ -1641,10 +1659,7 @@ static inline void arch_pick_mmap_layout(struct mm_struct *mm)
 extern long sched_setaffinity(pid_t pid, cpumask_t new_mask);
 extern long sched_getaffinity(pid_t pid, cpumask_t *mask);
 
-#include <linux/sysdev.h>
 extern int sched_mc_power_savings, sched_smt_power_savings;
-extern struct sysdev_attribute attr_sched_mc_power_savings, attr_sched_smt_power_savings;
-extern int sched_create_sysfs_power_savings_entries(struct sysdev_class *cls);
 
 extern void normalize_rt_tasks(void);
 

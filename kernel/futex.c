@@ -48,37 +48,12 @@
 #include <linux/pagemap.h>
 #include <linux/syscalls.h>
 #include <linux/signal.h>
+#include <linux/module.h>
 #include <asm/futex.h>
 
 #include "rtmutex_common.h"
 
 #define FUTEX_HASHBITS (CONFIG_BASE_SMALL ? 4 : 8)
-
-/*
- * Futexes are matched on equal values of this key.
- * The key type depends on whether it's a shared or private mapping.
- * Don't rearrange members without looking at hash_futex().
- *
- * offset is aligned to a multiple of sizeof(u32) (== 4) by definition.
- * We set bit 0 to indicate if it's an inode-based key.
- */
-union futex_key {
-	struct {
-		unsigned long pgoff;
-		struct inode *inode;
-		int offset;
-	} shared;
-	struct {
-		unsigned long address;
-		struct mm_struct *mm;
-		int offset;
-	} private;
-	struct {
-		unsigned long word;
-		void *ptr;
-		int offset;
-	} both;
-};
 
 /*
  * Priority Inheritance state:
@@ -175,7 +150,7 @@ static inline int match_futex(union futex_key *key1, union futex_key *key2)
  *
  * Should be called with &current->mm->mmap_sem but NOT any spinlocks.
  */
-static int get_futex_key(u32 __user *uaddr, union futex_key *key)
+int get_futex_key(u32 __user *uaddr, union futex_key *key)
 {
 	unsigned long address = (unsigned long)uaddr;
 	struct mm_struct *mm = current->mm;
@@ -246,6 +221,7 @@ static int get_futex_key(u32 __user *uaddr, union futex_key *key)
 	}
 	return err;
 }
+EXPORT_SYMBOL_GPL(get_futex_key);
 
 /*
  * Take a reference to the resource addressed by a key.
@@ -254,7 +230,7 @@ static int get_futex_key(u32 __user *uaddr, union futex_key *key)
  * NOTE: mmap_sem MUST be held between get_futex_key() and calling this
  * function, if it is called at all.  mmap_sem keeps key->shared.inode valid.
  */
-static inline void get_key_refs(union futex_key *key)
+inline void get_futex_key_refs(union futex_key *key)
 {
 	if (key->both.ptr != 0) {
 		if (key->both.offset & 1)
@@ -263,12 +239,13 @@ static inline void get_key_refs(union futex_key *key)
 			atomic_inc(&key->private.mm->mm_count);
 	}
 }
+EXPORT_SYMBOL_GPL(get_futex_key_refs);
 
 /*
  * Drop a reference to the resource addressed by a key.
  * The hash bucket spinlock must not be held.
  */
-static void drop_key_refs(union futex_key *key)
+void drop_futex_key_refs(union futex_key *key)
 {
 	if (key->both.ptr != 0) {
 		if (key->both.offset & 1)
@@ -277,6 +254,7 @@ static void drop_key_refs(union futex_key *key)
 			mmdrop(key->private.mm);
 	}
 }
+EXPORT_SYMBOL_GPL(drop_futex_key_refs);
 
 static inline int get_futex_value_locked(u32 *dest, u32 __user *from)
 {
@@ -873,7 +851,7 @@ static int futex_requeue(u32 __user *uaddr1, u32 __user *uaddr2,
 				this->lock_ptr = &hb2->lock;
 			}
 			this->key = key2;
-			get_key_refs(&key2);
+			get_futex_key_refs(&key2);
 			drop_count++;
 
 			if (ret - nr_wake >= nr_requeue)
@@ -886,9 +864,9 @@ out_unlock:
 	if (hb1 != hb2)
 		spin_unlock(&hb2->lock);
 
-	/* drop_key_refs() must be called outside the spinlocks. */
+	/* drop_futex_key_refs() must be called outside the spinlocks. */
 	while (--drop_count >= 0)
-		drop_key_refs(&key1);
+		drop_futex_key_refs(&key1);
 
 out:
 	up_read(&current->mm->mmap_sem);
@@ -906,7 +884,7 @@ queue_lock(struct futex_q *q, int fd, struct file *filp)
 
 	init_waitqueue_head(&q->waiters);
 
-	get_key_refs(&q->key);
+	get_futex_key_refs(&q->key);
 	hb = hash_futex(&q->key);
 	q->lock_ptr = &hb->lock;
 
@@ -925,7 +903,7 @@ static inline void
 queue_unlock(struct futex_q *q, struct futex_hash_bucket *hb)
 {
 	spin_unlock(&hb->lock);
-	drop_key_refs(&q->key);
+	drop_futex_key_refs(&q->key);
 }
 
 /*
@@ -980,7 +958,7 @@ static int unqueue_me(struct futex_q *q)
 		ret = 1;
 	}
 
-	drop_key_refs(&q->key);
+	drop_futex_key_refs(&q->key);
 	return ret;
 }
 
@@ -999,15 +977,18 @@ static void unqueue_me_pi(struct futex_q *q, struct futex_hash_bucket *hb)
 
 	spin_unlock(&hb->lock);
 
-	drop_key_refs(&q->key);
+	drop_futex_key_refs(&q->key);
 }
 
-static int futex_wait(u32 __user *uaddr, u32 val, unsigned long time)
+static long futex_wait_restart(struct restart_block *restart);
+static int futex_wait_abstime(u32 __user *uaddr, u32 val,
+			int timed, unsigned long abs_time)
 {
 	struct task_struct *curr = current;
 	DECLARE_WAITQUEUE(wait, curr);
 	struct futex_hash_bucket *hb;
 	struct futex_q q;
+	unsigned long time_left = 0;
 	u32 uval;
 	int ret;
 
@@ -1087,8 +1068,21 @@ static int futex_wait(u32 __user *uaddr, u32 val, unsigned long time)
 	 * !list_empty() is safe here without any lock.
 	 * q.lock_ptr != 0 is not safe, because of ordering against wakeup.
 	 */
-	if (likely(!list_empty(&q.list)))
-		time = schedule_timeout(time);
+	time_left = 0;
+	if (likely(!list_empty(&q.list))) {
+		unsigned long rel_time;
+
+		if (timed) {
+			unsigned long now = jiffies;
+			if (time_after(now, abs_time))
+				rel_time = 0;
+			else
+				rel_time = abs_time - now;
+		} else
+			rel_time = MAX_SCHEDULE_TIMEOUT;
+
+		time_left = schedule_timeout(rel_time);
+	}
 	__set_current_state(TASK_RUNNING);
 
 	/*
@@ -1099,13 +1093,25 @@ static int futex_wait(u32 __user *uaddr, u32 val, unsigned long time)
 	/* If we were woken (and unqueued), we succeeded, whatever. */
 	if (!unqueue_me(&q))
 		return 0;
-	if (time == 0)
+	if (time_left == 0)
 		return -ETIMEDOUT;
+
 	/*
 	 * We expect signal_pending(current), but another thread may
 	 * have handled it for us already.
 	 */
-	return -EINTR;
+	if (time_left == MAX_SCHEDULE_TIMEOUT)
+		return -ERESTARTSYS;
+	else {
+		struct restart_block *restart;
+		restart = &current_thread_info()->restart_block;
+		restart->fn = futex_wait_restart;
+		restart->arg0 = (unsigned long)uaddr;
+		restart->arg1 = (unsigned long)val;
+		restart->arg2 = (unsigned long)timed;
+		restart->arg3 = abs_time;
+		return -ERESTART_RESTARTBLOCK;
+	}
 
  out_unlock_release_sem:
 	queue_unlock(&q, hb);
@@ -1114,6 +1120,24 @@ static int futex_wait(u32 __user *uaddr, u32 val, unsigned long time)
 	up_read(&curr->mm->mmap_sem);
 	return ret;
 }
+
+static int futex_wait(u32 __user *uaddr, u32 val, unsigned long rel_time)
+{
+	int timed = (rel_time != MAX_SCHEDULE_TIMEOUT);
+	return futex_wait_abstime(uaddr, val, timed, jiffies+rel_time);
+}
+
+static long futex_wait_restart(struct restart_block *restart)
+{
+	u32 __user *uaddr = (u32 __user *)restart->arg0;
+	u32 val = (u32)restart->arg1;
+	int timed = (int)restart->arg2;
+	unsigned long abs_time = restart->arg3;
+
+	restart->fn = do_no_restart_syscall;
+	return (long)futex_wait_abstime(uaddr, val, timed, abs_time);
+}
+
 
 /*
  * Userspace tried a 0 -> TID atomic transition of the futex value

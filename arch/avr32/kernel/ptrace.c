@@ -9,7 +9,6 @@
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
-#include <linux/smp_lock.h>
 #include <linux/ptrace.h>
 #include <linux/errno.h>
 #include <linux/user.h>
@@ -21,7 +20,7 @@
 #include <asm/uaccess.h>
 #include <asm/ocd.h>
 #include <asm/mmu_context.h>
-#include <asm/kdebug.h>
+#include <linux/kdebug.h>
 
 static struct pt_regs *get_user_regs(struct task_struct *tsk)
 {
@@ -300,7 +299,7 @@ asmlinkage void do_debug_priv(struct pt_regs *regs)
 	else
 		die_val = DIE_BREAKPOINT;
 
-	if (notify_die(die_val, regs, 0, SIGTRAP) == NOTIFY_STOP)
+	if (notify_die(die_val, "ptrace", regs, 0, 0, SIGTRAP) == NOTIFY_STOP)
 		return;
 
 	if (likely(ds & DS_SSS)) {

@@ -141,8 +141,6 @@ static DECLARE_MUTEX(allocated_ptys_lock);
 static int ptmx_open(struct inode *, struct file *);
 #endif
 
-extern void disable_early_printk(void);
-
 static void initialize_tty_struct(struct tty_struct *tty);
 
 static ssize_t tty_read(struct file *, char __user *, size_t, loff_t *);
@@ -155,8 +153,8 @@ int tty_ioctl(struct inode * inode, struct file * file,
 	      unsigned int cmd, unsigned long arg);
 static int tty_fasync(int fd, struct file * filp, int on);
 static void release_tty(struct tty_struct *tty, int idx);
-static struct pid *__proc_set_tty(struct task_struct *tsk,
-				struct tty_struct *tty);
+static void __proc_set_tty(struct task_struct *tsk, struct tty_struct *tty);
+static void proc_set_tty(struct task_struct *tsk, struct tty_struct *tty);
 
 /**
  *	alloc_tty_struct	-	allocate a tty object
@@ -1534,10 +1532,9 @@ void disassociate_ctty(int on_exit)
 	}
 
 	spin_lock_irq(&current->sighand->siglock);
-	tty_pgrp = current->signal->tty_old_pgrp;
+	put_pid(current->signal->tty_old_pgrp);
 	current->signal->tty_old_pgrp = NULL;
 	spin_unlock_irq(&current->sighand->siglock);
-	put_pid(tty_pgrp);
 
 	mutex_lock(&tty_mutex);
 	/* It is possible that do_tty_hangup has free'd this tty */
@@ -1560,6 +1557,18 @@ void disassociate_ctty(int on_exit)
 	session_clear_tty(task_session(current));
 	read_unlock(&tasklist_lock);
 	unlock_kernel();
+}
+
+/**
+ *
+ *	no_tty	- Ensure the current process does not have a controlling tty
+ */
+void no_tty(void)
+{
+	struct task_struct *tsk = current;
+	if (tsk->signal->leader)
+		disassociate_ctty(0);
+	proc_clear_tty(tsk);
 }
 
 
@@ -2508,7 +2517,6 @@ static int tty_open(struct inode * inode, struct file * filp)
 	int index;
 	dev_t device = inode->i_rdev;
 	unsigned short saved_flags = filp->f_flags;
-	struct pid *old_pgrp;
 
 	nonseekable_open(inode, filp);
 	
@@ -2602,17 +2610,15 @@ got_driver:
 		goto retry_open;
 	}
 
-	old_pgrp = NULL;
 	mutex_lock(&tty_mutex);
 	spin_lock_irq(&current->sighand->siglock);
 	if (!noctty &&
 	    current->signal->leader &&
 	    !current->signal->tty &&
 	    tty->session == NULL)
-		old_pgrp = __proc_set_tty(current, tty);
+		__proc_set_tty(current, tty);
 	spin_unlock_irq(&current->sighand->siglock);
 	mutex_unlock(&tty_mutex);
-	put_pid(old_pgrp);
 	return 0;
 }
 
@@ -3287,9 +3293,7 @@ int tty_ioctl(struct inode * inode, struct file * file,
 		case TIOCNOTTY:
 			if (current->signal->tty != tty)
 				return -ENOTTY;
-			if (current->signal->leader)
-				disassociate_ctty(0);
-			proc_clear_tty(current);
+			no_tty();
 			return 0;
 		case TIOCSCTTY:
 			return tiocsctty(tty, arg);
@@ -3766,7 +3770,9 @@ int tty_register_driver(struct tty_driver *driver)
 	if (!driver->put_char)
 		driver->put_char = tty_default_put_char;
 	
+	mutex_lock(&tty_mutex);
 	list_add(&driver->tty_drivers, &tty_drivers);
+	mutex_unlock(&tty_mutex);
 	
 	if ( !(driver->flags & TTY_DRIVER_DYNAMIC_DEV) ) {
 		for(i = 0; i < driver->num; i++)
@@ -3792,8 +3798,9 @@ int tty_unregister_driver(struct tty_driver *driver)
 
 	unregister_chrdev_region(MKDEV(driver->major, driver->minor_start),
 				driver->num);
-
+	mutex_lock(&tty_mutex);
 	list_del(&driver->tty_drivers);
+	mutex_unlock(&tty_mutex);
 
 	/*
 	 * Free the termios and termios_locked structures because
@@ -3836,11 +3843,9 @@ void proc_clear_tty(struct task_struct *p)
 	p->signal->tty = NULL;
 	spin_unlock_irq(&p->sighand->siglock);
 }
-EXPORT_SYMBOL(proc_clear_tty);
 
-static struct pid *__proc_set_tty(struct task_struct *tsk, struct tty_struct *tty)
+static void __proc_set_tty(struct task_struct *tsk, struct tty_struct *tty)
 {
-	struct pid *old_pgrp;
 	if (tty) {
 		/* We should not have a session or pgrp to here but.... */
 		put_pid(tty->session);
@@ -3848,21 +3853,16 @@ static struct pid *__proc_set_tty(struct task_struct *tsk, struct tty_struct *tt
 		tty->session = get_pid(task_session(tsk));
 		tty->pgrp = get_pid(task_pgrp(tsk));
 	}
-	old_pgrp = tsk->signal->tty_old_pgrp;
+	put_pid(tsk->signal->tty_old_pgrp);
 	tsk->signal->tty = tty;
 	tsk->signal->tty_old_pgrp = NULL;
-	return old_pgrp;
 }
 
-void proc_set_tty(struct task_struct *tsk, struct tty_struct *tty)
+static void proc_set_tty(struct task_struct *tsk, struct tty_struct *tty)
 {
-	struct pid *old_pgrp;
-
 	spin_lock_irq(&tsk->sighand->siglock);
-	old_pgrp = __proc_set_tty(tsk, tty);
+	__proc_set_tty(tsk, tty);
 	spin_unlock_irq(&tsk->sighand->siglock);
-
-	put_pid(old_pgrp);
 }
 
 struct tty_struct *get_current_tty(void)
@@ -3897,9 +3897,6 @@ void __init console_init(void)
 	 * set up the console device so that later boot sequences can 
 	 * inform about problems etc..
 	 */
-#ifdef CONFIG_EARLY_PRINTK
-	disable_early_printk();
-#endif
 	call = __con_initcall_start;
 	while (call < __con_initcall_end) {
 		(*call)();

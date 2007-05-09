@@ -19,6 +19,7 @@
 #include <linux/module.h>
 #include <linux/moduleloader.h>
 #include <linux/init.h>
+#include <linux/kallsyms.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
@@ -310,14 +311,14 @@ static int split_block(unsigned int i, unsigned short size)
 {
 	/* Reallocation required? */
 	if (pcpu_num_used + 1 > pcpu_num_allocated) {
-		int *new = kmalloc(sizeof(new[0]) * pcpu_num_allocated*2,
-				   GFP_KERNEL);
+		int *new;
+
+		new = krealloc(pcpu_size, sizeof(new[0])*pcpu_num_allocated*2,
+			       GFP_KERNEL);
 		if (!new)
 			return 0;
 
-		memcpy(new, pcpu_size, sizeof(new[0])*pcpu_num_allocated);
 		pcpu_num_allocated *= 2;
-		kfree(pcpu_size);
 		pcpu_size = new;
 	}
 
@@ -1471,7 +1472,7 @@ static void setup_modinfo(struct module *mod, Elf_Shdr *sechdrs,
 }
 
 #ifdef CONFIG_KALLSYMS
-int is_exported(const char *name, const struct module *mod)
+static int is_exported(const char *name, const struct module *mod)
 {
 	if (!mod && lookup_symbol(name, __start___ksymtab, __stop___ksymtab))
 		return 1;
@@ -2097,8 +2098,10 @@ static const char *get_ksymbol(struct module *mod,
 	if (!best)
 		return NULL;
 
-	*size = nextval - mod->symtab[best].st_value;
-	*offset = addr - mod->symtab[best].st_value;
+	if (size)
+		*size = nextval - mod->symtab[best].st_value;
+	if (offset)
+		*offset = addr - mod->symtab[best].st_value;
 	return mod->strtab + mod->symtab[best].st_name;
 }
 
@@ -2123,8 +2126,58 @@ const char *module_address_lookup(unsigned long addr,
 	return NULL;
 }
 
-struct module *module_get_kallsym(unsigned int symnum, unsigned long *value,
-				char *type, char *name, size_t namelen)
+int lookup_module_symbol_name(unsigned long addr, char *symname)
+{
+	struct module *mod;
+
+	mutex_lock(&module_mutex);
+	list_for_each_entry(mod, &modules, list) {
+		if (within(addr, mod->module_init, mod->init_size) ||
+		    within(addr, mod->module_core, mod->core_size)) {
+			const char *sym;
+
+			sym = get_ksymbol(mod, addr, NULL, NULL);
+			if (!sym)
+				goto out;
+			strlcpy(symname, sym, KSYM_NAME_LEN + 1);
+			mutex_unlock(&module_mutex);
+			return 0;
+		}
+	}
+out:
+	mutex_unlock(&module_mutex);
+	return -ERANGE;
+}
+
+int lookup_module_symbol_attrs(unsigned long addr, unsigned long *size,
+			unsigned long *offset, char *modname, char *name)
+{
+	struct module *mod;
+
+	mutex_lock(&module_mutex);
+	list_for_each_entry(mod, &modules, list) {
+		if (within(addr, mod->module_init, mod->init_size) ||
+		    within(addr, mod->module_core, mod->core_size)) {
+			const char *sym;
+
+			sym = get_ksymbol(mod, addr, size, offset);
+			if (!sym)
+				goto out;
+			if (modname)
+				strlcpy(modname, mod->name, MODULE_NAME_LEN + 1);
+			if (name)
+				strlcpy(name, sym, KSYM_NAME_LEN + 1);
+			mutex_unlock(&module_mutex);
+			return 0;
+		}
+	}
+out:
+	mutex_unlock(&module_mutex);
+	return -ERANGE;
+}
+
+int module_get_kallsym(unsigned int symnum, unsigned long *value, char *type,
+			char *name, char *module_name, int *exported)
 {
 	struct module *mod;
 
@@ -2134,14 +2187,16 @@ struct module *module_get_kallsym(unsigned int symnum, unsigned long *value,
 			*value = mod->symtab[symnum].st_value;
 			*type = mod->symtab[symnum].st_info;
 			strlcpy(name, mod->strtab + mod->symtab[symnum].st_name,
-				namelen);
+				KSYM_NAME_LEN + 1);
+			strlcpy(module_name, mod->name, MODULE_NAME_LEN + 1);
+			*exported = is_exported(name, mod);
 			mutex_unlock(&module_mutex);
-			return mod;
+			return 0;
 		}
 		symnum -= mod->num_symtab;
 	}
 	mutex_unlock(&module_mutex);
-	return NULL;
+	return -ERANGE;
 }
 
 static unsigned long mod_find_symname(struct module *mod, const char *name)
