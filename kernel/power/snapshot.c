@@ -607,7 +607,8 @@ static LIST_HEAD(nosave_regions);
  */
 
 void __init
-register_nosave_region(unsigned long start_pfn, unsigned long end_pfn)
+__register_nosave_region(unsigned long start_pfn, unsigned long end_pfn,
+			 int use_kmalloc)
 {
 	struct nosave_region *region;
 
@@ -623,8 +624,13 @@ register_nosave_region(unsigned long start_pfn, unsigned long end_pfn)
 			goto Report;
 		}
 	}
-	/* This allocation cannot fail */
-	region = alloc_bootmem_low(sizeof(struct nosave_region));
+	if (use_kmalloc) {
+		/* during init, this shouldn't fail */
+		region = kmalloc(sizeof(struct nosave_region), GFP_KERNEL);
+		BUG_ON(!region);
+	} else
+		/* This allocation cannot fail */
+		region = alloc_bootmem_low(sizeof(struct nosave_region));
 	region->start_pfn = start_pfn;
 	region->end_pfn = end_pfn;
 	list_add_tail(&region->list, &nosave_regions);
@@ -1227,7 +1233,7 @@ asmlinkage int swsusp_save(void)
 	nr_copy_pages = nr_pages;
 	nr_meta_pages = DIV_ROUND_UP(nr_pages * sizeof(long), PAGE_SIZE);
 
-	printk("swsusp: critical section/: done (%d pages copied)\n", nr_pages);
+	printk("swsusp: critical section: done (%d pages copied)\n", nr_pages);
 
 	return 0;
 }
