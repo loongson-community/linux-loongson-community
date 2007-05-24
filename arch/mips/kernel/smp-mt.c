@@ -323,8 +323,11 @@ void prom_boot_secondary(int cpu, struct task_struct *idle)
 
 void prom_init_secondary(void)
 {
+	/* Enable per-cpu interrupts */
+
+	/* This is Malta specific: IPI,performance and timer inetrrupts */
 	write_c0_status((read_c0_status() & ~ST0_IM ) |
-	                (STATUSF_IP0 | STATUSF_IP1 | STATUSF_IP7));
+	                (STATUSF_IP0 | STATUSF_IP1 | STATUSF_IP6 | STATUSF_IP7));
 }
 
 void prom_smp_finish(void)
