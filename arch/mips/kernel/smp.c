@@ -62,7 +62,7 @@ static void smp_tune_scheduling (void)
 }
 
 extern void __init calibrate_delay(void);
-extern ATTRIB_NORET void cpu_idle(void);
+extern void cpu_idle(void);
 
 /*
  * First C code run on the secondary CPUs after being started up by
