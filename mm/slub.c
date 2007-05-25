@@ -939,7 +939,7 @@ static void kmem_cache_open_debug_check(struct kmem_cache *s)
 	 * Debugging or ctor may create a need to move the free
 	 * pointer. Fail if this happens.
 	 */
-	if (s->size >= 65535 * sizeof(void *)) {
+	if (s->objsize >= 65535 * sizeof(void *)) {
 		BUG_ON(s->flags & (SLAB_RED_ZONE | SLAB_POISON |
 				SLAB_STORE_USER | SLAB_DESTROY_BY_RCU));
 		BUG_ON(s->ctor);
@@ -1917,7 +1917,6 @@ static int calculate_sizes(struct kmem_cache *s)
 	 */
 	s->inuse = size;
 
-#ifdef CONFIG_SLUB_DEBUG
 	if (((flags & (SLAB_DESTROY_BY_RCU | SLAB_POISON)) ||
 		s->ctor)) {
 		/*
@@ -1932,6 +1931,7 @@ static int calculate_sizes(struct kmem_cache *s)
 		size += sizeof(void *);
 	}
 
+#ifdef CONFIG_SLUB_DEBUG
 	if (flags & SLAB_STORE_USER)
 		/*
 		 * Need to store information about allocs and frees after
