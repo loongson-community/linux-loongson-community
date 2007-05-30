@@ -36,7 +36,6 @@
 #define TIMEOUT       0xffffff
 
 static int remoteDebugInitialized = 0;
-static void debugInit(int baud)
 
 int putDebugChar(unsigned char c)
 {
