@@ -137,13 +137,19 @@ static inline void check_wait(void)
 	case CPU_4KEC:
 	case CPU_4KSC:
 	case CPU_5KC:
-	case CPU_24K:
 	case CPU_25KF:
-	case CPU_34K:
-	case CPU_74K:
  	case CPU_PR4450:
 		cpu_wait = r4k_wait;
 		break;
+
+	case CPU_24K:
+	case CPU_34K:
+		cpu_wait = r4k_wait;
+		if (read_c0_config7() & MIPS_CONF7_WII)
+			cpu_wait = r4k_wait_irqoff;
+		break;
+
+	case CPU_74K:
 	case CPU_TX49XX:
 		cpu_wait = r4k_wait_irqoff;
 		break;
