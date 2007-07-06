@@ -150,6 +150,10 @@ static inline void check_wait(void)
 		break;
 
 	case CPU_74K:
+		if ((c->processor_id & 0xff) >= PRID_REV_ENCODE_332(2, 1, 0))
+			cpu_wait = r4k_wait_irqoff;
+		break;
+
 	case CPU_TX49XX:
 		cpu_wait = r4k_wait_irqoff;
 		break;
