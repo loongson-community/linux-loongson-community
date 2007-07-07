@@ -20,6 +20,7 @@
 #include <linux/pci.h>
 #include <linux/pm.h>
 #include <linux/platform_device.h>
+#include <linux/clk.h>
 
 #include <asm/wbflush.h>
 #include <asm/reboot.h>
@@ -1112,10 +1113,6 @@ static void __init txx9_spi_init(unsigned long base, int irq)
 		}, {
 			.start	= irq,
 			.flags	= IORESOURCE_IRQ,
-		}, {
-			.name	= "baseclk",
-			.start	= txx9_gbus_clock / 2 / 4,
-			.flags	= IORESOURCE_IRQ,
 		},
 	};
 	platform_device_register_simple("txx9spi", 0,
@@ -1140,3 +1137,35 @@ static int __init rbtx4938_spi_init(void)
 	return 0;
 }
 arch_initcall(rbtx4938_spi_init);
+
+/* Minimum CLK support */
+
+struct clk *clk_get(struct device *dev, const char *id)
+{
+	if (!strcmp(id, "spi-baseclk"))
+		return (struct clk *)(txx9_gbus_clock / 2 / 4);
+	return ERR_PTR(-ENOENT);
+}
+EXPORT_SYMBOL(clk_get);
+
+int clk_enable(struct clk *clk)
+{
+	return 0;
+}
+EXPORT_SYMBOL(clk_enable);
+
+void clk_disable(struct clk *clk)
+{
+}
+EXPORT_SYMBOL(clk_disable);
+
+unsigned long clk_get_rate(struct clk *clk)
+{
+	return (unsigned long)clk;
+}
+EXPORT_SYMBOL(clk_get_rate);
+
+void clk_put(struct clk *clk)
+{
+}
+EXPORT_SYMBOL(clk_put);
