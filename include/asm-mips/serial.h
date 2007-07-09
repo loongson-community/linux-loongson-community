@@ -63,23 +63,6 @@
 #define STD_SERIAL_PORT_DEFNS
 #endif /* CONFIG_HAVE_STD_PC_SERIAL_PORTS */
 
-#ifdef CONFIG_MOMENCO_OCELOT_3
-#define OCELOT_3_BASE_BAUD	( 20000000 / 16 )
-#define OCELOT_3_SERIAL_IRQ	6
-#define OCELOT_3_SERIAL_BASE	(signed)0xfd000020
-
-#define _OCELOT_3_SERIAL_INIT(int, base)				\
-	{ .baud_base = OCELOT_3_BASE_BAUD, irq: int, 			\
-	  .flags = STD_COM_FLAGS,						\
-	  .iomem_base = (u8 *) base, iomem_reg_shift: 2,			\
-	  io_type: SERIAL_IO_MEM }
-
-#define MOMENCO_OCELOT_3_SERIAL_PORT_DEFNS				\
-	_OCELOT_3_SERIAL_INIT(OCELOT_3_SERIAL_IRQ, OCELOT_3_SERIAL_BASE)
-#else
-#define MOMENCO_OCELOT_3_SERIAL_PORT_DEFNS
-#endif
-
 #ifdef CONFIG_MOMENCO_OCELOT
 /* Ordinary NS16552 duart with a 20MHz crystal.  */
 #define OCELOT_BASE_BAUD ( 20000000 / 16 )
@@ -126,7 +109,6 @@
 	IP32_SERIAL_PORT_DEFNS                          \
 	JAZZ_SERIAL_PORT_DEFNS				\
 	STD_SERIAL_PORT_DEFNS				\
-	MOMENCO_OCELOT_SERIAL_PORT_DEFNS		\
-	MOMENCO_OCELOT_3_SERIAL_PORT_DEFNS
+	MOMENCO_OCELOT_SERIAL_PORT_DEFNS
 
 #endif /* _ASM_SERIAL_H */
