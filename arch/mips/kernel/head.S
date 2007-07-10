@@ -199,9 +199,7 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 	j		start_kernel
 	END(kernel_entry)
 
-#ifdef CONFIG_QEMU
 	__INIT
-#endif
 
 #ifdef CONFIG_SMP
 /*
@@ -232,6 +230,4 @@ NESTED(smp_bootstrap, 16, sp)
 	END(smp_bootstrap)
 #endif /* CONFIG_SMP */
 
-#ifndef CONFIG_MIPS_SIM
 	__FINIT
-#endif
