@@ -350,12 +350,11 @@ static u64 nic_find(struct ioc3 *ioc3, int *last)
 
 static int nic_init(struct ioc3 *ioc3)
 {
-	const char *type;
+	const char *unknown = "unknown";
+	const char *type = unknown;
 	u8 crc;
 	u8 serial[6];
 	int save = 0, i;
-
-	type = "unknown";
 
 	while (1) {
 		u64 reg;
@@ -390,7 +389,7 @@ static int nic_init(struct ioc3 *ioc3)
 	}
 
 	printk("Found %s NIC", type);
-	if (type != "unknown") {
+	if (type != unknown) {
 		printk (" registration number %02x:%02x:%02x:%02x:%02x:%02x,"
 			" CRC %02x", serial[0], serial[1], serial[2],
 			serial[3], serial[4], serial[5], crc);
@@ -1099,9 +1098,9 @@ static int ioc3_close(struct net_device *dev)
  * them disabled.
  */
 
-static int ioc3_adjacent_is_ioc3(struct pci_dev *pdev, int dev)
+static int ioc3_adjacent_is_ioc3(struct pci_dev *pdev, int slot)
 {
-	struct pci_dev *dev = pci_get_slot(pdev->bus, PCI_DEVFN(dev, 0));
+	struct pci_dev *dev = pci_get_slot(pdev->bus, PCI_DEVFN(slot, 0));
 	int ret = 0;
 
 	if (dev) {
@@ -1110,17 +1109,16 @@ static int ioc3_adjacent_is_ioc3(struct pci_dev *pdev, int dev)
 			ret = 1;
 		pci_dev_put(dev);
 	}
+
 	return ret;
 }
 
 static int ioc3_is_menet(struct pci_dev *pdev)
 {
-	struct pci_dev *dev;
-
 	return pdev->bus->parent == NULL &&
 	       ioc3_adjacent_is_ioc3(pdev, 0) &&
 	       ioc3_adjacent_is_ioc3(pdev, 1) &&
-	       ioc3_adjacent_is_ioc3(pdev, 2));
+	       ioc3_adjacent_is_ioc3(pdev, 2);
 }
 
 #ifdef CONFIG_SERIAL_8250
