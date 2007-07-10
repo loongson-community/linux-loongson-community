@@ -17,21 +17,18 @@ config PMC_MSP7120_EVAL
 	select SYS_SUPPORTS_MULTITHREADING
 	select IRQ_MSP_CIC
 	select HW_HAS_PCI
-	select USB_MSP71XX
 
 config PMC_MSP7120_GW
 	bool "PMC-Sierra MSP7120 Residential Gateway"
 	select SYS_SUPPORTS_MULTITHREADING
 	select IRQ_MSP_CIC
 	select HW_HAS_PCI
-	select USB_MSP71XX
 
 config PMC_MSP7120_FPGA
 	bool "PMC-Sierra MSP7120 FPGA"
 	select SYS_SUPPORTS_MULTITHREADING
 	select IRQ_MSP_CIC
 	select HW_HAS_PCI
-	select USB_MSP71XX
 
 endchoice
 
