@@ -374,10 +374,6 @@ config ISTALLION
 	  To compile this driver as a module, choose M here: the
 	  module will be called istallion.
 
-config AU1X00_GPIO
-	tristate "Alchemy Au1000 GPIO device support"
-	depends on MIPS && SOC_AU1X00
-
 config SIBYTE_SB1250_DUART
 	bool "Support for BCM1xxx onchip DUART"
 	depends on MIPS && SIBYTE_SB1xxx_SOC=y
