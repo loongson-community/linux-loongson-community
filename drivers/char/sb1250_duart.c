@@ -877,7 +877,7 @@ static struct tty_driver *ser_console_device(struct console *c, int *index)
 	return sb1250_duart_driver;
 }
 
-static int ser_console_setup(struct console *cons, char *str)
+static int __init ser_console_setup(struct console *cons, char *str)
 {
 	int i;
 
@@ -958,7 +958,7 @@ static int ser_console_setup(struct console *cons, char *str)
 	return 0;
 }
 
-static struct console sb1250_ser_cons = {
+static struct console sb1250_serial_console = {
 	.name		= "duart",
 	.write		= ser_console_write,
 	.device		= ser_console_device,
@@ -970,7 +970,7 @@ static struct console sb1250_ser_cons = {
 static int __init sb1250_serial_console_init(void)
 {
 	//add_preferred_console("duart", 0, "57600n8");
-	register_console(&sb1250_ser_cons);
+	register_console(&sb1250_serial_console);
 	return 0;
 }
 
