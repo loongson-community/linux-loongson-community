@@ -485,7 +485,7 @@ static inline void duart_set_cflag(unsigned int line, unsigned int cflag)
 
 
 /* Handle notification of a termios change.  */
-static void duart_set_termios(struct tty_struct *tty, struct termios *old)
+static void duart_set_termios(struct tty_struct *tty, struct ktermios *old)
 {
 	uart_state_t *us = (uart_state_t *) tty->driver_data;
 
