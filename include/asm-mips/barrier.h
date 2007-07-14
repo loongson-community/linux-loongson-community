@@ -116,11 +116,18 @@
 
 #endif /* !CONFIG_CPU_HAS_WB */
 
-#if defined(CONFIG_WEAK_ORDERING) && defined(CONFIG_SMP)
+#ifdef CONFIG_SMP
+#ifdef CONFIG_WEAK_ORDERING
 #define __WEAK_ORDERING_MB	"       sync	\n"
 #else
 #define __WEAK_ORDERING_MB	"		\n"
 #endif
+#ifdef CONFIG_WEAK_REORDERING_BEYOND_LLSC
+#define __WEAK_LLSC_MB		"       sync	\n"
+#else
+#define __WEAK_LLSC_MB		"		\n"
+#endif
+#endif /* CONFIG_SMP */
 
 #define smp_mb()	__asm__ __volatile__(__WEAK_ORDERING_MB : : :"memory")
 #define smp_rmb()	__asm__ __volatile__(__WEAK_ORDERING_MB : : :"memory")
@@ -128,5 +135,9 @@
 
 #define set_mb(var, value) \
 	do { var = value; smp_mb(); } while (0)
+
+#define smp_llsc_mb()	__asm__ __volatile__(__WEAK_LLSC_MB : : :"memory")
+#define smp_llsc_rmb()	__asm__ __volatile__(__WEAK_LLSC_MB : : :"memory")
+#define smp_llsc_wmb()	__asm__ __volatile__(__WEAK_LLSC_MB : : :"memory")
 
 #endif /* __ASM_BARRIER_H */
