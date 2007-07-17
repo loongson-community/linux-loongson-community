@@ -120,6 +120,7 @@ void __remove_from_page_cache(struct page *page)
 	page->mapping = NULL;
 	mapping->nrpages--;
 	__dec_zone_page_state(page, NR_FILE_PAGES);
+	BUG_ON(page_mapped(page));
 }
 
 void remove_from_page_cache(struct page *page)
@@ -1218,6 +1219,8 @@ generic_file_aio_read(struct kiocb *iocb, const struct iovec *iov,
 				retval = retval ?: desc.error;
 				break;
 			}
+			if (desc.count > 0)
+				break;
 		}
 	}
 out:
@@ -1964,7 +1967,6 @@ inline int generic_write_checks(struct file *file, loff_t *pos, size_t *count, i
 	if (unlikely(*pos + *count > MAX_NON_LFS &&
 				!(file->f_flags & O_LARGEFILE))) {
 		if (*pos >= MAX_NON_LFS) {
-			send_sig(SIGXFSZ, current, 0);
 			return -EFBIG;
 		}
 		if (*count > MAX_NON_LFS - (unsigned long)*pos) {
@@ -1982,7 +1984,6 @@ inline int generic_write_checks(struct file *file, loff_t *pos, size_t *count, i
 	if (likely(!isblk)) {
 		if (unlikely(*pos >= inode->i_sb->s_maxbytes)) {
 			if (*count || *pos > inode->i_sb->s_maxbytes) {
-				send_sig(SIGXFSZ, current, 0);
 				return -EFBIG;
 			}
 			/* zero-length writes at ->s_maxbytes are OK */

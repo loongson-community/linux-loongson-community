@@ -126,13 +126,13 @@ static unsigned long __meminitdata dma_reserve;
     #endif
   #endif
 
-  struct node_active_region __meminitdata early_node_map[MAX_ACTIVE_REGIONS];
-  int __meminitdata nr_nodemap_entries;
-  unsigned long __meminitdata arch_zone_lowest_possible_pfn[MAX_NR_ZONES];
-  unsigned long __meminitdata arch_zone_highest_possible_pfn[MAX_NR_ZONES];
+  static struct node_active_region __meminitdata early_node_map[MAX_ACTIVE_REGIONS];
+  static int __meminitdata nr_nodemap_entries;
+  static unsigned long __meminitdata arch_zone_lowest_possible_pfn[MAX_NR_ZONES];
+  static unsigned long __meminitdata arch_zone_highest_possible_pfn[MAX_NR_ZONES];
 #ifdef CONFIG_MEMORY_HOTPLUG_RESERVE
-  unsigned long __initdata node_boundary_start_pfn[MAX_NUMNODES];
-  unsigned long __initdata node_boundary_end_pfn[MAX_NUMNODES];
+  static unsigned long __meminitdata node_boundary_start_pfn[MAX_NUMNODES];
+  static unsigned long __meminitdata node_boundary_end_pfn[MAX_NUMNODES];
 #endif /* CONFIG_MEMORY_HOTPLUG_RESERVE */
 #endif /* CONFIG_ARCH_POPULATES_NODE_MAP */
 
@@ -900,11 +900,13 @@ static struct fail_page_alloc_attr {
 
 	u32 ignore_gfp_highmem;
 	u32 ignore_gfp_wait;
+	u32 min_order;
 
 #ifdef CONFIG_FAULT_INJECTION_DEBUG_FS
 
 	struct dentry *ignore_gfp_highmem_file;
 	struct dentry *ignore_gfp_wait_file;
+	struct dentry *min_order_file;
 
 #endif /* CONFIG_FAULT_INJECTION_DEBUG_FS */
 
@@ -912,6 +914,7 @@ static struct fail_page_alloc_attr {
 	.attr = FAULT_ATTR_INITIALIZER,
 	.ignore_gfp_wait = 1,
 	.ignore_gfp_highmem = 1,
+	.min_order = 1,
 };
 
 static int __init setup_fail_page_alloc(char *str)
@@ -922,6 +925,8 @@ __setup("fail_page_alloc=", setup_fail_page_alloc);
 
 static int should_fail_alloc_page(gfp_t gfp_mask, unsigned int order)
 {
+	if (order < fail_page_alloc.min_order)
+		return 0;
 	if (gfp_mask & __GFP_NOFAIL)
 		return 0;
 	if (fail_page_alloc.ignore_gfp_highmem && (gfp_mask & __GFP_HIGHMEM))
@@ -953,12 +958,17 @@ static int __init fail_page_alloc_debugfs(void)
 	fail_page_alloc.ignore_gfp_highmem_file =
 		debugfs_create_bool("ignore-gfp-highmem", mode, dir,
 				      &fail_page_alloc.ignore_gfp_highmem);
+	fail_page_alloc.min_order_file =
+		debugfs_create_u32("min-order", mode, dir,
+				   &fail_page_alloc.min_order);
 
 	if (!fail_page_alloc.ignore_gfp_wait_file ||
-			!fail_page_alloc.ignore_gfp_highmem_file) {
+            !fail_page_alloc.ignore_gfp_highmem_file ||
+            !fail_page_alloc.min_order_file) {
 		err = -ENOMEM;
 		debugfs_remove(fail_page_alloc.ignore_gfp_wait_file);
 		debugfs_remove(fail_page_alloc.ignore_gfp_highmem_file);
+		debugfs_remove(fail_page_alloc.min_order_file);
 		cleanup_fault_attr_dentries(&fail_page_alloc.attr);
 	}
 
@@ -1621,8 +1631,8 @@ void show_free_areas(void)
  *
  * Add all populated zones of a node to the zonelist.
  */
-static int __meminit build_zonelists_node(pg_data_t *pgdat,
-			struct zonelist *zonelist, int nr_zones, enum zone_type zone_type)
+static int build_zonelists_node(pg_data_t *pgdat, struct zonelist *zonelist,
+				int nr_zones, enum zone_type zone_type)
 {
 	struct zone *zone;
 
@@ -1641,9 +1651,102 @@ static int __meminit build_zonelists_node(pg_data_t *pgdat,
 	return nr_zones;
 }
 
+
+/*
+ *  zonelist_order:
+ *  0 = automatic detection of better ordering.
+ *  1 = order by ([node] distance, -zonetype)
+ *  2 = order by (-zonetype, [node] distance)
+ *
+ *  If not NUMA, ZONELIST_ORDER_ZONE and ZONELIST_ORDER_NODE will create
+ *  the same zonelist. So only NUMA can configure this param.
+ */
+#define ZONELIST_ORDER_DEFAULT  0
+#define ZONELIST_ORDER_NODE     1
+#define ZONELIST_ORDER_ZONE     2
+
+/* zonelist order in the kernel.
+ * set_zonelist_order() will set this to NODE or ZONE.
+ */
+static int current_zonelist_order = ZONELIST_ORDER_DEFAULT;
+static char zonelist_order_name[3][8] = {"Default", "Node", "Zone"};
+
+
 #ifdef CONFIG_NUMA
+/* The value user specified ....changed by config */
+static int user_zonelist_order = ZONELIST_ORDER_DEFAULT;
+/* string for sysctl */
+#define NUMA_ZONELIST_ORDER_LEN	16
+char numa_zonelist_order[16] = "default";
+
+/*
+ * interface for configure zonelist ordering.
+ * command line option "numa_zonelist_order"
+ *	= "[dD]efault	- default, automatic configuration.
+ *	= "[nN]ode 	- order by node locality, then by zone within node
+ *	= "[zZ]one      - order by zone, then by locality within zone
+ */
+
+static int __parse_numa_zonelist_order(char *s)
+{
+	if (*s == 'd' || *s == 'D') {
+		user_zonelist_order = ZONELIST_ORDER_DEFAULT;
+	} else if (*s == 'n' || *s == 'N') {
+		user_zonelist_order = ZONELIST_ORDER_NODE;
+	} else if (*s == 'z' || *s == 'Z') {
+		user_zonelist_order = ZONELIST_ORDER_ZONE;
+	} else {
+		printk(KERN_WARNING
+			"Ignoring invalid numa_zonelist_order value:  "
+			"%s\n", s);
+		return -EINVAL;
+	}
+	return 0;
+}
+
+static __init int setup_numa_zonelist_order(char *s)
+{
+	if (s)
+		return __parse_numa_zonelist_order(s);
+	return 0;
+}
+early_param("numa_zonelist_order", setup_numa_zonelist_order);
+
+/*
+ * sysctl handler for numa_zonelist_order
+ */
+int numa_zonelist_order_handler(ctl_table *table, int write,
+		struct file *file, void __user *buffer, size_t *length,
+		loff_t *ppos)
+{
+	char saved_string[NUMA_ZONELIST_ORDER_LEN];
+	int ret;
+
+	if (write)
+		strncpy(saved_string, (char*)table->data,
+			NUMA_ZONELIST_ORDER_LEN);
+	ret = proc_dostring(table, write, file, buffer, length, ppos);
+	if (ret)
+		return ret;
+	if (write) {
+		int oldval = user_zonelist_order;
+		if (__parse_numa_zonelist_order((char*)table->data)) {
+			/*
+			 * bogus value.  restore saved string
+			 */
+			strncpy((char*)table->data, saved_string,
+				NUMA_ZONELIST_ORDER_LEN);
+			user_zonelist_order = oldval;
+		} else if (oldval != user_zonelist_order)
+			build_all_zonelists();
+	}
+	return 0;
+}
+
+
 #define MAX_NODE_LOAD (num_online_nodes())
-static int __meminitdata node_load[MAX_NUMNODES];
+static int node_load[MAX_NUMNODES];
+
 /**
  * find_next_best_node - find the next node that should appear in a given node's fallback list
  * @node: node whose fallback list we're appending
@@ -1658,7 +1761,7 @@ static int __meminitdata node_load[MAX_NUMNODES];
  * on them otherwise.
  * It returns -1 if no node is found.
  */
-static int __meminit find_next_best_node(int node, nodemask_t *used_node_mask)
+static int find_next_best_node(int node, nodemask_t *used_node_mask)
 {
 	int n, val;
 	int min_val = INT_MAX;
@@ -1704,13 +1807,129 @@ static int __meminit find_next_best_node(int node, nodemask_t *used_node_mask)
 	return best_node;
 }
 
-static void __meminit build_zonelists(pg_data_t *pgdat)
+
+/*
+ * Build zonelists ordered by node and zones within node.
+ * This results in maximum locality--normal zone overflows into local
+ * DMA zone, if any--but risks exhausting DMA zone.
+ */
+static void build_zonelists_in_node_order(pg_data_t *pgdat, int node)
 {
-	int j, node, local_node;
 	enum zone_type i;
-	int prev_node, load;
+	int j;
 	struct zonelist *zonelist;
+
+	for (i = 0; i < MAX_NR_ZONES; i++) {
+		zonelist = pgdat->node_zonelists + i;
+		for (j = 0; zonelist->zones[j] != NULL; j++)
+			;
+ 		j = build_zonelists_node(NODE_DATA(node), zonelist, j, i);
+		zonelist->zones[j] = NULL;
+	}
+}
+
+/*
+ * Build zonelists ordered by zone and nodes within zones.
+ * This results in conserving DMA zone[s] until all Normal memory is
+ * exhausted, but results in overflowing to remote node while memory
+ * may still exist in local DMA zone.
+ */
+static int node_order[MAX_NUMNODES];
+
+static void build_zonelists_in_zone_order(pg_data_t *pgdat, int nr_nodes)
+{
+	enum zone_type i;
+	int pos, j, node;
+	int zone_type;		/* needs to be signed */
+	struct zone *z;
+	struct zonelist *zonelist;
+
+	for (i = 0; i < MAX_NR_ZONES; i++) {
+		zonelist = pgdat->node_zonelists + i;
+		pos = 0;
+		for (zone_type = i; zone_type >= 0; zone_type--) {
+			for (j = 0; j < nr_nodes; j++) {
+				node = node_order[j];
+				z = &NODE_DATA(node)->node_zones[zone_type];
+				if (populated_zone(z)) {
+					zonelist->zones[pos++] = z;
+					check_highest_zone(zone_type);
+				}
+			}
+		}
+		zonelist->zones[pos] = NULL;
+	}
+}
+
+static int default_zonelist_order(void)
+{
+	int nid, zone_type;
+	unsigned long low_kmem_size,total_size;
+	struct zone *z;
+	int average_size;
+	/*
+         * ZONE_DMA and ZONE_DMA32 can be very small area in the sytem.
+	 * If they are really small and used heavily, the system can fall
+	 * into OOM very easily.
+	 * This function detect ZONE_DMA/DMA32 size and confgigures zone order.
+	 */
+	/* Is there ZONE_NORMAL ? (ex. ppc has only DMA zone..) */
+	low_kmem_size = 0;
+	total_size = 0;
+	for_each_online_node(nid) {
+		for (zone_type = 0; zone_type < MAX_NR_ZONES; zone_type++) {
+			z = &NODE_DATA(nid)->node_zones[zone_type];
+			if (populated_zone(z)) {
+				if (zone_type < ZONE_NORMAL)
+					low_kmem_size += z->present_pages;
+				total_size += z->present_pages;
+			}
+		}
+	}
+	if (!low_kmem_size ||  /* there are no DMA area. */
+	    low_kmem_size > total_size/2) /* DMA/DMA32 is big. */
+		return ZONELIST_ORDER_NODE;
+	/*
+	 * look into each node's config.
+  	 * If there is a node whose DMA/DMA32 memory is very big area on
+ 	 * local memory, NODE_ORDER may be suitable.
+         */
+	average_size = total_size / (num_online_nodes() + 1);
+	for_each_online_node(nid) {
+		low_kmem_size = 0;
+		total_size = 0;
+		for (zone_type = 0; zone_type < MAX_NR_ZONES; zone_type++) {
+			z = &NODE_DATA(nid)->node_zones[zone_type];
+			if (populated_zone(z)) {
+				if (zone_type < ZONE_NORMAL)
+					low_kmem_size += z->present_pages;
+				total_size += z->present_pages;
+			}
+		}
+		if (low_kmem_size &&
+		    total_size > average_size && /* ignore small node */
+		    low_kmem_size > total_size * 70/100)
+			return ZONELIST_ORDER_NODE;
+	}
+	return ZONELIST_ORDER_ZONE;
+}
+
+static void set_zonelist_order(void)
+{
+	if (user_zonelist_order == ZONELIST_ORDER_DEFAULT)
+		current_zonelist_order = default_zonelist_order();
+	else
+		current_zonelist_order = user_zonelist_order;
+}
+
+static void build_zonelists(pg_data_t *pgdat)
+{
+	int j, node, load;
+	enum zone_type i;
 	nodemask_t used_mask;
+	int local_node, prev_node;
+	struct zonelist *zonelist;
+	int order = current_zonelist_order;
 
 	/* initialize zonelists */
 	for (i = 0; i < MAX_NR_ZONES; i++) {
@@ -1723,6 +1942,11 @@ static void __meminit build_zonelists(pg_data_t *pgdat)
 	load = num_online_nodes();
 	prev_node = local_node;
 	nodes_clear(used_mask);
+
+	memset(node_load, 0, sizeof(node_load));
+	memset(node_order, 0, sizeof(node_order));
+	j = 0;
+
 	while ((node = find_next_best_node(local_node, &used_mask)) >= 0) {
 		int distance = node_distance(local_node, node);
 
@@ -1738,23 +1962,25 @@ static void __meminit build_zonelists(pg_data_t *pgdat)
 		 * So adding penalty to the first node in same
 		 * distance group to make it round-robin.
 		 */
-
 		if (distance != node_distance(local_node, prev_node))
-			node_load[node] += load;
+			node_load[node] = load;
+
 		prev_node = node;
 		load--;
-		for (i = 0; i < MAX_NR_ZONES; i++) {
-			zonelist = pgdat->node_zonelists + i;
-			for (j = 0; zonelist->zones[j] != NULL; j++);
+		if (order == ZONELIST_ORDER_NODE)
+			build_zonelists_in_node_order(pgdat, node);
+		else
+			node_order[j++] = node;	/* remember order */
+	}
 
-	 		j = build_zonelists_node(NODE_DATA(node), zonelist, j, i);
-			zonelist->zones[j] = NULL;
-		}
+	if (order == ZONELIST_ORDER_ZONE) {
+		/* calculate node order -- i.e., DMA last! */
+		build_zonelists_in_zone_order(pgdat, j);
 	}
 }
 
 /* Construct the zonelist performance cache - see further mmzone.h */
-static void __meminit build_zonelist_cache(pg_data_t *pgdat)
+static void build_zonelist_cache(pg_data_t *pgdat)
 {
 	int i;
 
@@ -1771,9 +1997,15 @@ static void __meminit build_zonelist_cache(pg_data_t *pgdat)
 	}
 }
 
+
 #else	/* CONFIG_NUMA */
 
-static void __meminit build_zonelists(pg_data_t *pgdat)
+static void set_zonelist_order(void)
+{
+	current_zonelist_order = ZONELIST_ORDER_ZONE;
+}
+
+static void build_zonelists(pg_data_t *pgdat)
 {
 	int node, local_node;
 	enum zone_type i,j;
@@ -1809,7 +2041,7 @@ static void __meminit build_zonelists(pg_data_t *pgdat)
 }
 
 /* non-NUMA variant of zonelist performance cache - just NULL zlcache_ptr */
-static void __meminit build_zonelist_cache(pg_data_t *pgdat)
+static void build_zonelist_cache(pg_data_t *pgdat)
 {
 	int i;
 
@@ -1820,7 +2052,7 @@ static void __meminit build_zonelist_cache(pg_data_t *pgdat)
 #endif	/* CONFIG_NUMA */
 
 /* return values int ....just for stop_machine_run() */
-static int __meminit __build_all_zonelists(void *dummy)
+static int __build_all_zonelists(void *dummy)
 {
 	int nid;
 
@@ -1831,8 +2063,10 @@ static int __meminit __build_all_zonelists(void *dummy)
 	return 0;
 }
 
-void __meminit build_all_zonelists(void)
+void build_all_zonelists(void)
 {
+	set_zonelist_order();
+
 	if (system_state == SYSTEM_BOOTING) {
 		__build_all_zonelists(NULL);
 		cpuset_init_current_mems_allowed();
@@ -1843,8 +2077,13 @@ void __meminit build_all_zonelists(void)
 		/* cpuset refresh routine should be here */
 	}
 	vm_total_pages = nr_free_pagecache_pages();
-	printk("Built %i zonelists.  Total pages: %ld\n",
-			num_online_nodes(), vm_total_pages);
+	printk("Built %i zonelists in %s order.  Total pages: %ld\n",
+			num_online_nodes(),
+			zonelist_order_name[current_zonelist_order],
+			vm_total_pages);
+#ifdef CONFIG_NUMA
+	printk("Policy zone: %s\n", zone_names[policy_zone]);
+#endif
 }
 
 /*
@@ -1953,8 +2192,8 @@ void __meminit memmap_init_zone(unsigned long size, int nid, unsigned long zone,
 	}
 }
 
-void zone_init_free_lists(struct pglist_data *pgdat, struct zone *zone,
-				unsigned long size)
+static void __meminit zone_init_free_lists(struct pglist_data *pgdat,
+				struct zone *zone, unsigned long size)
 {
 	int order;
 	for (order = 0; order < MAX_ORDER ; order++) {
@@ -2370,7 +2609,7 @@ void __init push_node_boundaries(unsigned int nid,
 }
 
 /* If necessary, push the node boundary out for reserve hotadd */
-static void __init account_node_boundary(unsigned int nid,
+static void __meminit account_node_boundary(unsigned int nid,
 		unsigned long *start_pfn, unsigned long *end_pfn)
 {
 	printk(KERN_DEBUG "Entering account_node_boundary(%u, %lu, %lu)\n",
@@ -2390,7 +2629,7 @@ static void __init account_node_boundary(unsigned int nid,
 void __init push_node_boundaries(unsigned int nid,
 		unsigned long start_pfn, unsigned long end_pfn) {}
 
-static void __init account_node_boundary(unsigned int nid,
+static void __meminit account_node_boundary(unsigned int nid,
 		unsigned long *start_pfn, unsigned long *end_pfn) {}
 #endif
 
@@ -2431,7 +2670,7 @@ void __meminit get_pfn_range_for_nid(unsigned int nid,
  * Return the number of pages a zone spans in a node, including holes
  * present_pages = zone_spanned_pages_in_node() - zone_absent_pages_in_node()
  */
-unsigned long __meminit zone_spanned_pages_in_node(int nid,
+static unsigned long __meminit zone_spanned_pages_in_node(int nid,
 					unsigned long zone_type,
 					unsigned long *ignored)
 {
@@ -2519,7 +2758,7 @@ unsigned long __init absent_pages_in_range(unsigned long start_pfn,
 }
 
 /* Return the number of page frames in holes in a zone on a node */
-unsigned long __meminit zone_absent_pages_in_node(int nid,
+static unsigned long __meminit zone_absent_pages_in_node(int nid,
 					unsigned long zone_type,
 					unsigned long *ignored)
 {
@@ -2536,14 +2775,14 @@ unsigned long __meminit zone_absent_pages_in_node(int nid,
 }
 
 #else
-static inline unsigned long zone_spanned_pages_in_node(int nid,
+static inline unsigned long __meminit zone_spanned_pages_in_node(int nid,
 					unsigned long zone_type,
 					unsigned long *zones_size)
 {
 	return zones_size[zone_type];
 }
 
-static inline unsigned long zone_absent_pages_in_node(int nid,
+static inline unsigned long __meminit zone_absent_pages_in_node(int nid,
 						unsigned long zone_type,
 						unsigned long *zholes_size)
 {
@@ -3355,13 +3594,28 @@ void *__init alloc_large_system_hash(const char *tablename,
 			for (order = 0; ((1UL << order) << PAGE_SHIFT) < size; order++)
 				;
 			table = (void*) __get_free_pages(GFP_ATOMIC, order);
+			/*
+			 * If bucketsize is not a power-of-two, we may free
+			 * some pages at the end of hash table.
+			 */
+			if (table) {
+				unsigned long alloc_end = (unsigned long)table +
+						(PAGE_SIZE << order);
+				unsigned long used = (unsigned long)table +
+						PAGE_ALIGN(size);
+				split_page(virt_to_page(table), order);
+				while (used < alloc_end) {
+					free_page(used);
+					used += PAGE_SIZE;
+				}
+			}
 		}
 	} while (!table && size > PAGE_SIZE && --log2qty);
 
 	if (!table)
 		panic("Failed to allocate %s hash table\n", tablename);
 
-	printk("%s hash table entries: %d (order: %d, %lu bytes)\n",
+	printk(KERN_INFO "%s hash table entries: %d (order: %d, %lu bytes)\n",
 	       tablename,
 	       (1U << log2qty),
 	       ilog2(size) - PAGE_SHIFT,

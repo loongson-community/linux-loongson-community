@@ -2,7 +2,6 @@
 #define _LINUX_MM_H
 
 #include <linux/errno.h>
-#include <linux/capability.h>
 
 #ifdef __KERNEL__
 
@@ -27,7 +26,6 @@ extern unsigned long max_mapnr;
 
 extern unsigned long num_physpages;
 extern void * high_memory;
-extern unsigned long vmalloc_earlyreserve;
 extern int page_cluster;
 
 #ifdef CONFIG_SYSCTL
@@ -1072,6 +1070,10 @@ extern unsigned long get_unmapped_area(struct file *, unsigned long, unsigned lo
 extern unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
 	unsigned long len, unsigned long prot,
 	unsigned long flag, unsigned long pgoff);
+extern unsigned long mmap_region(struct file *file, unsigned long addr,
+	unsigned long len, unsigned long flags,
+	unsigned int vm_flags, unsigned long pgoff,
+	int accountable);
 
 static inline unsigned long do_mmap(struct file *file, unsigned long addr,
 	unsigned long len, unsigned long prot,
