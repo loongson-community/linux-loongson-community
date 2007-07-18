@@ -334,6 +334,8 @@ static void *slob_alloc(size_t size, gfp_t gfp, int align, int node)
 		BUG_ON(!b);
 		spin_unlock_irqrestore(&slob_lock, flags);
 	}
+	if (unlikely((gfp & __GFP_ZERO) && b))
+		memset(b, 0, size);
 	return b;
 }
 
@@ -347,7 +349,7 @@ static void slob_free(void *block, int size)
 	slobidx_t units;
 	unsigned long flags;
 
-	if (!block)
+	if (ZERO_OR_NULL_PTR(block))
 		return;
 	BUG_ON(!size);
 
@@ -424,10 +426,13 @@ out:
 
 void *__kmalloc_node(size_t size, gfp_t gfp, int node)
 {
+	unsigned int *m;
 	int align = max(ARCH_KMALLOC_MINALIGN, ARCH_SLAB_MINALIGN);
 
 	if (size < PAGE_SIZE - align) {
-		unsigned int *m;
+		if (!size)
+			return ZERO_SIZE_PTR;
+
 		m = slob_alloc(size + align, gfp, align, node);
 		if (m)
 			*m = size;
@@ -446,44 +451,11 @@ void *__kmalloc_node(size_t size, gfp_t gfp, int node)
 }
 EXPORT_SYMBOL(__kmalloc_node);
 
-/**
- * krealloc - reallocate memory. The contents will remain unchanged.
- *
- * @p: object to reallocate memory for.
- * @new_size: how many bytes of memory are required.
- * @flags: the type of memory to allocate.
- *
- * The contents of the object pointed to are preserved up to the
- * lesser of the new and old sizes.  If @p is %NULL, krealloc()
- * behaves exactly like kmalloc().  If @size is 0 and @p is not a
- * %NULL pointer, the object pointed to is freed.
- */
-void *krealloc(const void *p, size_t new_size, gfp_t flags)
-{
-	void *ret;
-
-	if (unlikely(!p))
-		return kmalloc_track_caller(new_size, flags);
-
-	if (unlikely(!new_size)) {
-		kfree(p);
-		return NULL;
-	}
-
-	ret = kmalloc_track_caller(new_size, flags);
-	if (ret) {
-		memcpy(ret, p, min(new_size, ksize(p)));
-		kfree(p);
-	}
-	return ret;
-}
-EXPORT_SYMBOL(krealloc);
-
 void kfree(const void *block)
 {
 	struct slob_page *sp;
 
-	if (!block)
+	if (ZERO_OR_NULL_PTR(block))
 		return;
 
 	sp = (struct slob_page *)virt_to_page(block);
@@ -501,7 +473,7 @@ size_t ksize(const void *block)
 {
 	struct slob_page *sp;
 
-	if (!block)
+	if (ZERO_OR_NULL_PTR(block))
 		return 0;
 
 	sp = (struct slob_page *)virt_to_page(block);
@@ -570,16 +542,6 @@ void *kmem_cache_alloc_node(struct kmem_cache *c, gfp_t flags, int node)
 	return b;
 }
 EXPORT_SYMBOL(kmem_cache_alloc_node);
-
-void *kmem_cache_zalloc(struct kmem_cache *c, gfp_t flags)
-{
-	void *ret = kmem_cache_alloc(c, flags);
-	if (ret)
-		memset(ret, 0, c->size);
-
-	return ret;
-}
-EXPORT_SYMBOL(kmem_cache_zalloc);
 
 static void __kmem_cache_free(void *b, int size)
 {

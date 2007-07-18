@@ -29,6 +29,7 @@
 #include <linux/utsname.h>
 #include <linux/capability.h>
 #include <linux/smp_lock.h>
+#include <linux/fs.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/kobject.h>
@@ -48,9 +49,6 @@
 
 #include <asm/uaccess.h>
 #include <asm/processor.h>
-
-extern int proc_nr_files(ctl_table *table, int write, struct file *filp,
-                     void __user *buffer, size_t *lenp, loff_t *ppos);
 
 #ifdef CONFIG_X86
 #include <asm/nmi.h>
@@ -826,6 +824,14 @@ static ctl_table vm_table[] = {
 		.mode		= 0644,
 		.proc_handler	= &proc_dointvec,
 	 },
+	 {
+		.ctl_name	= CTL_UNNUMBERED,
+		.procname	= "hugepages_treat_as_movable",
+		.data		= &hugepages_treat_as_movable,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= &hugetlb_treat_movable_handler,
+	},
 #endif
 	{
 		.ctl_name	= VM_LOWMEM_RESERVE_RATIO,

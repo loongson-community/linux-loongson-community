@@ -330,6 +330,7 @@ static int print_trace_stack(void *data, char *name)
 
 static void print_trace_address(void *data, unsigned long addr)
 {
+	touch_nmi_watchdog();
 	printk_address(addr);
 }
 
@@ -518,6 +519,7 @@ void __kprobes __die(const char * str, struct pt_regs * regs, long err)
 	printk("\n");
 	notify_die(DIE_OOPS, str, regs, err, current->thread.trap_no, SIGSEGV);
 	show_registers(regs);
+	add_taint(TAINT_DIE);
 	/* Executive summary in case the oops scrolled away */
 	printk(KERN_ALERT "RIP ");
 	printk_address(regs->rip); 
