@@ -456,14 +456,6 @@ config MIPS_JAZZ_SONIC
 	  This is the driver for the onboard card of MIPS Magnum 4000,
 	  Acer PICA, Olivetti M700-10 and a few other identical OEM systems.
 
-config GALILEO_64240_ETH
-	tristate "Galileo GT64240 Ethernet support"
-	depends on NET_ETHERNET && MOMENCO_OCELOT_G
-	select MII
-	help
-	  This is the driver for the ethernet interfaces integrated into
-	  the Galileo (now Marvell) GT64240 chipset.
-
 config MIPS_AU1X00_ENET
 	bool "MIPS AU1000 Ethernet support"
 	depends on SOC_AU1X00
