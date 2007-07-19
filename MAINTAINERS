@@ -732,6 +732,13 @@ L:	uclinux-dist-devel@blackfin.uclinux.org (subscribers-only)
 W:	http://blackfin.uclinux.org
 S:	Supported
 
+BLACKFIN EMAC DRIVER
+P:	Bryan Wu
+M:	bryan.wu@analog.com
+L:	uclinux-dist-devel@blackfin.uclinux.org (subscribers-only)
+W:	http://blackfin.uclinux.org
+S:	Supported
+
 BLACKFIN RTC DRIVER
 P:	Mike Frysinger
 M:	michael.frysinger@analog.com
@@ -1740,6 +1747,7 @@ S:	Maintained
 i386 SETUP CODE / CPU ERRATA WORKAROUNDS
 P:	H. Peter Anvin
 M:	hpa@zytor.com
+T:	git.kernel.org:/pub/scm/linux/kernel/git/hpa/linux-2.6-x86setup.git
 S:	Maintained
 
 IA64 (Itanium) PLATFORM
@@ -2393,7 +2401,7 @@ P:	Artem Bityutskiy
 M:	dedekind@infradead.org
 W:	http://www.linux-mtd.infradead.org/
 L:	linux-mtd@lists.infradead.org
-T:	git git://git.infradead.org/ubi-2.6.git
+T:	git git://git.infradead.org/~dedekind/ubi-2.6.git
 S:	Maintained
 
 MICROTEK X6 SCANNER
@@ -4108,6 +4116,11 @@ P:	Pauline Middelink
 M:	middelin@polyware.nl
 W:	http://www.polyware.nl/~middelin/En/hobbies.html
 W:	http://www.polyware.nl/~middelin/hobbies.html
+S:	Maintained
+
+ZS DECSTATION Z85C30 SERIAL DRIVER
+P:	Maciej W. Rozycki
+M:	macro@linux-mips.org
 S:	Maintained
 
 THE REST

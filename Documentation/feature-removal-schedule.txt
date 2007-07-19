@@ -26,9 +26,7 @@ Who:	Hans Verkuil <hverkuil@xs4all.nl> and
 
 ---------------------------
 
-What:	/sys/devices/.../power/state
-	dev->power.power_state
-	dpm_runtime_{suspend,resume)()
+What:	dev->power.power_state
 When:	July 2007
 Why:	Broken design for runtime control over driver power states, confusing
 	driver-internal runtime power management with:  mechanisms to support
@@ -308,5 +306,15 @@ Why:  The arch/powerpc tree is the merged architecture for ppc32 and ppc64
       that are not ported by June 2008 will be removed due to the lack of an
       interested maintainer.
 Who:  linuxppc-dev@ozlabs.org
+
+---------------------------
+
+What:	mthca driver's MSI support
+When:	January 2008
+Files:	drivers/infiniband/hw/mthca/*.[ch]
+Why:	All mthca hardware also supports MSI-X, which provides
+	strictly more functionality than MSI.  So there is no point in
+	having both MSI-X and MSI support in the driver.
+Who:	Roland Dreier <rolandd@cisco.com>
 
 ---------------------------
