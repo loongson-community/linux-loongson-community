@@ -372,14 +372,6 @@ config ISTALLION
 	  To compile this driver as a module, choose M here: the
 	  module will be called istallion.
 
-config SIBYTE_SB1250_DUART
-	bool "Support for BCM1xxx onchip DUART"
-	depends on MIPS && SIBYTE_SB1xxx_SOC=y
-
-config SIBYTE_SB1250_DUART_CONSOLE
-	bool "Console on BCM1xxx DUART"
-	depends on SIBYTE_SB1250_DUART
-
 config A2232
 	tristate "Commodore A2232 serial support (EXPERIMENTAL)"
 	depends on EXPERIMENTAL && ZORRO && BROKEN_ON_SMP
