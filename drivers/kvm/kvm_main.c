@@ -238,23 +238,6 @@ static void vcpu_load(struct kvm_vcpu *vcpu)
 	kvm_arch_ops->vcpu_load(vcpu);
 }
 
-/*
- * Switches to specified vcpu, until a matching vcpu_put(). Will return NULL
- * if the slot is not populated.
- */
-static struct kvm_vcpu *vcpu_load_slot(struct kvm *kvm, int slot)
-{
-	struct kvm_vcpu *vcpu = &kvm->vcpus[slot];
-
-	mutex_lock(&vcpu->mutex);
-	if (!vcpu->vmcs) {
-		mutex_unlock(&vcpu->mutex);
-		return NULL;
-	}
-	kvm_arch_ops->vcpu_load(vcpu);
-	return vcpu;
-}
-
 static void vcpu_put(struct kvm_vcpu *vcpu)
 {
 	kvm_arch_ops->vcpu_put(vcpu);
@@ -663,13 +646,6 @@ void fx_init(struct kvm_vcpu *vcpu)
 }
 EXPORT_SYMBOL_GPL(fx_init);
 
-static void do_remove_write_access(struct kvm_vcpu *vcpu, int slot)
-{
-	spin_lock(&vcpu->kvm->lock);
-	kvm_mmu_slot_remove_write_access(vcpu, slot);
-	spin_unlock(&vcpu->kvm->lock);
-}
-
 /*
  * Allocate some memory and give it an address in the guest physical address
  * space.
@@ -792,19 +768,10 @@ raced:
 	*memslot = new;
 	++kvm->memory_config_version;
 
+	kvm_mmu_slot_remove_write_access(kvm, mem->slot);
+	kvm_flush_remote_tlbs(kvm);
+
 	spin_unlock(&kvm->lock);
-
-	for (i = 0; i < KVM_MAX_VCPUS; ++i) {
-		struct kvm_vcpu *vcpu;
-
-		vcpu = vcpu_load_slot(kvm, i);
-		if (!vcpu)
-			continue;
-		if (new.flags & KVM_MEM_LOG_DIRTY_PAGES)
-			do_remove_write_access(vcpu, mem->slot);
-		kvm_mmu_reset_context(vcpu);
-		vcpu_put(vcpu);
-	}
 
 	kvm_free_physmem_slot(&old, &new);
 	return 0;
@@ -826,7 +793,6 @@ static int kvm_vm_ioctl_get_dirty_log(struct kvm *kvm,
 	struct kvm_memory_slot *memslot;
 	int r, i;
 	int n;
-	int cleared;
 	unsigned long any = 0;
 
 	spin_lock(&kvm->lock);
@@ -855,23 +821,11 @@ static int kvm_vm_ioctl_get_dirty_log(struct kvm *kvm,
 	if (copy_to_user(log->dirty_bitmap, memslot->dirty_bitmap, n))
 		goto out;
 
-	if (any) {
-		cleared = 0;
-		for (i = 0; i < KVM_MAX_VCPUS; ++i) {
-			struct kvm_vcpu *vcpu;
-
-			vcpu = vcpu_load_slot(kvm, i);
-			if (!vcpu)
-				continue;
-			if (!cleared) {
-				do_remove_write_access(vcpu, log->slot);
-				memset(memslot->dirty_bitmap, 0, n);
-				cleared = 1;
-			}
-			kvm_arch_ops->tlb_flush(vcpu);
-			vcpu_put(vcpu);
-		}
-	}
+	spin_lock(&kvm->lock);
+	kvm_mmu_slot_remove_write_access(kvm, log->slot);
+	kvm_flush_remote_tlbs(kvm);
+	memset(memslot->dirty_bitmap, 0, n);
+	spin_unlock(&kvm->lock);
 
 	r = 0;
 
@@ -920,13 +874,9 @@ static int kvm_vm_ioctl_set_memory_alias(struct kvm *kvm,
 			break;
 	kvm->naliases = n;
 
-	spin_unlock(&kvm->lock);
+	kvm_mmu_zap_all(kvm);
 
-	vcpu_load(&kvm->vcpus[0]);
-	spin_lock(&kvm->lock);
-	kvm_mmu_zap_all(&kvm->vcpus[0]);
 	spin_unlock(&kvm->lock);
-	vcpu_put(&kvm->vcpus[0]);
 
 	return 0;
 
@@ -1567,7 +1517,7 @@ EXPORT_SYMBOL_GPL(kvm_get_msr_common);
  * Returns 0 on success, non-0 otherwise.
  * Assumes vcpu_load() was already called.
  */
-static int get_msr(struct kvm_vcpu *vcpu, u32 msr_index, u64 *pdata)
+int kvm_get_msr(struct kvm_vcpu *vcpu, u32 msr_index, u64 *pdata)
 {
 	return kvm_arch_ops->get_msr(vcpu, msr_index, pdata);
 }
@@ -1645,7 +1595,7 @@ EXPORT_SYMBOL_GPL(kvm_set_msr_common);
  * Returns 0 on success, non-0 otherwise.
  * Assumes vcpu_load() was already called.
  */
-static int set_msr(struct kvm_vcpu *vcpu, u32 msr_index, u64 data)
+int kvm_set_msr(struct kvm_vcpu *vcpu, u32 msr_index, u64 data)
 {
 	return kvm_arch_ops->set_msr(vcpu, msr_index, data);
 }
@@ -2183,7 +2133,7 @@ static __init void kvm_init_msr_list(void)
  */
 static int do_set_msr(struct kvm_vcpu *vcpu, unsigned index, u64 *data)
 {
-	return set_msr(vcpu, index, *data);
+	return kvm_set_msr(vcpu, index, *data);
 }
 
 /*
@@ -2667,7 +2617,7 @@ static long kvm_vcpu_ioctl(struct file *filp,
 		break;
 	}
 	case KVM_GET_MSRS:
-		r = msr_io(vcpu, argp, get_msr, 1);
+		r = msr_io(vcpu, argp, kvm_get_msr, 1);
 		break;
 	case KVM_SET_MSRS:
 		r = msr_io(vcpu, argp, do_set_msr, 0);

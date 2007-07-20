@@ -121,7 +121,7 @@ struct kvm_pte_chain {
  *   bits 4:7 - page table level for this shadow (1-4)
  *   bits 8:9 - page table quadrant for 2-level guests
  *   bit   16 - "metaphysical" - gfn is not a real page (huge page/real mode)
- *   bits 17:18 - "access" - the user and writable bits of a huge page pde
+ *   bits 17:19 - "access" - the user, writable, and nx bits of a huge page pde
  */
 union kvm_mmu_page_role {
 	unsigned word;
@@ -131,7 +131,7 @@ union kvm_mmu_page_role {
 		unsigned quadrant : 2;
 		unsigned pad_for_nice_hex_output : 6;
 		unsigned metaphysical : 1;
-		unsigned hugepage_access : 2;
+		unsigned hugepage_access : 3;
 	};
 };
 
@@ -535,8 +535,8 @@ int kvm_mmu_create(struct kvm_vcpu *vcpu);
 int kvm_mmu_setup(struct kvm_vcpu *vcpu);
 
 int kvm_mmu_reset_context(struct kvm_vcpu *vcpu);
-void kvm_mmu_slot_remove_write_access(struct kvm_vcpu *vcpu, int slot);
-void kvm_mmu_zap_all(struct kvm_vcpu *vcpu);
+void kvm_mmu_slot_remove_write_access(struct kvm *kvm, int slot);
+void kvm_mmu_zap_all(struct kvm *kvm);
 
 hpa_t gpa_to_hpa(struct kvm_vcpu *vcpu, gpa_t gpa);
 #define HPA_MSB ((sizeof(hpa_t) * 8) - 1)
@@ -569,6 +569,8 @@ void realmode_lmsw(struct kvm_vcpu *vcpu, unsigned long msw,
 unsigned long realmode_get_cr(struct kvm_vcpu *vcpu, int cr);
 void realmode_set_cr(struct kvm_vcpu *vcpu, int cr, unsigned long value,
 		     unsigned long *rflags);
+int kvm_get_msr(struct kvm_vcpu *vcpu, u32 msr_index, u64 *data);
+int kvm_set_msr(struct kvm_vcpu *vcpu, u32 msr_index, u64 data);
 
 struct x86_emulate_ctxt;
 
