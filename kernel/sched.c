@@ -1,3 +1,4 @@
+#include <asm/irq.h>
 /*
  *  kernel/sched.c
  *

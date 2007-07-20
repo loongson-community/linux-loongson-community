@@ -2288,13 +2288,6 @@ config MV643XX_ETH
 	  chipset which is used in the Momenco Ocelot C Ocelot, Jaguar ATX
 	  and Pegasos II, amongst other PPC and MIPS boards.
 
-config BIG_SUR_FE
-	bool "PMC-Sierra TITAN Fast Ethernet Support"
-	depends on NET_ETHERNET && PMC_BIG_SUR
-	help
-	  This enables support for the the integrated ethernet of
-	  PMC-Sierra's Big Sur SoC.
-
 config TITAN_GE
 	bool "PMC-Sierra TITAN Gigabit Ethernet Support"
 	depends on PMC_YOSEMITE
