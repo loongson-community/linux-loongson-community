@@ -88,7 +88,6 @@ struct cpuinfo_x86 {
 #define X86_VENDOR_UMC 3
 #define X86_VENDOR_NEXGEN 4
 #define X86_VENDOR_CENTAUR 5
-#define X86_VENDOR_RISE 6
 #define X86_VENDOR_TRANSMETA 7
 #define X86_VENDOR_NSC 8
 #define X86_VENDOR_NUM 9
@@ -168,17 +167,6 @@ static inline void clear_in_cr4 (unsigned long mask)
 	cr4 &= ~mask;
 	write_cr4(cr4);
 }
-
-/*
- *      NSC/Cyrix CPU indexed register access macros
- */
-
-#define getCx86(reg) ({ outb((reg), 0x22); inb(0x23); })
-
-#define setCx86(reg, data) do { \
-	outb((reg), 0x22); \
-	outb((data), 0x23); \
-} while (0)
 
 /* Stop speculative execution */
 static inline void sync_core(void)
