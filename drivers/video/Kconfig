@@ -1582,7 +1582,7 @@ config FB_PM3
 
 config FB_AU1100
 	bool "Au1100 LCD Driver"
-	depends on FB && MIPS && SOC_AU1100
+	depends on (FB = y) && MIPS && SOC_AU1100
 	select FB_CFB_FILLRECT
 	select FB_CFB_COPYAREA
 	select FB_CFB_IMAGEBLIT
