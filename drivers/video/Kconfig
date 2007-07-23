@@ -1642,8 +1642,8 @@ config FB_PMAGB_B
  	select FB_CFB_IMAGEBLIT
 	help
 	  Support for the PMAGB-B TURBOchannel framebuffer card used mainly
-	  in the MIPS-based DECstation series. The card is currently only 
-	  supported in 1280x1024x8 mode.  
+	  in the MIPS-based DECstation series. The card is currently only
+	  supported in 1280x1024x8 mode.
 
 config FB_MAXINE
 	bool "Maxine (Personal DECstation) onboard framebuffer support"
