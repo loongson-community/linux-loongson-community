@@ -471,7 +471,8 @@ static inline int audit_arch(void)
 asmlinkage void do_syscall_trace(struct pt_regs *regs, int entryexit)
 {
 	/* do the secure computing check first */
-	secure_computing(regs->orig_eax);
+	if (!entryexit)
+		secure_computing(regs->regs[0]);
 
 	if (unlikely(current->audit_context) && entryexit)
 		audit_syscall_exit(AUDITSC_RESULT(regs->regs[2]),
@@ -499,12 +500,8 @@ asmlinkage void do_syscall_trace(struct pt_regs *regs, int entryexit)
 	}
 
 out:
-	/* There is no ->orig_eax and that's quite intensional for now making
-	   this work will require some work in various other place before it's
-	   more than a placebo.  */
-
 	if (unlikely(current->audit_context) && !entryexit)
-		audit_syscall_entry(audit_arch(), regs->orig_eax,
-		                    regs->regs[4], regs->regs[5],
-		                    regs->regs[6], regs->regs[7]);
+		audit_syscall_entry(audit_arch(), regs->regs[0],
+				    regs->regs[4], regs->regs[5],
+				    regs->regs[6], regs->regs[7]);
 }
