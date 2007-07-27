@@ -102,8 +102,6 @@ static inline void smp_send_reschedule(int cpu)
 	core_send_ipi(cpu, SMP_RESCHEDULE_YOURSELF);
 }
 
-extern int smp_call_function_single(int cpuid, void (*func) (void *info),
-				void *info, int retry, int wait);
 extern asmlinkage void smp_call_function_interrupt(void);
 
 #endif /* CONFIG_SMP */
