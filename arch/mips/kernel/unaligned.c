@@ -281,9 +281,8 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 			: "r" (addr), "i" (-EFAULT));
 		if (res)
 			goto fault;
-		*regptr = &regs->regs[insn.i_format.rt];
 		compute_return_epc(regs);
-		*regptr = value;
+		regs->regs[insn.i_format.rt] = value;
 		break;
 #endif /* CONFIG_64BIT */
 
@@ -324,9 +323,8 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 			: "r" (addr), "i" (-EFAULT));
 		if (res)
 			goto fault;
-		*regptr = &regs->regs[insn.i_format.rt];
 		compute_return_epc(regs);
-		*regptr = value;
+		regs->regs[insn.i_format.rt] = value;
 		break;
 #endif /* CONFIG_64BIT */
 
