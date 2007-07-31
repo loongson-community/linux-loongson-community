@@ -46,7 +46,7 @@ extern int add_temporary_entry(unsigned long entrylo0, unsigned long entrylo1,
 #ifdef CONFIG_64BIT_PHYS_ADDR
 #define PGDIR_SHIFT	21
 #else
-#define PGDIR_SHIFT	22
+#define PGDIR_SHIFT	(PAGE_SHIFT + (PAGE_SHIFT + PTE_ORDER - 2))
 #endif
 #define PGDIR_SIZE	(1UL << PGDIR_SHIFT)
 #define PGDIR_MASK	(~(PGDIR_SIZE-1))
