@@ -194,8 +194,8 @@ void smp_call_function_interrupt(void)
 	}
 }
 
-int smp_call_function_single (int cpu, void (*func) (void *info), void *info, int retry,
-			      int wait)
+int smp_call_function_single(int cpu, void (*func) (void *info), void *info,
+			     int retry, int wait)
 {
 	struct call_data_struct data;
 	int me;
@@ -210,7 +210,7 @@ int smp_call_function_single (int cpu, void (*func) (void *info), void *info, in
 	BUG_ON(!cpu_online(me));
 
 	if (cpu == me) {
-		local_irq_disable()
+		local_irq_disable();
 		func(info);
 		local_irq_enable();
 		put_cpu();
