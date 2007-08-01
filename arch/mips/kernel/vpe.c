@@ -752,7 +752,7 @@ static int vpe_run(struct vpe * v)
 	 * bind the TC to VPE 1 as late as possible so we only have the final
 	 * VPE registers to set up, and so an EJTAG probe can trigger on it
 	 */
- 	write_tc_c0_tcbind((read_tc_c0_tcbind() & ~TCBIND_CURVPE) | 1);
+	write_tc_c0_tcbind((read_tc_c0_tcbind() & ~TCBIND_CURVPE) | 1);
 
 	write_vpe_c0_vpeconf0(read_vpe_c0_vpeconf0() & ~(VPECONF0_VPA));
 

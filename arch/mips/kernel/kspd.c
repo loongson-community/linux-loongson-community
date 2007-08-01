@@ -245,7 +245,7 @@ void sp_work_handle_request(void)
 
  	case MTSP_SYSCALL_EXIT:
 		list_for_each_entry(n, &kspd_notifylist, list)
- 			n->kspd_sp_exit(tclimit);
+			n->kspd_sp_exit(tclimit);
 		sp_stopping = 1;
 
 		printk(KERN_DEBUG "KSPD got exit syscall from SP exitcode %d\n",
@@ -255,7 +255,7 @@ void sp_work_handle_request(void)
  	case MTSP_SYSCALL_OPEN:
  		generic.arg1 = translate_open_flags(generic.arg1);
 
- 		vcwd = vpe_getcwd(tclimit);
+		vcwd = vpe_getcwd(tclimit);
 
  		/* change to the cwd of the process that loaded the SP program */
 		old_fs = get_fs();
