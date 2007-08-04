@@ -8,7 +8,6 @@
  * Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
  * Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
  */
-#include <linux/bug.h>
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/signal.h>
@@ -131,8 +130,6 @@ void *kmap_coherent(struct page *page, unsigned long addr)
 	unsigned long old_ctx;
 	pte_t pte;
 	int tlbidx;
-
-	BUG_ON(Page_dcache_dirty(page));
 
 	inc_preempt_count();
 	idx = (addr >> PAGE_SHIFT) & (FIX_N_COLOURS - 1);
