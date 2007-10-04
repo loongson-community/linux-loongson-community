@@ -373,7 +373,7 @@ void flush_tlb_mm(struct mm_struct *mm)
 	preempt_disable();
 
 	if ((atomic_read(&mm->mm_users) != 1) || (current->mm != mm)) {
-		smp_on_other_tlbs(flush_tlb_mm_ipi, (void *)mm);
+		smp_on_other_tlbs(flush_tlb_mm_ipi, mm);
 	} else {
 		int i;
 
@@ -394,7 +394,7 @@ struct flush_tlb_data {
 
 static void flush_tlb_range_ipi(void *info)
 {
-	struct flush_tlb_data *fd = (struct flush_tlb_data *)info;
+	struct flush_tlb_data *fd = info;
 
 	local_flush_tlb_range(fd->vma, fd->addr1, fd->addr2);
 }
@@ -410,7 +410,7 @@ void flush_tlb_range(struct vm_area_struct *vma, unsigned long start, unsigned l
 		fd.vma = vma;
 		fd.addr1 = start;
 		fd.addr2 = end;
-		smp_on_other_tlbs(flush_tlb_range_ipi, (void *)&fd);
+		smp_on_other_tlbs(flush_tlb_range_ipi, &fd);
 	} else {
 		int i;
 
@@ -424,7 +424,7 @@ void flush_tlb_range(struct vm_area_struct *vma, unsigned long start, unsigned l
 
 static void flush_tlb_kernel_range_ipi(void *info)
 {
-	struct flush_tlb_data *fd = (struct flush_tlb_data *)info;
+	struct flush_tlb_data *fd = info;
 
 	local_flush_tlb_kernel_range(fd->addr1, fd->addr2);
 }
@@ -440,7 +440,7 @@ void flush_tlb_kernel_range(unsigned long start, unsigned long end)
 
 static void flush_tlb_page_ipi(void *info)
 {
-	struct flush_tlb_data *fd = (struct flush_tlb_data *)info;
+	struct flush_tlb_data *fd = info;
 
 	local_flush_tlb_page(fd->vma, fd->addr1);
 }
@@ -453,7 +453,7 @@ void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 
 		fd.vma = vma;
 		fd.addr1 = page;
-		smp_on_other_tlbs(flush_tlb_page_ipi, (void *)&fd);
+		smp_on_other_tlbs(flush_tlb_page_ipi, &fd);
 	} else {
 		unsigned int cpu = smp_processor_id();
 		cpumask_t mask = cpu_online_map;
