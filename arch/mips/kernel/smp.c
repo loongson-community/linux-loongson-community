@@ -375,11 +375,12 @@ void flush_tlb_mm(struct mm_struct *mm)
 	if ((atomic_read(&mm->mm_users) != 1) || (current->mm != mm)) {
 		smp_on_other_tlbs(flush_tlb_mm_ipi, mm);
 	} else {
-		int i;
+		cpumask_t mask = cpu_online_map;
+		unsigned int cpu;
 
-		for_each_online_cpu(i)
-			if (smp_processor_id() != i)
-				cpu_context(i, mm) = 0;
+		cpu_clear(smp_processor_id(), mask);
+		for_each_online_cpu(cpu)
+			cpu_context(cpu, mm) = 0;
 	}
 	local_flush_tlb_mm(mm);
 
@@ -413,11 +414,12 @@ void flush_tlb_range(struct vm_area_struct *vma, unsigned long start, unsigned l
 
 		smp_on_other_tlbs(flush_tlb_range_ipi, &fd);
 	} else {
-		int i;
+		cpumask_t mask = cpu_online_map;
+		unsigned int cpu;
 
-		for_each_online_cpu(i)
-			if (smp_processor_id() != i)
-				cpu_context(i, mm) = 0;
+		cpu_clear(smp_processor_id(), mask);
+		for_each_online_cpu(cpu)
+			cpu_context(cpu, mm) = 0;
 	}
 	local_flush_tlb_range(vma, start, end);
 	preempt_enable();
@@ -458,12 +460,12 @@ void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 
 		smp_on_other_tlbs(flush_tlb_page_ipi, &fd);
 	} else {
-		unsigned int cpu = smp_processor_id();
 		cpumask_t mask = cpu_online_map;
+		unsigned int cpu;
 
-		cpu_clear(cpu, map);
-		for_each_online_cpu(i)
-			cpu_context(i, vma->vm_mm) = 0;
+		cpu_clear(smp_processor_id(), mask);
+		for_each_online_cpu(cpu)
+			cpu_context(cpu, vma->vm_mm) = 0;
 	}
 	local_flush_tlb_page(vma, page);
 	preempt_enable();
