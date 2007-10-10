@@ -174,7 +174,7 @@ __init void plat_time_init(void)
 
 	mips_hpt_frequency = r4k_tick * HZ;
 
-	if (ip22_is_fullhouse)
+	if (ip22_is_fullhouse())
 		setup_pit_timer();
 }
 
