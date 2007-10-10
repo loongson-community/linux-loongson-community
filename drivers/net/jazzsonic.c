@@ -218,12 +218,6 @@ static int __init jazz_sonic_probe(struct platform_device *pdev)
 	int err = 0;
 	int i;
 
-	/*
-	 * Don't probe if we're not running on a Jazz board.
-	 */
-	if (mips_machgroup != MACH_GROUP_JAZZ)
-		return -ENODEV;
-
 	dev = alloc_etherdev(sizeof(struct sonic_local));
 	if (!dev)
 		return -ENOMEM;
