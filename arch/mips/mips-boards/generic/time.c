@@ -142,7 +142,9 @@ void __init plat_time_init(void)
         cpu_khz = est_freq / 1000;
 
 	mips_scroll_message();
+#ifdef CONFIG_I8253		/* Only Malta has a PIT */
 	setup_pit_timer();
+#endif
 }
 
 //static irqreturn_t mips_perf_interrupt(int irq, void *dev_id)
