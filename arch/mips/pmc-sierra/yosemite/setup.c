@@ -104,7 +104,7 @@ int rtc_mips_set_time(unsigned long tim)
 	 * Convert to a more useful format -- note months count from 0
 	 * and years from 1900
 	 */
-	rtc_time_to_tm(sec, &tm);
+	rtc_time_to_tm(tim, &tm);
 	tm.tm_year += 1900;
 	tm.tm_mon += 1;
 
