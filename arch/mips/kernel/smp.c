@@ -380,7 +380,8 @@ void flush_tlb_mm(struct mm_struct *mm)
 
 		cpu_clear(smp_processor_id(), mask);
 		for_each_online_cpu(cpu)
-			cpu_context(cpu, mm) = 0;
+			if (cpu_context(cpu, mm))
+				cpu_context(cpu, mm) = 0;
 	}
 	local_flush_tlb_mm(mm);
 
@@ -419,7 +420,8 @@ void flush_tlb_range(struct vm_area_struct *vma, unsigned long start, unsigned l
 
 		cpu_clear(smp_processor_id(), mask);
 		for_each_online_cpu(cpu)
-			cpu_context(cpu, mm) = 0;
+			if (cpu_context(cpu, mm))
+				cpu_context(cpu, mm) = 0;
 	}
 	local_flush_tlb_range(vma, start, end);
 	preempt_enable();
@@ -439,7 +441,7 @@ void flush_tlb_kernel_range(unsigned long start, unsigned long end)
 		.addr2 = end,
 	};
 
-	on_each_cpu(flush_tlb_kernel_range_ipi, (void *)&fd, 1, 1);
+	on_each_cpu(flush_tlb_kernel_range_ipi, &fd, 1, 1);
 }
 
 static void flush_tlb_page_ipi(void *info)
@@ -465,7 +467,8 @@ void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 
 		cpu_clear(smp_processor_id(), mask);
 		for_each_online_cpu(cpu)
-			cpu_context(cpu, vma->vm_mm) = 0;
+			if (cpu_context(cpu, vma->vm_mm))
+				cpu_context(cpu, vma->vm_mm) = 0;
 	}
 	local_flush_tlb_page(vma, page);
 	preempt_enable();

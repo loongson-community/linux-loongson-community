@@ -226,7 +226,7 @@ config PARAVIRT
 	  However, when run without a hypervisor the kernel is
 	  theoretically slower.  If in doubt, say N.
 
-source "arch/i386/xen/Kconfig"
+source "arch/x86/xen/Kconfig"
 
 config VMI
 	bool "VMI Paravirt-ops support"
@@ -707,7 +707,7 @@ config MATH_EMULATION
 	  intend to use this kernel on different machines.
 
 	  More information about the internals of the Linux math coprocessor
-	  emulation can be found in <file:arch/i386/math-emu/README>.
+	  emulation can be found in <file:arch/x86/math-emu/README>.
 
 	  If you are not sure, say Y; apart from resulting in a 66 KB bigger
 	  kernel, it won't hurt.
@@ -1067,7 +1067,7 @@ config APM_REAL_MODE_POWER_OFF
 
 endif # APM
 
-source "arch/i386/kernel/cpu/cpufreq/Kconfig"
+source "arch/x86/kernel/cpu/cpufreq/Kconfig"
 
 endmenu
 
@@ -1240,7 +1240,7 @@ menuconfig INSTRUMENTATION
 
 if INSTRUMENTATION
 
-source "arch/i386/oprofile/Kconfig"
+source "arch/x86/oprofile/Kconfig"
 
 config KPROBES
 	bool "Kprobes"
