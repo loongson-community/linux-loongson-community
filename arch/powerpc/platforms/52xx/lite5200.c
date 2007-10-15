@@ -18,6 +18,8 @@
 #include <linux/init.h>
 #include <linux/pci.h>
 #include <linux/of.h>
+#include <linux/root_dev.h>
+#include <linux/initrd.h>
 #include <asm/time.h>
 #include <asm/io.h>
 #include <asm/machdep.h>
@@ -156,18 +158,6 @@ static void __init lite5200_setup_arch(void)
 		of_node_put(np);
 	}
 #endif
-
-#ifdef CONFIG_BLK_DEV_INITRD
-	if (initrd_start)
-		ROOT_DEV = Root_RAM0;
-	else
-#endif
-#ifdef  CONFIG_ROOT_NFS
-		ROOT_DEV = Root_NFS;
-#else
-		ROOT_DEV = Root_HDA1;
-#endif
-
 }
 
 /*

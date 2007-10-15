@@ -223,8 +223,6 @@ void __cpuinit smp_callin(void)
 	local_irq_disable();
 	Dprintk("Stack at about %p\n",&cpuid);
 
-	disable_APIC_timer();
-
 	/*
 	 * Save our processor parameters
 	 */
@@ -337,18 +335,11 @@ void __cpuinit start_secondary(void)
  	 */
 	check_tsc_sync_target();
 
-	Dprintk("cpu %d: setting up apic clock\n", smp_processor_id()); 	
-	setup_secondary_APIC_clock();
-
-	Dprintk("cpu %d: enabling apic timer\n", smp_processor_id());
-
 	if (nmi_watchdog == NMI_IO_APIC) {
 		disable_8259A_irq(0);
 		enable_NMI_through_LVT0(NULL);
 		enable_8259A_irq(0);
 	}
-
-	enable_APIC_timer();
 
 	/*
 	 * The sibling maps must be set before turing the online map on for
@@ -377,6 +368,8 @@ void __cpuinit start_secondary(void)
 	spin_unlock(&vector_lock);
 
 	unlock_ipi_call_lock();
+
+	setup_secondary_APIC_clock();
 
 	cpu_idle();
 }

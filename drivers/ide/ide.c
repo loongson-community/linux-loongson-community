@@ -397,7 +397,7 @@ static void ide_hwif_restore(ide_hwif_t *hwif, ide_hwif_t *tmp_hwif)
 #endif
 
 	hwif->set_pio_mode		= tmp_hwif->set_pio_mode;
-	hwif->speedproc			= tmp_hwif->speedproc;
+	hwif->set_dma_mode		= tmp_hwif->set_dma_mode;
 	hwif->mdma_filter		= tmp_hwif->mdma_filter;
 	hwif->udma_filter		= tmp_hwif->udma_filter;
 	hwif->selectproc		= tmp_hwif->selectproc;
@@ -1663,20 +1663,13 @@ static struct device_attribute ide_dev_attrs[] = {
 	__ATTR_NULL
 };
 
-static int ide_uevent(struct device *dev, char **envp, int num_envp,
-		      char *buffer, int buffer_size)
+static int ide_uevent(struct device *dev, struct kobj_uevent_env *env)
 {
 	ide_drive_t *drive = to_ide_device(dev);
-	int i = 0;
-	int length = 0;
 
-	add_uevent_var(envp, num_envp, &i, buffer, buffer_size, &length,
-		       "MEDIA=%s", media_string(drive));
-	add_uevent_var(envp, num_envp, &i, buffer, buffer_size, &length,
-		       "DRIVENAME=%s", drive->name);
-	add_uevent_var(envp, num_envp, &i, buffer, buffer_size, &length,
-		       "MODALIAS=ide:m-%s", media_string(drive));
-	envp[i] = NULL;
+	add_uevent_var(env, "MEDIA=%s", media_string(drive));
+	add_uevent_var(env, "DRIVENAME=%s", drive->name);
+	add_uevent_var(env, "MODALIAS=ide:m-%s", media_string(drive));
 	return 0;
 }
 

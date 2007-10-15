@@ -1,8 +1,8 @@
-/* linux/arch/i386/kernel/scx200.c 
-
-   Copyright (c) 2001,2002 Christer Weinigel <wingel@nano-system.com>
-
-   National Semiconductor SCx200 support. */
+/*
+ *  Copyright (c) 2001,2002 Christer Weinigel <wingel@nano-system.com>
+ *
+ *  National Semiconductor SCx200 support.
+ */
 
 #include <linux/module.h>
 #include <linux/errno.h>
@@ -24,7 +24,7 @@ MODULE_DESCRIPTION("NatSemi SCx200 Driver");
 MODULE_LICENSE("GPL");
 
 unsigned scx200_gpio_base = 0;
-long scx200_gpio_shadow[2];
+unsigned long scx200_gpio_shadow[2];
 
 unsigned scx200_cb_base = 0;
 

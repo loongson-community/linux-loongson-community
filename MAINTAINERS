@@ -677,6 +677,13 @@ P:	Haavard Skinnemoen
 M:	hskinnemoen@atmel.com
 S:	Supported
 
+ATMEL USBA UDC DRIVER
+P:	Haavard Skinnemoen
+M:	hskinnemoen@atmel.com
+L:	kernel@avr32linux.org
+W:	http://avr32linux.org/twiki/bin/view/Main/AtmelUsbDeviceDriver
+S:	Supported
+
 ATMEL WIRELESS DRIVER
 P:	Simon Kelley
 M:	simon@thekelleys.org.uk
@@ -1653,7 +1660,8 @@ P:	Mark M. Hoffman
 M:	mhoffman@lightlink.com
 L:	lm-sensors@lm-sensors.org
 W:	http://www.lm-sensors.org/
-T:	git lm-sensors.org:/kernel/mhoffman/hwmon-2.6.git
+T:	git lm-sensors.org:/kernel/mhoffman/hwmon-2.6.git testing
+T:	git lm-sensors.org:/kernel/mhoffman/hwmon-2.6.git release
 S:	Maintained
 
 HARDWARE RANDOM NUMBER GENERATOR CORE
@@ -1769,8 +1777,8 @@ M:	venkatesh.pallipadi@intel.com
 S:	Maintained
 
 HPET:	x86_64
-P:	Andi Kleen and Vojtech Pavlik
-M:	andi@firstfloor.org and vojtech@suse.cz
+P:	Vojtech Pavlik
+M:	vojtech@suse.cz
 S:	Maintained
 
 HPET:	ACPI hpet.c
@@ -4170,7 +4178,7 @@ W83791D HARDWARE MONITORING DRIVER
 P:	Charles Spirakis
 M:	bezaur@gmail.com
 L:	lm-sensors@lm-sensors.org
-S:	Maintained
+S:	Odd Fixes
 
 W83793 HARDWARE MONITORING DRIVER
 P:	Rudolf Marek
@@ -4256,14 +4264,6 @@ S:	Maintained
 X86 3-LEVEL PAGING (PAE) SUPPORT
 P:	Ingo Molnar
 M:	mingo@redhat.com
-S:	Maintained
-
-X86-64 port
-P:	Andi Kleen
-M:	ak@suse.de
-L:	discuss@x86-64.org
-W:	http://www.x86-64.org
-T:	quilt ftp://ftp.firstfloor.org/pub/ak/x86_64/quilt-current
 S:	Maintained
 
 YAM DRIVER FOR AX.25

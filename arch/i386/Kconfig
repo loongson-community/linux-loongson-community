@@ -1137,6 +1137,11 @@ config PCI_MMCONFIG
 	depends on PCI && ACPI && (PCI_GOMMCONFIG || PCI_GOANY)
 	default y
 
+config PCI_DOMAINS
+	bool
+	depends on PCI
+	default y
+
 source "drivers/pci/pcie/Kconfig"
 
 source "drivers/pci/Kconfig"
@@ -1205,6 +1210,16 @@ config SCx200HR_TIMER
 	  NSC Geode SC-1100's buggy TSC, which loses time when the
 	  processor goes idle (as is done by the scheduler).  The
 	  other workaround is idle=poll boot option.
+
+config GEODE_MFGPT_TIMER
+	bool "Geode Multi-Function General Purpose Timer (MFGPT) events"
+	depends on MGEODE_LX && GENERIC_TIME && GENERIC_CLOCKEVENTS
+	default y
+	help
+	  This driver provides a clock event source based on the MFGPT
+	  timer(s) in the CS5535 and CS5536 companion chip for the geode.
+	  MFGPTs have a better resolution and max interval than the
+	  generic PIT, and are suitable for use as high-res timers.
 
 config K8_NB
 	def_bool y

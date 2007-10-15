@@ -1,6 +1,4 @@
 /*
- *  linux/arch/x86-64/kernel/process.c
- *
  *  Copyright (C) 1995  Linus Torvalds
  *
  *  Pentium III FXSR, SSE support
@@ -38,6 +36,7 @@
 #include <linux/notifier.h>
 #include <linux/kprobes.h>
 #include <linux/kdebug.h>
+#include <linux/tick.h>
 
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
@@ -208,6 +207,8 @@ void cpu_idle (void)
 			if (__get_cpu_var(cpu_idle_state))
 				__get_cpu_var(cpu_idle_state) = 0;
 
+			tick_nohz_stop_sched_tick();
+
 			rmb();
 			idle = pm_idle;
 			if (!idle)
@@ -228,6 +229,7 @@ void cpu_idle (void)
 			__exit_idle();
 		}
 
+		tick_nohz_restart_sched_tick();
 		preempt_enable_no_resched();
 		schedule();
 		preempt_disable();

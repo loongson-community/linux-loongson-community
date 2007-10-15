@@ -64,8 +64,9 @@ static void tick_broadcast_start_periodic(struct clock_event_device *bc)
  */
 int tick_check_broadcast_device(struct clock_event_device *dev)
 {
-	if (tick_broadcast_device.evtdev ||
-	    (dev->features & CLOCK_EVT_FEAT_C3STOP))
+	if ((tick_broadcast_device.evtdev &&
+	     tick_broadcast_device.evtdev->rating >= dev->rating) ||
+	     (dev->features & CLOCK_EVT_FEAT_C3STOP))
 		return 0;
 
 	clockevents_exchange_device(NULL, dev);
@@ -216,26 +217,43 @@ static void tick_do_broadcast_on_off(void *why)
 	bc = tick_broadcast_device.evtdev;
 
 	/*
-	 * Is the device in broadcast mode forever or is it not
-	 * affected by the powerstate ?
+	 * Is the device not affected by the powerstate ?
 	 */
-	if (!dev || !tick_device_is_functional(dev) ||
-	    !(dev->features & CLOCK_EVT_FEAT_C3STOP))
+	if (!dev || !(dev->features & CLOCK_EVT_FEAT_C3STOP))
 		goto out;
 
-	if (*reason == CLOCK_EVT_NOTIFY_BROADCAST_ON) {
+	/*
+	 * Defect device ?
+	 */
+	if (!tick_device_is_functional(dev)) {
+		/*
+		 * AMD C1E wreckage fixup:
+		 *
+		 * Device was registered functional in the first
+		 * place. Now the secondary CPU detected the C1E
+		 * misfeature and notifies us to fix it up
+		 */
+		if (*reason != CLOCK_EVT_NOTIFY_BROADCAST_FORCE)
+			goto out;
+	}
+
+	switch (*reason) {
+	case CLOCK_EVT_NOTIFY_BROADCAST_ON:
+	case CLOCK_EVT_NOTIFY_BROADCAST_FORCE:
 		if (!cpu_isset(cpu, tick_broadcast_mask)) {
 			cpu_set(cpu, tick_broadcast_mask);
 			if (td->mode == TICKDEV_MODE_PERIODIC)
 				clockevents_set_mode(dev,
 						     CLOCK_EVT_MODE_SHUTDOWN);
 		}
-	} else {
+		break;
+	case CLOCK_EVT_NOTIFY_BROADCAST_OFF:
 		if (cpu_isset(cpu, tick_broadcast_mask)) {
 			cpu_clear(cpu, tick_broadcast_mask);
 			if (td->mode == TICKDEV_MODE_PERIODIC)
 				tick_setup_periodic(dev, 0);
 		}
+		break;
 	}
 
 	if (cpus_empty(tick_broadcast_mask))
@@ -513,11 +531,9 @@ static void tick_broadcast_clear_oneshot(int cpu)
  */
 void tick_broadcast_setup_oneshot(struct clock_event_device *bc)
 {
-	if (bc->mode != CLOCK_EVT_MODE_ONESHOT) {
-		bc->event_handler = tick_handle_oneshot_broadcast;
-		clockevents_set_mode(bc, CLOCK_EVT_MODE_ONESHOT);
-		bc->next_event.tv64 = KTIME_MAX;
-	}
+	bc->event_handler = tick_handle_oneshot_broadcast;
+	clockevents_set_mode(bc, CLOCK_EVT_MODE_ONESHOT);
+	bc->next_event.tv64 = KTIME_MAX;
 }
 
 /*

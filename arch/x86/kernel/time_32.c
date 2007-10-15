@@ -1,6 +1,4 @@
 /*
- *  linux/arch/i386/kernel/time.c
- *
  *  Copyright (C) 1991, 1992, 1995  Linus Torvalds
  *
  * This file contains the PC-specific time handling details:
@@ -157,6 +155,9 @@ EXPORT_SYMBOL(profile_pc);
  */
 irqreturn_t timer_interrupt(int irq, void *dev_id)
 {
+	/* Keep nmi watchdog up to date */
+	per_cpu(irq_stat, smp_processor_id()).irq0_irqs++;
+
 #ifdef CONFIG_X86_IO_APIC
 	if (timer_ack) {
 		/*
