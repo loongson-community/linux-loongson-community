@@ -801,8 +801,6 @@ int ata_scsi_slave_config(struct scsi_device *sdev)
 
 	ata_scsi_sdev_config(sdev);
 
-	blk_queue_max_phys_segments(sdev->request_queue, LIBATA_MAX_PRD);
-
 	sdev->manage_start_stop = 1;
 
 	if (dev)
@@ -3240,7 +3238,7 @@ static void ata_scsi_handle_link_detach(struct ata_link *link)
 
 /**
  *	ata_scsi_media_change_notify - send media change event
- *	@atadev: Pointer to the disk device with media change event
+ *	@dev: Pointer to the disk device with media change event
  *
  *	Tell the block layer to send a media change notification
  *	event.

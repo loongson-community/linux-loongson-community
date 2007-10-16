@@ -179,6 +179,130 @@ full_search:
 }
 #endif
 
+static int
+hugetlbfs_read_actor(struct page *page, unsigned long offset,
+			char __user *buf, unsigned long count,
+			unsigned long size)
+{
+	char *kaddr;
+	unsigned long left, copied = 0;
+	int i, chunksize;
+
+	if (size > count)
+		size = count;
+
+	/* Find which 4k chunk and offset with in that chunk */
+	i = offset >> PAGE_CACHE_SHIFT;
+	offset = offset & ~PAGE_CACHE_MASK;
+
+	while (size) {
+		chunksize = PAGE_CACHE_SIZE;
+		if (offset)
+			chunksize -= offset;
+		if (chunksize > size)
+			chunksize = size;
+		kaddr = kmap(&page[i]);
+		left = __copy_to_user(buf, kaddr + offset, chunksize);
+		kunmap(&page[i]);
+		if (left) {
+			copied += (chunksize - left);
+			break;
+		}
+		offset = 0;
+		size -= chunksize;
+		buf += chunksize;
+		copied += chunksize;
+		i++;
+	}
+	return copied ? copied : -EFAULT;
+}
+
+/*
+ * Support for read() - Find the page attached to f_mapping and copy out the
+ * data. Its *very* similar to do_generic_mapping_read(), we can't use that
+ * since it has PAGE_CACHE_SIZE assumptions.
+ */
+static ssize_t hugetlbfs_read(struct file *filp, char __user *buf,
+			      size_t len, loff_t *ppos)
+{
+	struct address_space *mapping = filp->f_mapping;
+	struct inode *inode = mapping->host;
+	unsigned long index = *ppos >> HPAGE_SHIFT;
+	unsigned long offset = *ppos & ~HPAGE_MASK;
+	unsigned long end_index;
+	loff_t isize;
+	ssize_t retval = 0;
+
+	mutex_lock(&inode->i_mutex);
+
+	/* validate length */
+	if (len == 0)
+		goto out;
+
+	isize = i_size_read(inode);
+	if (!isize)
+		goto out;
+
+	end_index = (isize - 1) >> HPAGE_SHIFT;
+	for (;;) {
+		struct page *page;
+		int nr, ret;
+
+		/* nr is the maximum number of bytes to copy from this page */
+		nr = HPAGE_SIZE;
+		if (index >= end_index) {
+			if (index > end_index)
+				goto out;
+			nr = ((isize - 1) & ~HPAGE_MASK) + 1;
+			if (nr <= offset) {
+				goto out;
+			}
+		}
+		nr = nr - offset;
+
+		/* Find the page */
+		page = find_get_page(mapping, index);
+		if (unlikely(page == NULL)) {
+			/*
+			 * We have a HOLE, zero out the user-buffer for the
+			 * length of the hole or request.
+			 */
+			ret = len < nr ? len : nr;
+			if (clear_user(buf, ret))
+				ret = -EFAULT;
+		} else {
+			/*
+			 * We have the page, copy it to user space buffer.
+			 */
+			ret = hugetlbfs_read_actor(page, offset, buf, len, nr);
+		}
+		if (ret < 0) {
+			if (retval == 0)
+				retval = ret;
+			if (page)
+				page_cache_release(page);
+			goto out;
+		}
+
+		offset += ret;
+		retval += ret;
+		len -= ret;
+		index += offset >> HPAGE_SHIFT;
+		offset &= ~HPAGE_MASK;
+
+		if (page)
+			page_cache_release(page);
+
+		/* short read or no more work */
+		if ((ret != nr) || (len == 0))
+			break;
+	}
+out:
+	*ppos = ((loff_t)index << HPAGE_SHIFT) + offset;
+	mutex_unlock(&inode->i_mutex);
+	return retval;
+}
+
 /*
  * Read a page. Again trivial. If it didn't already exist
  * in the page cache, it is zero-filled.
@@ -189,15 +313,19 @@ static int hugetlbfs_readpage(struct file *file, struct page * page)
 	return -EINVAL;
 }
 
-static int hugetlbfs_prepare_write(struct file *file,
-			struct page *page, unsigned offset, unsigned to)
+static int hugetlbfs_write_begin(struct file *file,
+			struct address_space *mapping,
+			loff_t pos, unsigned len, unsigned flags,
+			struct page **pagep, void **fsdata)
 {
 	return -EINVAL;
 }
 
-static int hugetlbfs_commit_write(struct file *file,
-			struct page *page, unsigned offset, unsigned to)
+static int hugetlbfs_write_end(struct file *file, struct address_space *mapping,
+			loff_t pos, unsigned len, unsigned copied,
+			struct page *page, void *fsdata)
 {
+	BUG();
 	return -EINVAL;
 }
 
@@ -318,21 +446,15 @@ hugetlb_vmtruncate_list(struct prio_tree_root *root, pgoff_t pgoff)
 	}
 }
 
-/*
- * Expanding truncates are not allowed.
- */
 static int hugetlb_vmtruncate(struct inode *inode, loff_t offset)
 {
 	pgoff_t pgoff;
 	struct address_space *mapping = inode->i_mapping;
 
-	if (offset > inode->i_size)
-		return -EINVAL;
-
 	BUG_ON(offset & ~HPAGE_MASK);
 	pgoff = offset >> PAGE_SHIFT;
 
-	inode->i_size = offset;
+	i_size_write(inode, offset);
 	spin_lock(&mapping->i_mmap_lock);
 	if (!prio_tree_empty(&mapping->i_mmap))
 		hugetlb_vmtruncate_list(&mapping->i_mmap, pgoff);
@@ -569,8 +691,8 @@ static void hugetlbfs_destroy_inode(struct inode *inode)
 
 static const struct address_space_operations hugetlbfs_aops = {
 	.readpage	= hugetlbfs_readpage,
-	.prepare_write	= hugetlbfs_prepare_write,
-	.commit_write	= hugetlbfs_commit_write,
+	.write_begin	= hugetlbfs_write_begin,
+	.write_end	= hugetlbfs_write_end,
 	.set_page_dirty	= hugetlbfs_set_page_dirty,
 };
 
@@ -583,6 +705,7 @@ static void init_once(void *foo, struct kmem_cache *cachep, unsigned long flags)
 }
 
 const struct file_operations hugetlbfs_file_operations = {
+	.read			= hugetlbfs_read,
 	.mmap			= hugetlbfs_file_mmap,
 	.fsync			= simple_sync_file,
 	.get_unmapped_area	= hugetlb_get_unmapped_area,
