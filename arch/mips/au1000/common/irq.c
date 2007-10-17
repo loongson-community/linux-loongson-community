@@ -132,7 +132,7 @@ void restore_au1xxx_intctl(void)
 #endif /* CONFIG_PM */
 
 
-static inline void local_enable_irq(unsigned int irq_nr)
+inline void local_enable_irq(unsigned int irq_nr)
 {
 	unsigned int bit = irq_nr - AU1000_INTC0_INT_BASE;
 
@@ -147,7 +147,7 @@ static inline void local_enable_irq(unsigned int irq_nr)
 }
 
 
-static inline void local_disable_irq(unsigned int irq_nr)
+inline void local_disable_irq(unsigned int irq_nr)
 {
 	unsigned int bit = irq_nr - AU1000_INTC0_INT_BASE;
 
