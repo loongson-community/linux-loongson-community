@@ -408,7 +408,7 @@ static int c0_compare_int_usable(void)
 	 * IP7 already pending?  Try to clear it by acking the timer.
 	 */
 	if (c0_compare_int_pending()) {
-		write_c0_compare(0);
+		write_c0_compare(read_c0_compare());
 		irq_disable_hazard();
 		if (c0_compare_int_pending())
 			return 0;
@@ -424,7 +424,7 @@ static int c0_compare_int_usable(void)
 	if (!c0_compare_int_pending())
 		return 0;
 
-	write_c0_compare(0);
+	write_c0_compare(read_c0_compare());
 	irq_disable_hazard();
 	if (c0_compare_int_pending())
 		return 0;
