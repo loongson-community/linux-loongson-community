@@ -168,7 +168,7 @@ static struct irq_chip rt_irq_type = {
 	.eoi		= enable_rt_irq,
 };
 
-static unsigned int rt_timer_irq;
+unsigned int rt_timer_irq;
 
 static irqreturn_t ip27_rt_timer_interrupt(int irq, void *dev_id)
 {
