@@ -142,7 +142,7 @@ static int __init setup_kcore(void)
 module_init(setup_kcore);
 #endif
 
-static void zero_ctor(void *addr, struct kmem_cache *cache, unsigned long flags)
+static void zero_ctor(struct kmem_cache *cache, void *addr)
 {
 	memset(addr, 0, kmem_cache_size(cache));
 }
@@ -240,7 +240,7 @@ int __meminit vmemmap_populate(struct page *start_page,
 			return -ENOMEM;
 
 		printk(KERN_WARNING "vmemmap %08lx allocated at %p, "
-					"physical %p.\n", start, p, __pa(p));
+		                    "physical %08lx.\n", start, p, __pa(p));
 
 		mapped = htab_bolt_mapping(start, start + page_size,
 					__pa(p), mode_rw, mmu_linear_psize,

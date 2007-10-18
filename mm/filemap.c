@@ -63,6 +63,7 @@ generic_file_direct_IO(int rw, struct kiocb *iocb, const struct iovec *iov,
  *    ->private_lock		(__free_pte->__set_page_dirty_buffers)
  *      ->swap_lock		(exclusive_swap_page, others)
  *        ->mapping->tree_lock
+ *          ->zone.lock
  *
  *  ->i_mutex
  *    ->i_mmap_lock		(truncate->unmap_mapping_range)
@@ -1626,12 +1627,18 @@ int __remove_suid(struct dentry *dentry, int kill)
 
 int remove_suid(struct dentry *dentry)
 {
-	int kill = should_remove_suid(dentry);
+	int killsuid = should_remove_suid(dentry);
+	int killpriv = security_inode_need_killpriv(dentry);
+	int error = 0;
 
-	if (unlikely(kill))
-		return __remove_suid(dentry, kill);
+	if (killpriv < 0)
+		return killpriv;
+	if (killpriv)
+		error = security_inode_killpriv(dentry);
+	if (!error && killsuid)
+		error = __remove_suid(dentry, killsuid);
 
-	return 0;
+	return error;
 }
 EXPORT_SYMBOL(remove_suid);
 
