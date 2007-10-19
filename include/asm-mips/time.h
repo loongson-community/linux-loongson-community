@@ -83,4 +83,7 @@ static inline void mips_clockevent_init(void)
 }
 #endif
 
+extern void clocksource_set_clock(struct clocksource *cs, unsigned int clock);
+
+
 #endif /* _ASM_TIME_H */
