@@ -168,9 +168,26 @@ static cycle_t bcm1480_hpt_read(void)
 	return (jiffies + 1) * (BCM1480_HPT_VALUE / HZ) - count;
 }
 
+struct clocksource bcm1480_clocksource = {
+	.name	= "MIPS",
+	.rating	= 200,
+	.read	= bcm1480_hpt_read,
+	.mask	= CLOCKSOURCE_MASK(32),
+	.shift	= 32,
+	.flags	= CLOCK_SOURCE_IS_CONTINUOUS,
+};
+
+void __init sb1480_clocksource_init(void)
+{
+	struct clocksource *cs = &bcm1480_clocksource;
+
+	clocksource_set_clock(cs, BCM1480_HPT_VALUE);
+	clocksource_register(cs);
+}
+
 void __init bcm1480_hpt_setup(void)
 {
-	clocksource_mips.read = bcm1480_hpt_read;
 	mips_hpt_frequency = BCM1480_HPT_VALUE;
+	sb1480_clocksource_init();
 	sb1480_clockevent_init();
 }
