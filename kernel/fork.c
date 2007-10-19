@@ -268,7 +268,7 @@ static inline int dup_mmap(struct mm_struct *mm, struct mm_struct *oldmm)
 			get_file(file);
 			if (tmp->vm_flags & VM_DENYWRITE)
 				atomic_dec(&inode->i_writecount);
-      
+
 			/* insert tmp into the share list, just after mpnt */
 			spin_lock(&file->f_mapping->i_mmap_lock);
 			tmp->vm_truncate_count = mpnt->vm_truncate_count;
@@ -331,7 +331,7 @@ static inline void mm_free_pgd(struct mm_struct * mm)
 #define mm_free_pgd(mm)
 #endif /* CONFIG_MMU */
 
- __cacheline_aligned_in_smp DEFINE_SPINLOCK(mmlist_lock);
+__cacheline_aligned_in_smp DEFINE_SPINLOCK(mmlist_lock);
 
 #define allocate_mm()	(kmem_cache_alloc(mm_cachep, GFP_KERNEL))
 #define free_mm(mm)	(kmem_cache_free(mm_cachep, (mm)))
@@ -738,8 +738,8 @@ static struct files_struct *dup_fd(struct files_struct *oldf, int *errorp)
 	/* compute the remainder to be cleared */
 	size = (new_fdt->max_fds - open_files) * sizeof(struct file *);
 
-	/* This is long word aligned thus could use a optimized version */ 
-	memset(new_fds, 0, size); 
+	/* This is long word aligned thus could use a optimized version */
+	memset(new_fds, 0, size);
 
 	if (new_fdt->max_fds > open_files) {
 		int left = (new_fdt->max_fds-open_files)/8;
@@ -942,6 +942,7 @@ static inline void copy_flags(unsigned long clone_flags, struct task_struct *p)
 	if (!(clone_flags & CLONE_PTRACE))
 		p->ptrace = 0;
 	p->flags = new_flags;
+	clear_freeze_flag(p);
 }
 
 asmlinkage long sys_set_tid_address(int __user *tidptr)
@@ -1058,6 +1059,8 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 	p->utime = cputime_zero;
 	p->stime = cputime_zero;
 	p->gtime = cputime_zero;
+	p->utimescaled = cputime_zero;
+	p->stimescaled = cputime_zero;
 
 #ifdef CONFIG_TASK_XACCT
 	p->rchar = 0;		/* I/O counter: bytes read */
@@ -1068,12 +1071,12 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 	task_io_accounting_init(p);
 	acct_clear_integrals(p);
 
- 	p->it_virt_expires = cputime_zero;
+	p->it_virt_expires = cputime_zero;
 	p->it_prof_expires = cputime_zero;
- 	p->it_sched_expires = 0;
- 	INIT_LIST_HEAD(&p->cpu_timers[0]);
- 	INIT_LIST_HEAD(&p->cpu_timers[1]);
- 	INIT_LIST_HEAD(&p->cpu_timers[2]);
+	p->it_sched_expires = 0;
+	INIT_LIST_HEAD(&p->cpu_timers[0]);
+	INIT_LIST_HEAD(&p->cpu_timers[1]);
+	INIT_LIST_HEAD(&p->cpu_timers[2]);
 
 	p->lock_depth = -1;		/* -1 = no lock */
 	do_posix_clock_monotonic_gettime(&p->start_time);
@@ -1083,7 +1086,6 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 	p->security = NULL;
 #endif
 	p->io_context = NULL;
-	p->io_wait = NULL;
 	p->audit_context = NULL;
 	cpuset_fork(p);
 #ifdef CONFIG_NUMA
@@ -1239,7 +1241,7 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 	 * A fatal signal pending means that current will exit, so the new
 	 * thread can't slip out of an OOM kill (or normal SIGKILL).
  	 */
- 	recalc_sigpending();
+	recalc_sigpending();
 	if (signal_pending(current)) {
 		spin_unlock(&current->sighand->siglock);
 		write_unlock_irq(&tasklist_lock);

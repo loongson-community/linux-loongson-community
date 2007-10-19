@@ -569,7 +569,7 @@ struct sched_info {
 			   last_queued;	/* when we were last queued to run */
 #ifdef CONFIG_SCHEDSTATS
 	/* BKL stats */
-	unsigned long bkl_count;
+	unsigned int bkl_count;
 #endif
 };
 #endif /* defined(CONFIG_SCHEDSTATS) || defined(CONFIG_TASK_DELAY_ACCT) */
@@ -705,34 +705,34 @@ struct sched_domain {
 
 #ifdef CONFIG_SCHEDSTATS
 	/* load_balance() stats */
-	unsigned long lb_count[CPU_MAX_IDLE_TYPES];
-	unsigned long lb_failed[CPU_MAX_IDLE_TYPES];
-	unsigned long lb_balanced[CPU_MAX_IDLE_TYPES];
-	unsigned long lb_imbalance[CPU_MAX_IDLE_TYPES];
-	unsigned long lb_gained[CPU_MAX_IDLE_TYPES];
-	unsigned long lb_hot_gained[CPU_MAX_IDLE_TYPES];
-	unsigned long lb_nobusyg[CPU_MAX_IDLE_TYPES];
-	unsigned long lb_nobusyq[CPU_MAX_IDLE_TYPES];
+	unsigned int lb_count[CPU_MAX_IDLE_TYPES];
+	unsigned int lb_failed[CPU_MAX_IDLE_TYPES];
+	unsigned int lb_balanced[CPU_MAX_IDLE_TYPES];
+	unsigned int lb_imbalance[CPU_MAX_IDLE_TYPES];
+	unsigned int lb_gained[CPU_MAX_IDLE_TYPES];
+	unsigned int lb_hot_gained[CPU_MAX_IDLE_TYPES];
+	unsigned int lb_nobusyg[CPU_MAX_IDLE_TYPES];
+	unsigned int lb_nobusyq[CPU_MAX_IDLE_TYPES];
 
 	/* Active load balancing */
-	unsigned long alb_count;
-	unsigned long alb_failed;
-	unsigned long alb_pushed;
+	unsigned int alb_count;
+	unsigned int alb_failed;
+	unsigned int alb_pushed;
 
 	/* SD_BALANCE_EXEC stats */
-	unsigned long sbe_count;
-	unsigned long sbe_balanced;
-	unsigned long sbe_pushed;
+	unsigned int sbe_count;
+	unsigned int sbe_balanced;
+	unsigned int sbe_pushed;
 
 	/* SD_BALANCE_FORK stats */
-	unsigned long sbf_count;
-	unsigned long sbf_balanced;
-	unsigned long sbf_pushed;
+	unsigned int sbf_count;
+	unsigned int sbf_balanced;
+	unsigned int sbf_pushed;
 
 	/* try_to_wake_up() stats */
-	unsigned long ttwu_wake_remote;
-	unsigned long ttwu_move_affine;
-	unsigned long ttwu_move_balance;
+	unsigned int ttwu_wake_remote;
+	unsigned int ttwu_move_affine;
+	unsigned int ttwu_move_balance;
 #endif
 };
 
@@ -991,7 +991,7 @@ struct task_struct {
 	int __user *clear_child_tid;		/* CLONE_CHILD_CLEARTID */
 
 	unsigned int rt_priority;
-	cputime_t utime, stime;
+	cputime_t utime, stime, utimescaled, stimescaled;
 	cputime_t gtime;
 	unsigned long nvcsw, nivcsw; /* context switch counts */
 	struct timespec start_time; 		/* monotonic time */
@@ -1110,13 +1110,6 @@ struct task_struct {
 
 	unsigned long ptrace_message;
 	siginfo_t *last_siginfo; /* For ptrace use.  */
-/*
- * current io wait handle: wait queue entry to use for io waits
- * If this thread is processing aio, this points at the waitqueue
- * inside the currently handled kiocb. It may be NULL (i.e. default
- * to a stack based synchronous wait) if its doing sync IO.
- */
-	wait_queue_t *io_wait;
 #ifdef CONFIG_TASK_XACCT
 /* i/o counters(bytes read/written, #syscalls */
 	u64 rchar, wchar, syscr, syscw;
