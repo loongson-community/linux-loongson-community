@@ -98,7 +98,8 @@ static inline void check_for_tasks(int cpu)
 		     !cputime_eq(p->stime, cputime_zero)))
 			printk(KERN_WARNING "Task %s (pid = %d) is on cpu %d\
 				(state = %ld, flags = %x) \n",
-				 p->comm, p->pid, cpu, p->state, p->flags);
+				 p->comm, task_pid_nr(p), cpu,
+				 p->state, p->flags);
 	}
 	write_unlock_irq(&tasklist_lock);
 }
@@ -264,6 +265,15 @@ out_notify:
 int __cpuinit cpu_up(unsigned int cpu)
 {
 	int err = 0;
+	if (!cpu_isset(cpu, cpu_possible_map)) {
+		printk(KERN_ERR "can't online cpu %d because it is not "
+			"configured as may-hotadd at boot time\n", cpu);
+#if defined(CONFIG_IA64) || defined(CONFIG_X86_64) || defined(CONFIG_S390)
+		printk(KERN_ERR "please check additional_cpus= boot "
+				"parameter\n");
+#endif
+		return -EINVAL;
+	}
 
 	mutex_lock(&cpu_add_remove_lock);
 	if (cpu_hotplug_disabled)

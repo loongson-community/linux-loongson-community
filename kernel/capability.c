@@ -12,6 +12,7 @@
 #include <linux/module.h>
 #include <linux/security.h>
 #include <linux/syscalls.h>
+#include <linux/pid_namespace.h>
 #include <asm/uaccess.h>
 
 /*
@@ -61,8 +62,8 @@ asmlinkage long sys_capget(cap_user_header_t header, cap_user_data_t dataptr)
 	spin_lock(&task_capability_lock);
 	read_lock(&tasklist_lock);
 
-	if (pid && pid != current->pid) {
-		target = find_task_by_pid(pid);
+	if (pid && pid != task_pid_vnr(current)) {
+		target = find_task_by_vpid(pid);
 		if (!target) {
 			ret = -ESRCH;
 			goto out;
@@ -95,7 +96,7 @@ static inline int cap_set_pg(int pgrp_nr, kernel_cap_t *effective,
 	int found = 0;
 	struct pid *pgrp;
 
-	pgrp = find_pid(pgrp_nr);
+	pgrp = find_vpid(pgrp_nr);
 	do_each_pid_task(pgrp, PIDTYPE_PGID, g) {
 		target = g;
 		while_each_thread(g, target) {
@@ -129,7 +130,7 @@ static inline int cap_set_all(kernel_cap_t *effective,
      int found = 0;
 
      do_each_thread(g, target) {
-             if (target == current || is_init(target))
+             if (target == current || is_container_init(target->group_leader))
                      continue;
              found = 1;
 	     if (security_capset_check(target, effective, inheritable,
@@ -184,7 +185,7 @@ asmlinkage long sys_capset(cap_user_header_t header, const cap_user_data_t data)
 	if (get_user(pid, &header->pid))
 		return -EFAULT;
 
-	if (pid && pid != current->pid && !capable(CAP_SETPCAP))
+	if (pid && pid != task_pid_vnr(current) && !capable(CAP_SETPCAP))
 		return -EPERM;
 
 	if (copy_from_user(&effective, &data->effective, sizeof(effective)) ||
@@ -195,8 +196,8 @@ asmlinkage long sys_capset(cap_user_header_t header, const cap_user_data_t data)
 	spin_lock(&task_capability_lock);
 	read_lock(&tasklist_lock);
 
-	if (pid > 0 && pid != current->pid) {
-		target = find_task_by_pid(pid);
+	if (pid > 0 && pid != task_pid_vnr(current)) {
+		target = find_task_by_vpid(pid);
 		if (!target) {
 			ret = -ESRCH;
 			goto out;

@@ -1888,7 +1888,7 @@ int proc_dointvec_bset(struct ctl_table *table, int write, struct file *filp,
 		return -EPERM;
 	}
 
-	op = is_init(current) ? OP_SET : OP_AND;
+	op = is_global_init(current) ? OP_SET : OP_AND;
 	return do_proc_dointvec(table,write,filp,buffer,lenp,ppos,
 				do_proc_dointvec_bset_conv,&op);
 }
@@ -2278,7 +2278,7 @@ static int proc_do_cad_pid(struct ctl_table *table, int write, struct file *filp
 	pid_t tmp;
 	int r;
 
-	tmp = pid_nr(cad_pid);
+	tmp = pid_nr_ns(cad_pid, current->nsproxy->pid_ns);
 
 	r = __do_proc_dointvec(&tmp, table, write, filp, buffer,
 			       lenp, ppos, NULL, NULL);
