@@ -2259,6 +2259,13 @@ L:	legousb-devel@lists.sourceforge.net
 W:	http://legousb.sourceforge.net/
 S:	Maintained
 
+LGUEST
+P:	Rusty Russell
+M:	rusty@rustcorp.com.au
+L:	lguest@ozlabs.org
+W:	http://lguest.ozlabs.org/
+S:	Maintained
+
 LINUX FOR IBM pSERIES (RS/6000)
 P:	Paul Mackerras
 M:	paulus@au.ibm.com
@@ -4139,6 +4146,12 @@ M:	v4l-dvb-maintainer@linuxtv.org
 L:	video4linux-list@redhat.com
 W:	http://linuxtv.org
 T:	git kernel.org:/pub/scm/linux/kernel/git/mchehab/v4l-dvb.git
+S:	Maintained
+
+VLAN (802.1Q)
+P:	Patrick McHardy
+M:	kaber@trash.net
+L:	netdev@vger.kernel.org
 S:	Maintained
 
 VT1211 HARDWARE MONITOR DRIVER
