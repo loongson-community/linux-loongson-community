@@ -250,7 +250,7 @@ static struct irqaction sb1250_dummy_action = {
 	.dev_id  = 0
 };
 
-int sb1250_steal_irq(int irq)
+static int sb1250_steal_irq(int irq)
 {
 	struct irq_desc *desc = irq_desc + irq;
 	unsigned long flags;

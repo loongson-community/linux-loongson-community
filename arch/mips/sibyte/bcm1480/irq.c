@@ -280,7 +280,7 @@ static struct irqaction bcm1480_dummy_action = {
 	.dev_id  = 0
 };
 
-int bcm1480_steal_irq(int irq)
+static int bcm1480_steal_irq(int irq)
 {
 	struct irq_desc *desc = irq_desc + irq;
 	unsigned long flags;
