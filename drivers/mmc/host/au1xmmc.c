@@ -40,7 +40,7 @@
 #include <linux/mm.h>
 #include <linux/interrupt.h>
 #include <linux/dma-mapping.h>
-#include <scatterlist/scatterlist.h>
+#include <linux/scatterlist.h>
 
 #include <linux/mmc/host.h>
 #include <asm/io.h>
@@ -212,12 +212,12 @@ static int au1xmmc_send_command(struct au1xmmc_host *host, int wait,
 	}
 
 	if (data) {
-		if (flags & MMC_DATA_READ) {
+		if (data->flags & MMC_DATA_READ) {
 			if (data->blocks > 1)
 				mmccmd |= SD_CMD_CT_4;
 			else
 				mmccmd |= SD_CMD_CT_2;
-		} else if (flags & MMC_DATA_WRITE) {
+		} else if (data->flags & MMC_DATA_WRITE) {
 			if (data->blocks > 1)
 				mmccmd |= SD_CMD_CT_3;
 			else

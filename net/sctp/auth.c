@@ -107,7 +107,7 @@ struct sctp_shared_key *sctp_auth_shkey_create(__u16 key_id, gfp_t gfp)
 }
 
 /* Free the shared key stucture */
-void sctp_auth_shkey_free(struct sctp_shared_key *sh_key)
+static void sctp_auth_shkey_free(struct sctp_shared_key *sh_key)
 {
 	BUG_ON(!list_empty(&sh_key->key_list));
 	sctp_auth_key_put(sh_key->key);
@@ -220,7 +220,7 @@ static struct sctp_auth_bytes *sctp_auth_make_key_vector(
 
 
 /* Make a key vector based on our local parameters */
-struct sctp_auth_bytes *sctp_auth_make_local_vector(
+static struct sctp_auth_bytes *sctp_auth_make_local_vector(
 				    const struct sctp_association *asoc,
 				    gfp_t gfp)
 {
@@ -232,7 +232,7 @@ struct sctp_auth_bytes *sctp_auth_make_local_vector(
 }
 
 /* Make a key vector based on peer's parameters */
-struct sctp_auth_bytes *sctp_auth_make_peer_vector(
+static struct sctp_auth_bytes *sctp_auth_make_peer_vector(
 				    const struct sctp_association *asoc,
 				    gfp_t gfp)
 {
@@ -726,8 +726,7 @@ void sctp_auth_calculate_hmac(const struct sctp_association *asoc,
 
 	/* set up scatter list */
 	end = skb_tail_pointer(skb);
-	sg_init_table(&sg, 1);
-	sg_set_buf(&sg, auth, end - (unsigned char *)auth);
+	sg_init_one(&sg, auth, end - (unsigned char *)auth);
 
 	desc.tfm = asoc->ep->auth_hmacs[hmac_id];
 	desc.flags = 0;
