@@ -531,7 +531,7 @@ asmlinkage int irix_sigpoll_sys(unsigned long __user *set,
 
 		expire = schedule_timeout_interruptible(expire);
 
-		for (i=0; i < _IRIX_NSIG_BPW; i++)
+		for (i=0; i < _IRIX_NSIG_WORDS; i++)
 			tmp |= (current->pending.signal.sig[i] & kset.sig[i]);
 
 		if (tmp)
