@@ -901,7 +901,7 @@ static int titan_ge_port_start(struct net_device *netdev,
 		reg_data |= 0x200000;
 
 		TITAN_GE_WRITE(0x48a0, reg_data);
-		
+
 		reg_data = TITAN_GE_READ(0x4958);
 		reg_data |= 0x100000;
 
@@ -2016,7 +2016,7 @@ static int __init titan_ge_init_module(void)
                         titan_ge_device[i] = NULL;
                         continue;
                 }
-                                                                                
+
                 if (!pldev->dev.driver) {
 	                /*
 			 * The driver was not bound to this device, there was
