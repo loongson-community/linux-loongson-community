@@ -14,7 +14,6 @@
 #include <linux/module.h>
 #include <linux/scatterlist.h>
 #include <linux/string.h>
-#include <linux/scatterlist.h>
 
 #include <asm/cache.h>
 #include <asm/io.h>
