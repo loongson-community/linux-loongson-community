@@ -35,7 +35,7 @@ void __init plat_time_init(void)
 	gt641xx_set_base_clock(GT641XX_BASE_CLOCK);
 
 	/*
-	 * MIPS counter frequency is measured between 100msec
+	 * MIPS counter frequency is measured during a 100msec interval
 	 * using GT64111 timer0.
 	 */
 	while (!gt641xx_timer0_state())
