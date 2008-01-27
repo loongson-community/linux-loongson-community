@@ -760,6 +760,30 @@ void blk_queue_dma_alignment(struct request_queue *q, int mask)
 EXPORT_SYMBOL(blk_queue_dma_alignment);
 
 /**
+ * blk_queue_update_dma_alignment - update dma length and memory alignment
+ * @q:     the request queue for the device
+ * @mask:  alignment mask
+ *
+ * description:
+ *    update required memory and length aligment for direct dma transactions.
+ *    If the requested alignment is larger than the current alignment, then
+ *    the current queue alignment is updated to the new value, otherwise it
+ *    is left alone.  The design of this is to allow multiple objects
+ *    (driver, device, transport etc) to set their respective
+ *    alignments without having them interfere.
+ *
+ **/
+void blk_queue_update_dma_alignment(struct request_queue *q, int mask)
+{
+	BUG_ON(mask > PAGE_SIZE);
+
+	if (mask > q->dma_alignment)
+		q->dma_alignment = mask;
+}
+
+EXPORT_SYMBOL(blk_queue_update_dma_alignment);
+
+/**
  * blk_queue_find_tag - find a request by its tag and queue
  * @q:	 The request queue for the device
  * @tag: The tag of the request
@@ -1862,9 +1886,7 @@ struct request_queue *blk_alloc_queue_node(gfp_t gfp_mask, int node_id)
 
 	init_timer(&q->unplug_timer);
 
-	kobject_set_name(&q->kobj, "%s", "queue");
-	q->kobj.ktype = &queue_ktype;
-	kobject_init(&q->kobj);
+	kobject_init(&q->kobj, &queue_ktype);
 
 	mutex_init(&q->sysfs_lock);
 
@@ -4182,9 +4204,8 @@ int blk_register_queue(struct gendisk *disk)
 	if (!q || !q->request_fn)
 		return -ENXIO;
 
-	q->kobj.parent = kobject_get(&disk->kobj);
-
-	ret = kobject_add(&q->kobj);
+	ret = kobject_add(&q->kobj, kobject_get(&disk->dev.kobj),
+			  "%s", "queue");
 	if (ret < 0)
 		return ret;
 
@@ -4209,6 +4230,6 @@ void blk_unregister_queue(struct gendisk *disk)
 
 		kobject_uevent(&q->kobj, KOBJ_REMOVE);
 		kobject_del(&q->kobj);
-		kobject_put(&disk->kobj);
+		kobject_put(&disk->dev.kobj);
 	}
 }

@@ -47,8 +47,6 @@
 #include <asm/cacheflush.h>
 #include <linux/license.h>
 
-extern int module_sysfs_initialized;
-
 #if 0
 #define DEBUGP printk
 #else
@@ -498,6 +496,8 @@ static struct module_attribute modinfo_##field = {                    \
 MODINFO_ATTR(version);
 MODINFO_ATTR(srcversion);
 
+static char last_unloaded_module[MODULE_NAME_LEN+1];
+
 #ifdef CONFIG_MODULE_UNLOAD
 /* Init the unload section of the module. */
 static void module_unload_init(struct module *mod)
@@ -721,6 +721,8 @@ sys_delete_module(const char __user *name_user, unsigned int flags)
 		mod->exit();
 		mutex_lock(&module_mutex);
 	}
+	/* Store the name of the last unloaded module for diagnostic purposes */
+	sprintf(last_unloaded_module, mod->name);
 	free_module(mod);
 
  out:
@@ -1122,7 +1124,7 @@ static void add_notes_attrs(struct module *mod, unsigned int nsect,
 		++loaded;
 	}
 
-	notes_attrs->dir = kobject_add_dir(&mod->mkobj.kobj, "notes");
+	notes_attrs->dir = kobject_create_and_add("notes", &mod->mkobj.kobj);
 	if (!notes_attrs->dir)
 		goto out;
 
@@ -1219,15 +1221,16 @@ int mod_sysfs_init(struct module *mod)
 		err = -EINVAL;
 		goto out;
 	}
-	memset(&mod->mkobj.kobj, 0, sizeof(mod->mkobj.kobj));
-	err = kobject_set_name(&mod->mkobj.kobj, "%s", mod->name);
-	if (err)
-		goto out;
-	kobj_set_kset_s(&mod->mkobj, module_subsys);
 	mod->mkobj.mod = mod;
 
-	kobject_init(&mod->mkobj.kobj);
+	memset(&mod->mkobj.kobj, 0, sizeof(mod->mkobj.kobj));
+	mod->mkobj.kobj.kset = module_kset;
+	err = kobject_init_and_add(&mod->mkobj.kobj, &module_ktype, NULL,
+				   "%s", mod->name);
+	if (err)
+		kobject_put(&mod->mkobj.kobj);
 
+	/* delay uevent until full sysfs population */
 out:
 	return err;
 }
@@ -1238,12 +1241,7 @@ int mod_sysfs_setup(struct module *mod,
 {
 	int err;
 
-	/* delay uevent until full sysfs population */
-	err = kobject_add(&mod->mkobj.kobj);
-	if (err)
-		goto out;
-
-	mod->holders_dir = kobject_add_dir(&mod->mkobj.kobj, "holders");
+	mod->holders_dir = kobject_create_and_add("holders", &mod->mkobj.kobj);
 	if (!mod->holders_dir) {
 		err = -ENOMEM;
 		goto out_unreg;
@@ -1263,11 +1261,9 @@ int mod_sysfs_setup(struct module *mod,
 out_unreg_param:
 	module_param_sysfs_remove(mod);
 out_unreg_holders:
-	kobject_unregister(mod->holders_dir);
+	kobject_put(mod->holders_dir);
 out_unreg:
-	kobject_del(&mod->mkobj.kobj);
 	kobject_put(&mod->mkobj.kobj);
-out:
 	return err;
 }
 #endif
@@ -1276,9 +1272,9 @@ static void mod_kobject_remove(struct module *mod)
 {
 	module_remove_modinfo_attrs(mod);
 	module_param_sysfs_remove(mod);
-	kobject_unregister(mod->mkobj.drivers_dir);
-	kobject_unregister(mod->holders_dir);
-	kobject_unregister(&mod->mkobj.kobj);
+	kobject_put(mod->mkobj.drivers_dir);
+	kobject_put(mod->holders_dir);
+	kobject_put(&mod->mkobj.kobj);
 }
 
 /*
@@ -1884,10 +1880,10 @@ static struct module *load_module(void __user *umod,
 	/* Now we've moved module, initialize linked lists, etc. */
 	module_unload_init(mod);
 
-	/* Initialize kobject, so we can reference it. */
+	/* add kobject, so we can reference it. */
 	err = mod_sysfs_init(mod);
 	if (err)
-		goto cleanup;
+		goto free_unload;
 
 	/* Set up license info based on the info section */
 	set_license(mod, get_modinfo(sechdrs, infoindex, "license"));
@@ -2057,6 +2053,9 @@ static struct module *load_module(void __user *umod,
  arch_cleanup:
 	module_arch_cleanup(mod);
  cleanup:
+	kobject_del(&mod->mkobj.kobj);
+	kobject_put(&mod->mkobj.kobj);
+ free_unload:
 	module_unload_free(mod);
 	module_free(mod, mod->module_init);
  free_core:
@@ -2362,21 +2361,30 @@ static void m_stop(struct seq_file *m, void *p)
 	mutex_unlock(&module_mutex);
 }
 
-static char *taint_flags(unsigned int taints, char *buf)
+static char *module_flags(struct module *mod, char *buf)
 {
 	int bx = 0;
 
-	if (taints) {
+	if (mod->taints ||
+	    mod->state == MODULE_STATE_GOING ||
+	    mod->state == MODULE_STATE_COMING) {
 		buf[bx++] = '(';
-		if (taints & TAINT_PROPRIETARY_MODULE)
+		if (mod->taints & TAINT_PROPRIETARY_MODULE)
 			buf[bx++] = 'P';
-		if (taints & TAINT_FORCED_MODULE)
+		if (mod->taints & TAINT_FORCED_MODULE)
 			buf[bx++] = 'F';
 		/*
 		 * TAINT_FORCED_RMMOD: could be added.
 		 * TAINT_UNSAFE_SMP, TAINT_MACHINE_CHECK, TAINT_BAD_PAGE don't
 		 * apply to modules.
 		 */
+
+		/* Show a - for module-is-being-unloaded */
+		if (mod->state == MODULE_STATE_GOING)
+			buf[bx++] = '-';
+		/* Show a + for module-is-being-loaded */
+		if (mod->state == MODULE_STATE_COMING)
+			buf[bx++] = '+';
 		buf[bx++] = ')';
 	}
 	buf[bx] = '\0';
@@ -2403,7 +2411,7 @@ static int m_show(struct seq_file *m, void *p)
 
 	/* Taints info */
 	if (mod->taints)
-		seq_printf(m, " %s", taint_flags(mod->taints, buf));
+		seq_printf(m, " %s", module_flags(mod, buf));
 
 	seq_printf(m, "\n");
 	return 0;
@@ -2498,96 +2506,11 @@ void print_modules(void)
 
 	printk("Modules linked in:");
 	list_for_each_entry(mod, &modules, list)
-		printk(" %s%s", mod->name, taint_flags(mod->taints, buf));
+		printk(" %s%s", mod->name, module_flags(mod, buf));
+	if (last_unloaded_module[0])
+		printk(" [last unloaded: %s]", last_unloaded_module);
 	printk("\n");
 }
-
-#ifdef CONFIG_SYSFS
-static char *make_driver_name(struct device_driver *drv)
-{
-	char *driver_name;
-
-	driver_name = kmalloc(strlen(drv->name) + strlen(drv->bus->name) + 2,
-			      GFP_KERNEL);
-	if (!driver_name)
-		return NULL;
-
-	sprintf(driver_name, "%s:%s", drv->bus->name, drv->name);
-	return driver_name;
-}
-
-static void module_create_drivers_dir(struct module_kobject *mk)
-{
-	if (!mk || mk->drivers_dir)
-		return;
-
-	mk->drivers_dir = kobject_add_dir(&mk->kobj, "drivers");
-}
-
-void module_add_driver(struct module *mod, struct device_driver *drv)
-{
-	char *driver_name;
-	int no_warn;
-	struct module_kobject *mk = NULL;
-
-	if (!drv)
-		return;
-
-	if (mod)
-		mk = &mod->mkobj;
-	else if (drv->mod_name) {
-		struct kobject *mkobj;
-
-		/* Lookup built-in module entry in /sys/modules */
-		mkobj = kset_find_obj(&module_subsys, drv->mod_name);
-		if (mkobj) {
-			mk = container_of(mkobj, struct module_kobject, kobj);
-			/* remember our module structure */
-			drv->mkobj = mk;
-			/* kset_find_obj took a reference */
-			kobject_put(mkobj);
-		}
-	}
-
-	if (!mk)
-		return;
-
-	/* Don't check return codes; these calls are idempotent */
-	no_warn = sysfs_create_link(&drv->kobj, &mk->kobj, "module");
-	driver_name = make_driver_name(drv);
-	if (driver_name) {
-		module_create_drivers_dir(mk);
-		no_warn = sysfs_create_link(mk->drivers_dir, &drv->kobj,
-					    driver_name);
-		kfree(driver_name);
-	}
-}
-EXPORT_SYMBOL(module_add_driver);
-
-void module_remove_driver(struct device_driver *drv)
-{
-	struct module_kobject *mk = NULL;
-	char *driver_name;
-
-	if (!drv)
-		return;
-
-	sysfs_remove_link(&drv->kobj, "module");
-
-	if (drv->owner)
-		mk = &drv->owner->mkobj;
-	else if (drv->mkobj)
-		mk = drv->mkobj;
-	if (mk && mk->drivers_dir) {
-		driver_name = make_driver_name(drv);
-		if (driver_name) {
-			sysfs_remove_link(mk->drivers_dir, driver_name);
-			kfree(driver_name);
-		}
-	}
-}
-EXPORT_SYMBOL(module_remove_driver);
-#endif
 
 #ifdef CONFIG_MODVERSIONS
 /* Generate the signature for struct module here, too, for modversions. */
