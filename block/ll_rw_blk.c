@@ -347,7 +347,6 @@ unsigned blk_ordered_req_seq(struct request *rq)
 void blk_ordered_complete_seq(struct request_queue *q, unsigned seq, int error)
 {
 	struct request *rq;
-	int uptodate;
 
 	if (error && !q->orderr)
 		q->orderr = error;
@@ -361,15 +360,11 @@ void blk_ordered_complete_seq(struct request_queue *q, unsigned seq, int error)
 	/*
 	 * Okay, sequence complete.
 	 */
-	uptodate = 1;
-	if (q->orderr)
-		uptodate = q->orderr;
-
 	q->ordseq = 0;
 	rq = q->orig_bar_rq;
 
-	end_that_request_first(rq, uptodate, rq->hard_nr_sectors);
-	end_that_request_last(rq, uptodate);
+	if (__blk_end_request(rq, q->orderr, blk_rq_bytes(rq)))
+		BUG();
 }
 
 static void pre_flush_end_io(struct request *rq, int error)
@@ -486,9 +481,9 @@ int blk_do_ordered(struct request_queue *q, struct request **rqp)
 			 * ORDERED_NONE while this request is on it.
 			 */
 			blkdev_dequeue_request(rq);
-			end_that_request_first(rq, -EOPNOTSUPP,
-					       rq->hard_nr_sectors);
-			end_that_request_last(rq, -EOPNOTSUPP);
+			if (__blk_end_request(rq, -EOPNOTSUPP,
+					      blk_rq_bytes(rq)))
+				BUG();
 			*rqp = NULL;
 			return 0;
 		}
@@ -724,6 +719,45 @@ void blk_queue_stack_limits(struct request_queue *t, struct request_queue *b)
 }
 
 EXPORT_SYMBOL(blk_queue_stack_limits);
+
+/**
+ * blk_queue_dma_drain - Set up a drain buffer for excess dma.
+ *
+ * @q:  the request queue for the device
+ * @buf:	physically contiguous buffer
+ * @size:	size of the buffer in bytes
+ *
+ * Some devices have excess DMA problems and can't simply discard (or
+ * zero fill) the unwanted piece of the transfer.  They have to have a
+ * real area of memory to transfer it into.  The use case for this is
+ * ATAPI devices in DMA mode.  If the packet command causes a transfer
+ * bigger than the transfer size some HBAs will lock up if there
+ * aren't DMA elements to contain the excess transfer.  What this API
+ * does is adjust the queue so that the buf is always appended
+ * silently to the scatterlist.
+ *
+ * Note: This routine adjusts max_hw_segments to make room for
+ * appending the drain buffer.  If you call
+ * blk_queue_max_hw_segments() or blk_queue_max_phys_segments() after
+ * calling this routine, you must set the limit to one fewer than your
+ * device can support otherwise there won't be room for the drain
+ * buffer.
+ */
+int blk_queue_dma_drain(struct request_queue *q, void *buf,
+				unsigned int size)
+{
+	if (q->max_hw_segments < 2 || q->max_phys_segments < 2)
+		return -EINVAL;
+	/* make room for appending the drain */
+	--q->max_hw_segments;
+	--q->max_phys_segments;
+	q->dma_drain_buffer = buf;
+	q->dma_drain_size = size;
+
+	return 0;
+}
+
+EXPORT_SYMBOL_GPL(blk_queue_dma_drain);
 
 /**
  * blk_queue_segment_boundary - set boundary rules for segment merging
@@ -1378,6 +1412,16 @@ new_segment:
 		}
 		bvprv = bvec;
 	} /* segments in rq */
+
+	if (q->dma_drain_size) {
+		sg->page_link &= ~0x02;
+		sg = sg_next(sg);
+		sg_set_page(sg, virt_to_page(q->dma_drain_buffer),
+			    q->dma_drain_size,
+			    ((unsigned long)q->dma_drain_buffer) &
+			    (PAGE_SIZE - 1));
+		nsegs++;
+	}
 
 	if (sg)
 		sg_mark_end(sg);
@@ -3437,20 +3481,27 @@ static void blk_recalc_rq_sectors(struct request *rq, int nsect)
 	}
 }
 
-static int __end_that_request_first(struct request *req, int uptodate,
+/**
+ * __end_that_request_first - end I/O on a request
+ * @req:      the request being processed
+ * @error:    0 for success, < 0 for error
+ * @nr_bytes: number of bytes to complete
+ *
+ * Description:
+ *     Ends I/O on a number of bytes attached to @req, and sets it up
+ *     for the next range of segments (if any) in the cluster.
+ *
+ * Return:
+ *     0 - we are done with this request, call end_that_request_last()
+ *     1 - still buffers pending for this request
+ **/
+static int __end_that_request_first(struct request *req, int error,
 				    int nr_bytes)
 {
-	int total_bytes, bio_nbytes, error, next_idx = 0;
+	int total_bytes, bio_nbytes, next_idx = 0;
 	struct bio *bio;
 
 	blk_add_trace_rq(req->q, req, BLK_TA_COMPLETE);
-
-	/*
-	 * extend uptodate bool to allow < 0 value to be direct io error
-	 */
-	error = 0;
-	if (end_io_error(uptodate))
-		error = !uptodate ? -EIO : uptodate;
 
 	/*
 	 * for a REQ_BLOCK_PC request, we want to carry any eventual
@@ -3459,7 +3510,7 @@ static int __end_that_request_first(struct request *req, int uptodate,
 	if (!blk_pc_request(req))
 		req->errors = 0;
 
-	if (!uptodate) {
+	if (error) {
 		if (blk_fs_request(req) && !(req->cmd_flags & REQ_QUIET))
 			printk("end_request: I/O error, dev %s, sector %llu\n",
 				req->rq_disk ? req->rq_disk->disk_name : "?",
@@ -3553,49 +3604,6 @@ static int __end_that_request_first(struct request *req, int uptodate,
 	return 1;
 }
 
-/**
- * end_that_request_first - end I/O on a request
- * @req:      the request being processed
- * @uptodate: 1 for success, 0 for I/O error, < 0 for specific error
- * @nr_sectors: number of sectors to end I/O on
- *
- * Description:
- *     Ends I/O on a number of sectors attached to @req, and sets it up
- *     for the next range of segments (if any) in the cluster.
- *
- * Return:
- *     0 - we are done with this request, call end_that_request_last()
- *     1 - still buffers pending for this request
- **/
-int end_that_request_first(struct request *req, int uptodate, int nr_sectors)
-{
-	return __end_that_request_first(req, uptodate, nr_sectors << 9);
-}
-
-EXPORT_SYMBOL(end_that_request_first);
-
-/**
- * end_that_request_chunk - end I/O on a request
- * @req:      the request being processed
- * @uptodate: 1 for success, 0 for I/O error, < 0 for specific error
- * @nr_bytes: number of bytes to complete
- *
- * Description:
- *     Ends I/O on a number of bytes attached to @req, and sets it up
- *     for the next range of segments (if any). Like end_that_request_first(),
- *     but deals with bytes instead of sectors.
- *
- * Return:
- *     0 - we are done with this request, call end_that_request_last()
- *     1 - still buffers pending for this request
- **/
-int end_that_request_chunk(struct request *req, int uptodate, int nr_bytes)
-{
-	return __end_that_request_first(req, uptodate, nr_bytes);
-}
-
-EXPORT_SYMBOL(end_that_request_chunk);
-
 /*
  * splice the completion data to a local structure and hand off to
  * process_completion_queue() to complete the requests
@@ -3675,17 +3683,15 @@ EXPORT_SYMBOL(blk_complete_request);
 /*
  * queue lock must be held
  */
-void end_that_request_last(struct request *req, int uptodate)
+static void end_that_request_last(struct request *req, int error)
 {
 	struct gendisk *disk = req->rq_disk;
-	int error;
 
-	/*
-	 * extend uptodate bool to allow < 0 value to be direct io error
-	 */
-	error = 0;
-	if (end_io_error(uptodate))
-		error = !uptodate ? -EIO : uptodate;
+	if (blk_rq_tagged(req))
+		blk_queue_end_tag(req->q, req);
+
+	if (blk_queued_rq(req))
+		blkdev_dequeue_request(req);
 
 	if (unlikely(laptop_mode) && blk_fs_request(req))
 		laptop_io_completion();
@@ -3704,32 +3710,54 @@ void end_that_request_last(struct request *req, int uptodate)
 		disk_round_stats(disk);
 		disk->in_flight--;
 	}
+
 	if (req->end_io)
 		req->end_io(req, error);
-	else
+	else {
+		if (blk_bidi_rq(req))
+			__blk_put_request(req->next_rq->q, req->next_rq);
+
 		__blk_put_request(req->q, req);
-}
-
-EXPORT_SYMBOL(end_that_request_last);
-
-static inline void __end_request(struct request *rq, int uptodate,
-				 unsigned int nr_bytes, int dequeue)
-{
-	if (!end_that_request_chunk(rq, uptodate, nr_bytes)) {
-		if (dequeue)
-			blkdev_dequeue_request(rq);
-		add_disk_randomness(rq->rq_disk);
-		end_that_request_last(rq, uptodate);
 	}
 }
 
-static unsigned int rq_byte_size(struct request *rq)
+static inline void __end_request(struct request *rq, int uptodate,
+				 unsigned int nr_bytes)
+{
+	int error = 0;
+
+	if (uptodate <= 0)
+		error = uptodate ? uptodate : -EIO;
+
+	__blk_end_request(rq, error, nr_bytes);
+}
+
+/**
+ * blk_rq_bytes - Returns bytes left to complete in the entire request
+ **/
+unsigned int blk_rq_bytes(struct request *rq)
 {
 	if (blk_fs_request(rq))
 		return rq->hard_nr_sectors << 9;
 
 	return rq->data_len;
 }
+EXPORT_SYMBOL_GPL(blk_rq_bytes);
+
+/**
+ * blk_rq_cur_bytes - Returns bytes left to complete in the current segment
+ **/
+unsigned int blk_rq_cur_bytes(struct request *rq)
+{
+	if (blk_fs_request(rq))
+		return rq->current_nr_sectors << 9;
+
+	if (rq->bio)
+		return rq->bio->bi_size;
+
+	return rq->data_len;
+}
+EXPORT_SYMBOL_GPL(blk_rq_cur_bytes);
 
 /**
  * end_queued_request - end all I/O on a queued request
@@ -3744,7 +3772,7 @@ static unsigned int rq_byte_size(struct request *rq)
  **/
 void end_queued_request(struct request *rq, int uptodate)
 {
-	__end_request(rq, uptodate, rq_byte_size(rq), 1);
+	__end_request(rq, uptodate, blk_rq_bytes(rq));
 }
 EXPORT_SYMBOL(end_queued_request);
 
@@ -3761,7 +3789,7 @@ EXPORT_SYMBOL(end_queued_request);
  **/
 void end_dequeued_request(struct request *rq, int uptodate)
 {
-	__end_request(rq, uptodate, rq_byte_size(rq), 0);
+	__end_request(rq, uptodate, blk_rq_bytes(rq));
 }
 EXPORT_SYMBOL(end_dequeued_request);
 
@@ -3787,9 +3815,158 @@ EXPORT_SYMBOL(end_dequeued_request);
  **/
 void end_request(struct request *req, int uptodate)
 {
-	__end_request(req, uptodate, req->hard_cur_sectors << 9, 1);
+	__end_request(req, uptodate, req->hard_cur_sectors << 9);
 }
 EXPORT_SYMBOL(end_request);
+
+/**
+ * blk_end_io - Generic end_io function to complete a request.
+ * @rq:           the request being processed
+ * @error:        0 for success, < 0 for error
+ * @nr_bytes:     number of bytes to complete @rq
+ * @bidi_bytes:   number of bytes to complete @rq->next_rq
+ * @drv_callback: function called between completion of bios in the request
+ *                and completion of the request.
+ *                If the callback returns non 0, this helper returns without
+ *                completion of the request.
+ *
+ * Description:
+ *     Ends I/O on a number of bytes attached to @rq and @rq->next_rq.
+ *     If @rq has leftover, sets it up for the next range of segments.
+ *
+ * Return:
+ *     0 - we are done with this request
+ *     1 - this request is not freed yet, it still has pending buffers.
+ **/
+static int blk_end_io(struct request *rq, int error, int nr_bytes,
+		      int bidi_bytes, int (drv_callback)(struct request *))
+{
+	struct request_queue *q = rq->q;
+	unsigned long flags = 0UL;
+
+	if (blk_fs_request(rq) || blk_pc_request(rq)) {
+		if (__end_that_request_first(rq, error, nr_bytes))
+			return 1;
+
+		/* Bidi request must be completed as a whole */
+		if (blk_bidi_rq(rq) &&
+		    __end_that_request_first(rq->next_rq, error, bidi_bytes))
+			return 1;
+	}
+
+	/* Special feature for tricky drivers */
+	if (drv_callback && drv_callback(rq))
+		return 1;
+
+	add_disk_randomness(rq->rq_disk);
+
+	spin_lock_irqsave(q->queue_lock, flags);
+	end_that_request_last(rq, error);
+	spin_unlock_irqrestore(q->queue_lock, flags);
+
+	return 0;
+}
+
+/**
+ * blk_end_request - Helper function for drivers to complete the request.
+ * @rq:       the request being processed
+ * @error:    0 for success, < 0 for error
+ * @nr_bytes: number of bytes to complete
+ *
+ * Description:
+ *     Ends I/O on a number of bytes attached to @rq.
+ *     If @rq has leftover, sets it up for the next range of segments.
+ *
+ * Return:
+ *     0 - we are done with this request
+ *     1 - still buffers pending for this request
+ **/
+int blk_end_request(struct request *rq, int error, int nr_bytes)
+{
+	return blk_end_io(rq, error, nr_bytes, 0, NULL);
+}
+EXPORT_SYMBOL_GPL(blk_end_request);
+
+/**
+ * __blk_end_request - Helper function for drivers to complete the request.
+ * @rq:       the request being processed
+ * @error:    0 for success, < 0 for error
+ * @nr_bytes: number of bytes to complete
+ *
+ * Description:
+ *     Must be called with queue lock held unlike blk_end_request().
+ *
+ * Return:
+ *     0 - we are done with this request
+ *     1 - still buffers pending for this request
+ **/
+int __blk_end_request(struct request *rq, int error, int nr_bytes)
+{
+	if (blk_fs_request(rq) || blk_pc_request(rq)) {
+		if (__end_that_request_first(rq, error, nr_bytes))
+			return 1;
+	}
+
+	add_disk_randomness(rq->rq_disk);
+
+	end_that_request_last(rq, error);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(__blk_end_request);
+
+/**
+ * blk_end_bidi_request - Helper function for drivers to complete bidi request.
+ * @rq:         the bidi request being processed
+ * @error:      0 for success, < 0 for error
+ * @nr_bytes:   number of bytes to complete @rq
+ * @bidi_bytes: number of bytes to complete @rq->next_rq
+ *
+ * Description:
+ *     Ends I/O on a number of bytes attached to @rq and @rq->next_rq.
+ *
+ * Return:
+ *     0 - we are done with this request
+ *     1 - still buffers pending for this request
+ **/
+int blk_end_bidi_request(struct request *rq, int error, int nr_bytes,
+			 int bidi_bytes)
+{
+	return blk_end_io(rq, error, nr_bytes, bidi_bytes, NULL);
+}
+EXPORT_SYMBOL_GPL(blk_end_bidi_request);
+
+/**
+ * blk_end_request_callback - Special helper function for tricky drivers
+ * @rq:           the request being processed
+ * @error:        0 for success, < 0 for error
+ * @nr_bytes:     number of bytes to complete
+ * @drv_callback: function called between completion of bios in the request
+ *                and completion of the request.
+ *                If the callback returns non 0, this helper returns without
+ *                completion of the request.
+ *
+ * Description:
+ *     Ends I/O on a number of bytes attached to @rq.
+ *     If @rq has leftover, sets it up for the next range of segments.
+ *
+ *     This special helper function is used only for existing tricky drivers.
+ *     (e.g. cdrom_newpc_intr() of ide-cd)
+ *     This interface will be removed when such drivers are rewritten.
+ *     Don't use this interface in other places anymore.
+ *
+ * Return:
+ *     0 - we are done with this request
+ *     1 - this request is not freed yet.
+ *         this request still has pending buffers or
+ *         the driver doesn't want to finish this request yet.
+ **/
+int blk_end_request_callback(struct request *rq, int error, int nr_bytes,
+			     int (drv_callback)(struct request *))
+{
+	return blk_end_io(rq, error, nr_bytes, 0, drv_callback);
+}
+EXPORT_SYMBOL_GPL(blk_end_request_callback);
 
 static void blk_rq_bio_prep(struct request_queue *q, struct request *rq,
 			    struct bio *bio)
@@ -3853,55 +4030,100 @@ int __init blk_dev_init(void)
 	return 0;
 }
 
+static void cfq_dtor(struct io_context *ioc)
+{
+	struct cfq_io_context *cic[1];
+	int r;
+
+	/*
+	 * We don't have a specific key to lookup with, so use the gang
+	 * lookup to just retrieve the first item stored. The cfq exit
+	 * function will iterate the full tree, so any member will do.
+	 */
+	r = radix_tree_gang_lookup(&ioc->radix_root, (void **) cic, 0, 1);
+	if (r > 0)
+		cic[0]->dtor(ioc);
+}
+
 /*
- * IO Context helper functions
+ * IO Context helper functions. put_io_context() returns 1 if there are no
+ * more users of this io context, 0 otherwise.
  */
-void put_io_context(struct io_context *ioc)
+int put_io_context(struct io_context *ioc)
 {
 	if (ioc == NULL)
-		return;
+		return 1;
 
 	BUG_ON(atomic_read(&ioc->refcount) == 0);
 
 	if (atomic_dec_and_test(&ioc->refcount)) {
-		struct cfq_io_context *cic;
-
 		rcu_read_lock();
 		if (ioc->aic && ioc->aic->dtor)
 			ioc->aic->dtor(ioc->aic);
-		if (ioc->cic_root.rb_node != NULL) {
-			struct rb_node *n = rb_first(&ioc->cic_root);
-
-			cic = rb_entry(n, struct cfq_io_context, rb_node);
-			cic->dtor(ioc);
-		}
 		rcu_read_unlock();
+		cfq_dtor(ioc);
 
 		kmem_cache_free(iocontext_cachep, ioc);
+		return 1;
 	}
+	return 0;
 }
 EXPORT_SYMBOL(put_io_context);
+
+static void cfq_exit(struct io_context *ioc)
+{
+	struct cfq_io_context *cic[1];
+	int r;
+
+	rcu_read_lock();
+	/*
+	 * See comment for cfq_dtor()
+	 */
+	r = radix_tree_gang_lookup(&ioc->radix_root, (void **) cic, 0, 1);
+	rcu_read_unlock();
+
+	if (r > 0)
+		cic[0]->exit(ioc);
+}
 
 /* Called by the exitting task */
 void exit_io_context(void)
 {
 	struct io_context *ioc;
-	struct cfq_io_context *cic;
 
 	task_lock(current);
 	ioc = current->io_context;
 	current->io_context = NULL;
 	task_unlock(current);
 
-	ioc->task = NULL;
-	if (ioc->aic && ioc->aic->exit)
-		ioc->aic->exit(ioc->aic);
-	if (ioc->cic_root.rb_node != NULL) {
-		cic = rb_entry(rb_first(&ioc->cic_root), struct cfq_io_context, rb_node);
-		cic->exit(ioc);
+	if (atomic_dec_and_test(&ioc->nr_tasks)) {
+		if (ioc->aic && ioc->aic->exit)
+			ioc->aic->exit(ioc->aic);
+		cfq_exit(ioc);
+
+		put_io_context(ioc);
+	}
+}
+
+struct io_context *alloc_io_context(gfp_t gfp_flags, int node)
+{
+	struct io_context *ret;
+
+	ret = kmem_cache_alloc_node(iocontext_cachep, gfp_flags, node);
+	if (ret) {
+		atomic_set(&ret->refcount, 1);
+		atomic_set(&ret->nr_tasks, 1);
+		spin_lock_init(&ret->lock);
+		ret->ioprio_changed = 0;
+		ret->ioprio = 0;
+		ret->last_waited = jiffies; /* doesn't matter... */
+		ret->nr_batch_requests = 0; /* because this is 0 */
+		ret->aic = NULL;
+		INIT_RADIX_TREE(&ret->radix_root, GFP_ATOMIC | __GFP_HIGH);
+		ret->ioc_data = NULL;
 	}
 
-	put_io_context(ioc);
+	return ret;
 }
 
 /*
@@ -3921,16 +4143,8 @@ static struct io_context *current_io_context(gfp_t gfp_flags, int node)
 	if (likely(ret))
 		return ret;
 
-	ret = kmem_cache_alloc_node(iocontext_cachep, gfp_flags, node);
+	ret = alloc_io_context(gfp_flags, node);
 	if (ret) {
-		atomic_set(&ret->refcount, 1);
-		ret->task = current;
-		ret->ioprio_changed = 0;
-		ret->last_waited = jiffies; /* doesn't matter... */
-		ret->nr_batch_requests = 0; /* because this is 0 */
-		ret->aic = NULL;
-		ret->cic_root.rb_node = NULL;
-		ret->ioc_data = NULL;
 		/* make sure set_task_ioprio() sees the settings above */
 		smp_wmb();
 		tsk->io_context = ret;
@@ -3947,10 +4161,18 @@ static struct io_context *current_io_context(gfp_t gfp_flags, int node)
  */
 struct io_context *get_io_context(gfp_t gfp_flags, int node)
 {
-	struct io_context *ret;
-	ret = current_io_context(gfp_flags, node);
-	if (likely(ret))
-		atomic_inc(&ret->refcount);
+	struct io_context *ret = NULL;
+
+	/*
+	 * Check for unlikely race with exiting task. ioc ref count is
+	 * zero when ioc is being detached.
+	 */
+	do {
+		ret = current_io_context(gfp_flags, node);
+		if (unlikely(!ret))
+			break;
+	} while (!atomic_inc_not_zero(&ret->refcount));
+
 	return ret;
 }
 EXPORT_SYMBOL(get_io_context);

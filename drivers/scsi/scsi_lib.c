@@ -634,7 +634,7 @@ void scsi_run_host_queues(struct Scsi_Host *shost)
  *		of upper level post-processing and scsi_io_completion).
  *
  * Arguments:   cmd	 - command that is complete.
- *              uptodate - 1 if I/O indicates success, <= 0 for I/O error.
+ *              error    - 0 if I/O indicates success, < 0 for I/O error.
  *              bytes    - number of bytes of completed I/O
  *		requeue  - indicates whether we should requeue leftovers.
  *
@@ -649,26 +649,25 @@ void scsi_run_host_queues(struct Scsi_Host *shost)
  *		at some point during this call.
  * Notes:	If cmd was requeued, upon return it will be a stale pointer.
  */
-static struct scsi_cmnd *scsi_end_request(struct scsi_cmnd *cmd, int uptodate,
+static struct scsi_cmnd *scsi_end_request(struct scsi_cmnd *cmd, int error,
 					  int bytes, int requeue)
 {
 	struct request_queue *q = cmd->device->request_queue;
 	struct request *req = cmd->request;
-	unsigned long flags;
 
 	/*
 	 * If there are blocks left over at the end, set up the command
 	 * to queue the remainder of them.
 	 */
-	if (end_that_request_chunk(req, uptodate, bytes)) {
+	if (blk_end_request(req, error, bytes)) {
 		int leftover = (req->hard_nr_sectors << 9);
 
 		if (blk_pc_request(req))
 			leftover = req->data_len;
 
 		/* kill remainder if no retrys */
-		if (!uptodate && blk_noretry_request(req))
-			end_that_request_chunk(req, 0, leftover);
+		if (error && blk_noretry_request(req))
+			blk_end_request(req, error, leftover);
 		else {
 			if (requeue) {
 				/*
@@ -682,14 +681,6 @@ static struct scsi_cmnd *scsi_end_request(struct scsi_cmnd *cmd, int uptodate,
 			return cmd;
 		}
 	}
-
-	add_disk_randomness(req->rq_disk);
-
-	spin_lock_irqsave(q->queue_lock, flags);
-	if (blk_rq_tagged(req))
-		blk_queue_end_tag(q, req);
-	end_that_request_last(req, uptodate);
-	spin_unlock_irqrestore(q->queue_lock, flags);
 
 	/*
 	 * This will goose the queue request function at the end, so we don't
@@ -739,138 +730,43 @@ static inline unsigned int scsi_sgtable_index(unsigned short nents)
 	return index;
 }
 
-struct scatterlist *scsi_alloc_sgtable(struct scsi_cmnd *cmd, gfp_t gfp_mask)
+static void scsi_sg_free(struct scatterlist *sgl, unsigned int nents)
 {
 	struct scsi_host_sg_pool *sgp;
-	struct scatterlist *sgl, *prev, *ret;
-	unsigned int index;
-	int this, left;
+
+	sgp = scsi_sg_pools + scsi_sgtable_index(nents);
+	mempool_free(sgl, sgp->pool);
+}
+
+static struct scatterlist *scsi_sg_alloc(unsigned int nents, gfp_t gfp_mask)
+{
+	struct scsi_host_sg_pool *sgp;
+
+	sgp = scsi_sg_pools + scsi_sgtable_index(nents);
+	return mempool_alloc(sgp->pool, gfp_mask);
+}
+
+int scsi_alloc_sgtable(struct scsi_cmnd *cmd, gfp_t gfp_mask)
+{
+	int ret;
 
 	BUG_ON(!cmd->use_sg);
 
-	left = cmd->use_sg;
-	ret = prev = NULL;
-	do {
-		this = left;
-		if (this > SCSI_MAX_SG_SEGMENTS) {
-			this = SCSI_MAX_SG_SEGMENTS - 1;
-			index = SG_MEMPOOL_NR - 1;
-		} else
-			index = scsi_sgtable_index(this);
+	ret = __sg_alloc_table(&cmd->sg_table, cmd->use_sg,
+			       SCSI_MAX_SG_SEGMENTS, gfp_mask, scsi_sg_alloc);
+	if (unlikely(ret))
+		__sg_free_table(&cmd->sg_table, SCSI_MAX_SG_SEGMENTS,
+				scsi_sg_free);
 
-		left -= this;
-
-		sgp = scsi_sg_pools + index;
-
-		sgl = mempool_alloc(sgp->pool, gfp_mask);
-		if (unlikely(!sgl))
-			goto enomem;
-
-		sg_init_table(sgl, sgp->size);
-
-		/*
-		 * first loop through, set initial index and return value
-		 */
-		if (!ret)
-			ret = sgl;
-
-		/*
-		 * chain previous sglist, if any. we know the previous
-		 * sglist must be the biggest one, or we would not have
-		 * ended up doing another loop.
-		 */
-		if (prev)
-			sg_chain(prev, SCSI_MAX_SG_SEGMENTS, sgl);
-
-		/*
-		 * if we have nothing left, mark the last segment as
-		 * end-of-list
-		 */
-		if (!left)
-			sg_mark_end(&sgl[this - 1]);
-
-		/*
-		 * don't allow subsequent mempool allocs to sleep, it would
-		 * violate the mempool principle.
-		 */
-		gfp_mask &= ~__GFP_WAIT;
-		gfp_mask |= __GFP_HIGH;
-		prev = sgl;
-	} while (left);
-
-	/*
-	 * ->use_sg may get modified after dma mapping has potentially
-	 * shrunk the number of segments, so keep a copy of it for free.
-	 */
-	cmd->__use_sg = cmd->use_sg;
+	cmd->request_buffer = cmd->sg_table.sgl;
 	return ret;
-enomem:
-	if (ret) {
-		/*
-		 * Free entries chained off ret. Since we were trying to
-		 * allocate another sglist, we know that all entries are of
-		 * the max size.
-		 */
-		sgp = scsi_sg_pools + SG_MEMPOOL_NR - 1;
-		prev = ret;
-		ret = &ret[SCSI_MAX_SG_SEGMENTS - 1];
-
-		while ((sgl = sg_chain_ptr(ret)) != NULL) {
-			ret = &sgl[SCSI_MAX_SG_SEGMENTS - 1];
-			mempool_free(sgl, sgp->pool);
-		}
-
-		mempool_free(prev, sgp->pool);
-	}
-	return NULL;
 }
 
 EXPORT_SYMBOL(scsi_alloc_sgtable);
 
 void scsi_free_sgtable(struct scsi_cmnd *cmd)
 {
-	struct scatterlist *sgl = cmd->request_buffer;
-	struct scsi_host_sg_pool *sgp;
-
-	/*
-	 * if this is the biggest size sglist, check if we have
-	 * chained parts we need to free
-	 */
-	if (cmd->__use_sg > SCSI_MAX_SG_SEGMENTS) {
-		unsigned short this, left;
-		struct scatterlist *next;
-		unsigned int index;
-
-		left = cmd->__use_sg - (SCSI_MAX_SG_SEGMENTS - 1);
-		next = sg_chain_ptr(&sgl[SCSI_MAX_SG_SEGMENTS - 1]);
-		while (left && next) {
-			sgl = next;
-			this = left;
-			if (this > SCSI_MAX_SG_SEGMENTS) {
-				this = SCSI_MAX_SG_SEGMENTS - 1;
-				index = SG_MEMPOOL_NR - 1;
-			} else
-				index = scsi_sgtable_index(this);
-
-			left -= this;
-
-			sgp = scsi_sg_pools + index;
-
-			if (left)
-				next = sg_chain_ptr(&sgl[sgp->size - 1]);
-
-			mempool_free(sgl, sgp->pool);
-		}
-
-		/*
-		 * Restore original, will be freed below
-		 */
-		sgl = cmd->request_buffer;
-		sgp = scsi_sg_pools + SG_MEMPOOL_NR - 1;
-	} else
-		sgp = scsi_sg_pools + scsi_sgtable_index(cmd->__use_sg);
-
-	mempool_free(sgl, sgp->pool);
+	__sg_free_table(&cmd->sg_table, SCSI_MAX_SG_SEGMENTS, scsi_sg_free);
 }
 
 EXPORT_SYMBOL(scsi_free_sgtable);
@@ -987,7 +883,7 @@ void scsi_io_completion(struct scsi_cmnd *cmd, unsigned int good_bytes)
 	 * are leftovers and there is some kind of error
 	 * (result != 0), retry the rest.
 	 */
-	if (scsi_end_request(cmd, 1, good_bytes, result == 0) == NULL)
+	if (scsi_end_request(cmd, 0, good_bytes, result == 0) == NULL)
 		return;
 
 	/* good_bytes = 0, or (inclusive) there were leftovers and
@@ -1001,7 +897,7 @@ void scsi_io_completion(struct scsi_cmnd *cmd, unsigned int good_bytes)
 				 * and quietly refuse further access.
 				 */
 				cmd->device->changed = 1;
-				scsi_end_request(cmd, 0, this_count, 1);
+				scsi_end_request(cmd, -EIO, this_count, 1);
 				return;
 			} else {
 				/* Must have been a power glitch, or a
@@ -1033,7 +929,7 @@ void scsi_io_completion(struct scsi_cmnd *cmd, unsigned int good_bytes)
 				scsi_requeue_command(q, cmd);
 				return;
 			} else {
-				scsi_end_request(cmd, 0, this_count, 1);
+				scsi_end_request(cmd, -EIO, this_count, 1);
 				return;
 			}
 			break;
@@ -1061,7 +957,7 @@ void scsi_io_completion(struct scsi_cmnd *cmd, unsigned int good_bytes)
 							 "Device not ready",
 							 &sshdr);
 
-			scsi_end_request(cmd, 0, this_count, 1);
+			scsi_end_request(cmd, -EIO, this_count, 1);
 			return;
 		case VOLUME_OVERFLOW:
 			if (!(req->cmd_flags & REQ_QUIET)) {
@@ -1071,7 +967,7 @@ void scsi_io_completion(struct scsi_cmnd *cmd, unsigned int good_bytes)
 				scsi_print_sense("", cmd);
 			}
 			/* See SSC3rXX or current. */
-			scsi_end_request(cmd, 0, this_count, 1);
+			scsi_end_request(cmd, -EIO, this_count, 1);
 			return;
 		default:
 			break;
@@ -1092,7 +988,7 @@ void scsi_io_completion(struct scsi_cmnd *cmd, unsigned int good_bytes)
 				scsi_print_sense("", cmd);
 		}
 	}
-	scsi_end_request(cmd, 0, this_count, !result);
+	scsi_end_request(cmd, -EIO, this_count, !result);
 }
 
 /*
@@ -1120,8 +1016,7 @@ static int scsi_init_io(struct scsi_cmnd *cmd)
 	/*
 	 * If sg table allocation fails, requeue request later.
 	 */
-	cmd->request_buffer = scsi_alloc_sgtable(cmd, GFP_ATOMIC);
-	if (unlikely(!cmd->request_buffer)) {
+	if (unlikely(scsi_alloc_sgtable(cmd, GFP_ATOMIC))) {
 		scsi_unprep_request(req);
 		return BLKPREP_DEFER;
 	}
