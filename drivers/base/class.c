@@ -149,7 +149,7 @@ int class_register(struct class *cls)
 	if (error)
 		return error;
 
-#ifdef CONFIG_SYSFS_DEPRECATED
+#if defined(CONFIG_SYSFS_DEPRECATED) && defined(CONFIG_BLOCK)
 	/* let the block class directory show up in the root of sysfs */
 	if (cls != &block_class)
 		cls->subsys.kobj.kset = class_kset;
@@ -863,7 +863,7 @@ EXPORT_SYMBOL_GPL(class_for_each_device);
  * The callback should return 0 if the device doesn't match and non-zero
  * if it does.  If the callback returns non-zero, this function will
  * return to the caller and not iterate over any more devices.
-
+ *
  * Note, you will need to drop the reference with put_device() after use.
  *
  * We hold class->sem in this function, so it can not be
