@@ -1134,13 +1134,6 @@ check the amount of free space (value is in seconds). Default settings are: 4,
 resume it  if we have a value of 3 or more percent; consider information about
 the amount of free space valid for 30 seconds
 
-audit_argv_kb
--------------
-
-The file contains a single value denoting the limit on the argv array size
-for execve (in KiB). This limit is only applied when system call auditing for
-execve is enabled, otherwise the value is ignored.
-
 ctrl-alt-del
 ------------
 
@@ -1918,11 +1911,6 @@ max_size
 
 Maximum size  of  the routing cache. Old entries will be purged once the cache
 reached has this size.
-
-max_delay, min_delay
---------------------
-
-Delays for flushing the routing cache.
 
 redirect_load, redirect_number
 ------------------------------

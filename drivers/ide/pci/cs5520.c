@@ -69,7 +69,7 @@ static struct pio_clocks cs5520_pio_clocks[]={
 static void cs5520_set_pio_mode(ide_drive_t *drive, const u8 pio)
 {
 	ide_hwif_t *hwif = HWIF(drive);
-	struct pci_dev *pdev = hwif->pci_dev;
+	struct pci_dev *pdev = to_pci_dev(hwif->dev);
 	int controller = drive->dn > 1 ? 1 : 0;
 
 	/* FIXME: if DMA = 1 do we need to set the DMA bit here ? */
@@ -156,8 +156,14 @@ static int __devinit cs5520_init_one(struct pci_dev *dev, const struct pci_devic
 	ide_setup_pci_noise(dev, d);
 
 	/* We must not grab the entire device, it has 'ISA' space in its
-	   BARS too and we will freak out other bits of the kernel */
-	if (pci_enable_device_bars(dev, 1<<2)) {
+	 * BARS too and we will freak out other bits of the kernel
+	 *
+	 * pci_enable_device_bars() is going away. I replaced it with
+	 * IO only enable for now but I'll need confirmation this is
+	 * allright for that device. If not, it will need some kind of
+	 * quirk. --BenH.
+	 */
+	if (pci_enable_device_io(dev)) {
 		printk(KERN_WARNING "%s: Unable to enable 55x0.\n", d->name);
 		return -ENODEV;
 	}

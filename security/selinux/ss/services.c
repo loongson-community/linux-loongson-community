@@ -1905,11 +1905,12 @@ int security_set_bools(int len, int *values)
 		if (!!values[i] != policydb.bool_val_to_struct[i]->state) {
 			audit_log(current->audit_context, GFP_ATOMIC,
 				AUDIT_MAC_CONFIG_CHANGE,
-				"bool=%s val=%d old_val=%d auid=%u",
+				"bool=%s val=%d old_val=%d auid=%u ses=%u",
 				policydb.p_bool_val_to_name[i],
 				!!values[i],
 				policydb.bool_val_to_struct[i]->state,
-				audit_get_loginuid(current->audit_context));
+				audit_get_loginuid(current),
+				audit_get_sessionid(current));
 		}
 		if (values[i]) {
 			policydb.bool_val_to_struct[i]->state = 1;
@@ -2692,7 +2693,6 @@ int security_netlbl_sid_to_secattr(u32 sid, struct netlbl_lsm_secattr *secattr)
 
 netlbl_sid_to_secattr_failure:
 	POLICY_RDUNLOCK;
-	netlbl_secattr_destroy(secattr);
 	return rc;
 }
 #endif /* CONFIG_NETLABEL */
