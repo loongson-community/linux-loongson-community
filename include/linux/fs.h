@@ -872,6 +872,7 @@ struct file_lock {
 	struct list_head fl_block;	/* circular list of blocked processes */
 	fl_owner_t fl_owner;
 	unsigned int fl_pid;
+	struct pid *fl_nspid;
 	wait_queue_head_t fl_wait;
 	struct file *fl_file;
 	unsigned char fl_flags;
@@ -1307,7 +1308,7 @@ struct super_operations {
  *			being set.  find_inode() uses this to prevent returning
  *			nearly-dead inodes.
  * I_SYNC		Similar to I_LOCK, but limited in scope to writeback
- *			of inode dirty data.  Having a seperate lock for this
+ *			of inode dirty data.  Having a separate lock for this
  *			purpose reduces latency and prevents some filesystem-
  *			specific deadlocks.
  *

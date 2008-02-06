@@ -128,7 +128,6 @@ struct pci_cap_saved_state {
 	u32 data[0];
 };
 
-struct pcie_link_state;
 /*
  * The pci_dev structure is used to describe PCI devices.
  */
@@ -160,13 +159,11 @@ struct pci_dev {
 					   this if your device has broken DMA
 					   or supports 64-bit transfers.  */
 
+	struct device_dma_parameters dma_parms;
+
 	pci_power_t     current_state;  /* Current operating state. In ACPI-speak,
 					   this is D0-D3, D0 being fully functional,
 					   and D3 being off. */
-
-#ifdef CONFIG_PCIEASPM
-	struct pcie_link_state	*link_state;	/* ASPM link state. */
-#endif
 
 	pci_channel_state_t error_state;	/* current connectivity state */
 	struct	device	dev;		/* Generic device interface */
@@ -585,6 +582,8 @@ void pci_intx(struct pci_dev *dev, int enable);
 void pci_msi_off(struct pci_dev *dev);
 int pci_set_dma_mask(struct pci_dev *dev, u64 mask);
 int pci_set_consistent_dma_mask(struct pci_dev *dev, u64 mask);
+int pci_set_dma_max_seg_size(struct pci_dev *dev, unsigned int size);
+int pci_set_dma_seg_boundary(struct pci_dev *dev, unsigned long mask);
 int pcix_get_max_mmrbc(struct pci_dev *dev);
 int pcix_get_mmrbc(struct pci_dev *dev);
 int pcix_set_mmrbc(struct pci_dev *dev, int mmrbc);
@@ -823,6 +822,18 @@ static inline void pci_disable_device(struct pci_dev *dev)
 { }
 
 static inline int pci_set_dma_mask(struct pci_dev *dev, u64 mask)
+{
+	return -EIO;
+}
+
+static inline int pci_set_dma_max_seg_size(struct pci_dev *dev,
+					unsigned int size)
+{
+	return -EIO;
+}
+
+static inline int pci_set_dma_seg_boundary(struct pci_dev *dev,
+					unsigned long mask)
 {
 	return -EIO;
 }

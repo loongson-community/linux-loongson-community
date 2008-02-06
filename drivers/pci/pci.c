@@ -18,7 +18,6 @@
 #include <linux/spinlock.h>
 #include <linux/string.h>
 #include <linux/log2.h>
-#include <linux/aspm.h>
 #include <asm/dma.h>	/* isa_dma_bridge_buggy */
 #include "pci.h"
 
@@ -519,9 +518,6 @@ pci_set_power_state(struct pci_dev *dev, pci_power_t state)
 	 */
 	if (need_restore)
 		pci_restore_bars(dev);
-
-	if (dev->bus->self)
-		pcie_aspm_pm_state_change(dev->bus->self);
 
 	return 0;
 }
@@ -1453,6 +1449,22 @@ pci_set_consistent_dma_mask(struct pci_dev *dev, u64 mask)
 
 	return 0;
 }
+#endif
+
+#ifndef HAVE_ARCH_PCI_SET_DMA_MAX_SEGMENT_SIZE
+int pci_set_dma_max_seg_size(struct pci_dev *dev, unsigned int size)
+{
+	return dma_set_max_seg_size(&dev->dev, size);
+}
+EXPORT_SYMBOL(pci_set_dma_max_seg_size);
+#endif
+
+#ifndef HAVE_ARCH_PCI_SET_DMA_SEGMENT_BOUNDARY
+int pci_set_dma_seg_boundary(struct pci_dev *dev, unsigned long mask)
+{
+	return dma_set_seg_boundary(&dev->dev, mask);
+}
+EXPORT_SYMBOL(pci_set_dma_seg_boundary);
 #endif
 
 /**

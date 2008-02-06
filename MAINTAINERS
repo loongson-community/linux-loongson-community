@@ -84,13 +84,6 @@ S: Status, one of the following:
 			it has been replaced by a better system and you
 			should be using that.
 
-3C359 NETWORK DRIVER
-P:	Mike Phillips
-M:	mikep@linuxtr.net
-L:	netdev@vger.kernel.org
-W:	http://www.linuxtr.net
-S:	Maintained
-
 3C505 NETWORK DRIVER
 P:	Philip Blundell
 M:	philb@gnu.org
@@ -939,8 +932,6 @@ M:	maxk@qualcomm.com
 S:	Maintained
 
 BONDING DRIVER
-P:	Chad Tindel
-M:	ctindel@users.sourceforge.net
 P:	Jay Vosburgh
 M:	fubar@us.ibm.com
 L:	bonding-devel@lists.sourceforge.net
@@ -2258,6 +2249,15 @@ L:	kvm-devel@lists.sourceforge.net
 W:	kvm.sourceforge.net
 S:	Supported
 
+KERNEL VIRTUAL MACHINE For Itanium(KVM/IA64)
+P:	Anthony Xu
+M:	anthony.xu@intel.com
+P:	Xiantao Zhang
+M:	xiantao.zhang@intel.com
+L:	kvm-ia64-devel@lists.sourceforge.net
+W:	kvm.sourceforge.net
+S:	Supported
+
 KEXEC
 P:	Eric Biederman
 M:	ebiederm@xmission.com
@@ -2690,6 +2690,16 @@ M:	James.Bottomley@HansenPartnership.com
 L:	linux-scsi@vger.kernel.org
 S:	Maintained
 
+NETEFFECT IWARP RNIC DRIVER (IW_NES)
+P:	Faisal Latif
+M:	flatif@neteffect.com
+P:	Glenn Streiff
+M:	gstreiff@neteffect.com
+L:	general@lists.openfabrics.org
+W:	http://www.neteffect.com
+S:	Supported
+F:	drivers/infiniband/hw/nes/
+
 NETEM NETWORK EMULATOR
 P:	Stephen Hemminger
 M:	shemminger@linux-foundation.org
@@ -2863,15 +2873,6 @@ M:	kurt.hackel@oracle.com
 L:	ocfs2-devel@oss.oracle.com
 W:	http://oss.oracle.com/projects/ocfs2/
 S:	Supported
-
-OLYMPIC NETWORK DRIVER
-P:	Peter De Shrijver
-M:	p2@ace.ulyssis.student.kuleuven.ac.be
-P:	Mike Phillips
-M:	mikep@linuxtr.net
-L:	netdev@vger.kernel.org
-W:	http://www.linuxtr.net
-S:	Maintained
 
 OMNIKEY CARDMAN 4000 DRIVER
 P:	Harald Welte
@@ -3195,7 +3196,7 @@ S:	Maintained
 
 RAYLINK/WEBGEAR 802.11 WIRELESS LAN DRIVER
 P:	Corey Thomas
-M:	corey@world.std.com
+M:	coreythomas@charter.net
 L:	linux-wireless@vger.kernel.org
 S:	Maintained
 
@@ -3788,13 +3789,6 @@ L:	tlan-devel@lists.sourceforge.net (subscribers-only)
 W:	http://sourceforge.net/projects/tlan/
 S:	Maintained
 
-TOKEN-RING NETWORK DRIVER
-P:	Mike Phillips
-M:	mikep@linuxtr.net
-L:	netdev@vger.kernel.org
-W:	http://www.linuxtr.net
-S:	Maintained
-
 TOSHIBA ACPI EXTRAS DRIVER
 P:	John Belmonte
 M:	toshiba_acpi@memebeam.org
@@ -3815,18 +3809,9 @@ L:	linux-kernel@vger.kernel.org
 S:	Maintained
 
 TRIVIAL PATCHES
-P:	Adrian Bunk
+P:	Jesper Juhl
 M:	trivial@kernel.org
 L:	linux-kernel@vger.kernel.org
-W:	http://www.kernel.org/pub/linux/kernel/people/bunk/trivial/
-T:	git kernel.org:/pub/scm/linux/kernel/git/bunk/trivial.git
-S:	Maintained
-
-TMS380 TOKEN-RING NETWORK DRIVER
-P:	Adam Fritzler
-M:	mid@auk.cx
-L:	linux-tr@linuxtr.net
-W:	http://www.auk.cx/tms380tr/
 S:	Maintained
 
 TULIP NETWORK DRIVER

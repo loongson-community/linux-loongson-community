@@ -18,6 +18,8 @@ config X86_64
 ### Arch settings
 config X86
 	def_bool y
+	select HAVE_OPROFILE
+	select HAVE_KPROBES
 
 config GENERIC_LOCKBREAK
 	def_bool n
@@ -105,10 +107,6 @@ config GENERIC_TIME_VSYSCALL
 
 config HAVE_SETUP_PER_CPU_AREA
 	def_bool X86_64
-
-config ARCH_SUPPORTS_OPROFILE
-	bool
-	default y
 
 select HAVE_KVM
 
@@ -204,8 +202,7 @@ config SMP
 	  Y to "Enhanced Real Time Clock Support", below. The "Advanced Power
 	  Management" code will be disabled if you say Y here.
 
-	  See also the <file:Documentation/smp.txt>,
-	  <file:Documentation/i386/IO-APIC.txt>,
+	  See also <file:Documentation/i386/IO-APIC.txt>,
 	  <file:Documentation/nmi_watchdog.txt> and the SMP-HOWTO available at
 	  <http://www.tldp.org/docs.html#howto>.
 
@@ -309,6 +306,7 @@ config X86_RDC321X
 	select M486
 	select X86_REBOOTFIXUPS
 	select GENERIC_GPIO
+	select LEDS_CLASS
 	select LEDS_GPIO
 	help
 	  This option is needed for RDC R-321x system-on-chip, also known
@@ -466,6 +464,9 @@ config CALGARY_IOMMU_ENABLED_BY_DEFAULT
 	  used even if it exists. If you choose 'n' and would like to use
 	  Calgary anyway, pass 'iommu=calgary' on the kernel command line.
 	  If unsure, say Y.
+
+config IOMMU_HELPER
+	def_bool (CALGARY_IOMMU || GART_IOMMU)
 
 # need this always selected by IOMMU for the VIA workaround
 config SWIOTLB
@@ -1596,8 +1597,6 @@ source "drivers/Kconfig"
 source "drivers/firmware/Kconfig"
 
 source "fs/Kconfig"
-
-source "kernel/Kconfig.instrumentation"
 
 source "arch/x86/Kconfig.debug"
 

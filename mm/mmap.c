@@ -36,6 +36,10 @@
 #define arch_mmap_check(addr, len, flags)	(0)
 #endif
 
+#ifndef arch_rebalance_pgtables
+#define arch_rebalance_pgtables(addr, len)		(addr)
+#endif
+
 static void unmap_region(struct mm_struct *mm,
 		struct vm_area_struct *vma, struct vm_area_struct *prev,
 		unsigned long start, unsigned long end);
@@ -1424,7 +1428,7 @@ get_unmapped_area(struct file *file, unsigned long addr, unsigned long len,
 	if (addr & ~PAGE_MASK)
 		return -EINVAL;
 
-	return addr;
+	return arch_rebalance_pgtables(addr, len);
 }
 
 EXPORT_SYMBOL(get_unmapped_area);
@@ -2216,7 +2220,7 @@ int install_special_mapping(struct mm_struct *mm,
 	vma->vm_start = addr;
 	vma->vm_end = addr + len;
 
-	vma->vm_flags = vm_flags | mm->def_flags;
+	vma->vm_flags = vm_flags | mm->def_flags | VM_DONTEXPAND;
 	vma->vm_page_prot = vm_get_page_prot(vma->vm_flags);
 
 	vma->vm_ops = &special_mapping_vmops;

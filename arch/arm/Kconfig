@@ -10,6 +10,8 @@ config ARM
 	default y
 	select RTC_LIB
 	select SYS_SUPPORTS_APM_EMULATION
+	select HAVE_OPROFILE
+	select HAVE_KPROBES if (!XIP_KERNEL)
 	help
 	  The ARM series is a line of low-power-consumption RISC chip designs
 	  licensed by ARM Ltd and targeted at embedded applications and
@@ -32,6 +34,11 @@ config GENERIC_TIME
 config GENERIC_CLOCKEVENTS
 	bool
 	default n
+
+config GENERIC_CLOCKEVENTS_BROADCAST
+	bool
+	depends on GENERIC_CLOCKEVENTS
+	default y if SMP && !LOCAL_TIMERS
 
 config MMU
 	bool
@@ -135,6 +142,23 @@ config FIQ
 config ARCH_MTD_XIP
 	bool
 
+if OPROFILE
+
+config OPROFILE_ARMV6
+	def_bool y
+	depends on CPU_V6 && !SMP
+	select OPROFILE_ARM11_CORE
+
+config OPROFILE_MPCORE
+	def_bool y
+	depends on CPU_V6 && SMP
+	select OPROFILE_ARM11_CORE
+
+config OPROFILE_ARM11_CORE
+	bool
+
+endif
+
 config VECTORS_BASE
 	hex
 	default 0xffff0000 if MMU || CPU_HIGH_VECTOR
@@ -168,6 +192,8 @@ config ARCH_REALVIEW
 	bool "ARM Ltd. RealView family"
 	select ARM_AMBA
 	select ICST307
+	select GENERIC_TIME
+	select GENERIC_CLOCKEVENTS
 	help
 	  This enables support for ARM Ltd RealView boards.
 
@@ -359,6 +385,7 @@ config ARCH_PXA
 	depends on MMU
 	select ARCH_MTD_XIP
 	select GENERIC_GPIO
+	select HAVE_GPIO_LIB
 	select GENERIC_TIME
 	select GENERIC_CLOCKEVENTS
 	select TICK_ONESHOT
@@ -604,7 +631,7 @@ source "kernel/time/Kconfig"
 
 config SMP
 	bool "Symmetric Multi-Processing (EXPERIMENTAL)"
-	depends on EXPERIMENTAL && REALVIEW_MPCORE
+	depends on EXPERIMENTAL && REALVIEW_EB_ARM11MP
 	help
 	  This enables support for systems with more than one CPU. If you have
 	  a system with only one CPU, like most personal computers, say N. If
@@ -616,8 +643,7 @@ config SMP
 	  processor machines. On a single processor machine, the kernel will
 	  run faster if you say N here.
 
-	  See also the <file:Documentation/smp.txt>,
-	  <file:Documentation/i386/IO-APIC.txt>,
+	  See also <file:Documentation/i386/IO-APIC.txt>,
 	  <file:Documentation/nmi_watchdog.txt> and the SMP-HOWTO available at
 	  <http://www.linuxdoc.org/docs.html#howto>.
 
@@ -638,7 +664,7 @@ config HOTPLUG_CPU
 
 config LOCAL_TIMERS
 	bool "Use local timer interrupts"
-	depends on SMP && REALVIEW_MPCORE
+	depends on SMP && REALVIEW_EB_ARM11MP
 	default y
 	help
 	  Enable support for local timers on SMP platforms, rather then the
@@ -894,6 +920,13 @@ config KEXEC
 	  initially work for you.  It may help to enable device hotplugging
 	  support.
 
+config ATAGS_PROC
+	bool "Export atags in procfs"
+	default n
+	help
+	  Should the atags used to boot the kernel be exported in an "atags"
+	  file in procfs. Useful with kexec.
+
 endmenu
 
 if (ARCH_SA1100 || ARCH_INTEGRATOR || ARCH_OMAP || ARCH_IMX || ARCH_PXA)
@@ -1090,6 +1123,8 @@ source "drivers/i2c/Kconfig"
 
 source "drivers/spi/Kconfig"
 
+source "drivers/gpio/Kconfig"
+
 source "drivers/w1/Kconfig"
 
 source "drivers/power/Kconfig"
@@ -1127,8 +1162,6 @@ source "drivers/dca/Kconfig"
 endmenu
 
 source "fs/Kconfig"
-
-source "arch/arm/Kconfig.instrumentation"
 
 source "arch/arm/Kconfig.debug"
 

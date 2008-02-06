@@ -66,6 +66,14 @@ void paging_init(void);
 #define VMALLOC_OFFSET	(8*1024*1024)
 #define VMALLOC_START	(((unsigned long) high_memory + \
 			2*VMALLOC_OFFSET-1) & ~(VMALLOC_OFFSET-1))
+#ifdef CONFIG_X86_PAE
+#define LAST_PKMAP 512
+#else
+#define LAST_PKMAP 1024
+#endif
+
+#define PKMAP_BASE ((FIXADDR_BOOT_START - PAGE_SIZE*(LAST_PKMAP + 1)) & PMD_MASK)
+
 #ifdef CONFIG_HIGHMEM
 # define VMALLOC_END	(PKMAP_BASE-2*PAGE_SIZE)
 #else
@@ -147,6 +155,8 @@ static inline void clone_pgd_range(pgd_t *dst, pgd_t *src, int count)
  * of a process's
  */
 #define pgd_offset_k(address) pgd_offset(&init_mm, address)
+
+static inline int pud_large(pud_t pud) { return 0; }
 
 /*
  * the pmd page can be thought of an array like this: pmd_t[PTRS_PER_PMD]
