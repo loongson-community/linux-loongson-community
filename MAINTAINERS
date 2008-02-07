@@ -338,13 +338,12 @@ S:	Maintained for 2.4; PCI support for 2.6.
 AMD GEODE CS5536 USB DEVICE CONTROLLER DRIVER
 P:	Thomas Dahlmann
 M:	thomas.dahlmann@amd.com
-L:	info-linux@geode.amd.com
+L:	info-linux@geode.amd.com	(subscribers-only)
 S:	Supported
 
 AMD GEODE PROCESSOR/CHIPSET SUPPORT
 P:	Jordan Crouse
-M:	info-linux@geode.amd.com
-L:	info-linux@geode.amd.com
+L:	info-linux@geode.amd.com	(subscribers-only)
 W:	http://www.amd.com/us-en/ConnectivitySolutions/TechnicalResources/0,,50_2334_2452_11363,00.html
 S:	Supported
 
@@ -839,6 +838,12 @@ P:	Jens Axboe
 M:	axboe@kernel.dk
 L:	linux-kernel@vger.kernel.org
 T:	git kernel.org:/pub/scm/linux/kernel/git/axboe/linux-2.6-block.git
+S:	Maintained
+
+BLOCK2MTD DRIVER
+P:	Joern Engel
+M:	joern@lazybastard.org
+L:	linux-mtd@lists.infradead.org
 S:	Maintained
 
 BLUETOOTH SUBSYSTEM
@@ -3031,8 +3036,8 @@ L:	linux-abi-devel@lists.sourceforge.net
 S:	Maintained
 
 PHRAM MTD DRIVER
-P:	Jörn Engel
-M:	joern@wh.fh-wedel.de
+P:	Joern Engel
+M:	joern@lazybastard.org
 L:	linux-mtd@lists.infradead.org
 S:	Maintained
 
@@ -3216,6 +3221,12 @@ S:	Maintained
 RAPIDIO SUBSYSTEM
 P:	Matt Porter
 M:	mporter@kernel.crashing.org
+L:	linux-kernel@vger.kernel.org
+S:	Maintained
+
+RDC R-321X SoC
+P:	Florian Fainelli
+M:	florian.fainelli@telecomint.eu
 L:	linux-kernel@vger.kernel.org
 S:	Maintained
 
@@ -3856,6 +3867,12 @@ M:	oliver@neukum.name
 L:	linux-usb@vger.kernel.org
 S:	Maintained
 
+USB AUERSWALD DRIVER
+P:	Wolfgang Muees
+M:	wolfgang@iksw-muees.de
+L:      linux-usb@vger.kernel.org
+S:	Maintained
+
 USB BLOCK DRIVER (UB ub)
 P:	Pete Zaitcev
 M:	zaitcev@redhat.com
@@ -4005,12 +4022,6 @@ L:      linux-usb@vger.kernel.org
 S:	Maintained
 W:	http://geocities.com/i0xox0i
 W:	http://firstlight.net/cvs
-
-USB AUERSWALD DRIVER
-P:	Wolfgang Muees
-M:	wolfgang@iksw-muees.de
-L:      linux-usb@vger.kernel.org
-S:	Maintained
 
 USB SERIAL EMPEG EMPEG-CAR MARK I/II DRIVER
 P:	Gary Brubaker

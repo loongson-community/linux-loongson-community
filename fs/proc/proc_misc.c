@@ -29,6 +29,7 @@
 #include <linux/mm.h>
 #include <linux/mmzone.h>
 #include <linux/pagemap.h>
+#include <linux/interrupt.h>
 #include <linux/swap.h>
 #include <linux/slab.h>
 #include <linux/smp.h>
@@ -64,7 +65,6 @@
  */
 extern int get_hardware_list(char *);
 extern int get_stram_list(char *);
-extern int get_filesystem_list(char *);
 extern int get_exec_domain_list(char *);
 extern int get_dma_list(char *);
 
@@ -84,10 +84,15 @@ static int loadavg_read_proc(char *page, char **start, off_t off,
 {
 	int a, b, c;
 	int len;
+	unsigned long seq;
 
-	a = avenrun[0] + (FIXED_1/200);
-	b = avenrun[1] + (FIXED_1/200);
-	c = avenrun[2] + (FIXED_1/200);
+	do {
+		seq = read_seqbegin(&xtime_lock);
+		a = avenrun[0] + (FIXED_1/200);
+		b = avenrun[1] + (FIXED_1/200);
+		c = avenrun[2] + (FIXED_1/200);
+	} while (read_seqretry(&xtime_lock, seq));
+
 	len = sprintf(page,"%d.%02d %d.%02d %d.%02d %ld/%d %d\n",
 		LOAD_INT(a), LOAD_FRAC(a),
 		LOAD_INT(b), LOAD_FRAC(b),
@@ -599,7 +604,6 @@ static void int_seq_stop(struct seq_file *f, void *v)
 }
 
 
-extern int show_interrupts(struct seq_file *f, void *v); /* In arch code */
 static struct seq_operations int_seq_ops = {
 	.start = int_seq_start,
 	.next  = int_seq_next,

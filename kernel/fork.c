@@ -1399,7 +1399,7 @@ fork_out:
 	return ERR_PTR(retval);
 }
 
-noinline struct pt_regs * __devinit __attribute__((weak)) idle_regs(struct pt_regs *regs)
+noinline struct pt_regs * __cpuinit __attribute__((weak)) idle_regs(struct pt_regs *regs)
 {
 	memset(regs, 0, sizeof(struct pt_regs));
 	return regs;
@@ -1510,7 +1510,7 @@ long do_fork(unsigned long clone_flags,
 		if (!(clone_flags & CLONE_STOPPED))
 			wake_up_new_task(p, clone_flags);
 		else
-			p->state = TASK_STOPPED;
+			__set_task_state(p, TASK_STOPPED);
 
 		if (unlikely (trace)) {
 			current->ptrace_message = nr;

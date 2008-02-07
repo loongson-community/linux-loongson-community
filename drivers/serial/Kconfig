@@ -877,15 +877,15 @@ config SERIAL_SUNHV
 	  systems.  Say Y if you want to be able to use this device.
 
 config SERIAL_IP22_ZILOG
-	tristate "IP22 Zilog8530 serial support"
-	depends on SGI_IP22
+	tristate "SGI Zilog8530 serial support"
+	depends on SGI_HAS_ZILOG
 	select SERIAL_CORE
 	help
-	  This driver supports the Zilog8530 serial ports found on SGI IP22
+	  This driver supports the Zilog8530 serial ports found on SGI
 	  systems.  Say Y or M if you want to be able to these serial ports.
 
 config SERIAL_IP22_ZILOG_CONSOLE
-	bool "Console on IP22 Zilog8530 serial port"
+	bool "Console on SGI Zilog8530 serial port"
 	depends on SERIAL_IP22_ZILOG=y
 	select SERIAL_CORE_CONSOLE
 
@@ -1317,5 +1317,20 @@ config SERIAL_QE
 	help
 	  This driver supports the QE serial ports on Freescale embedded
 	  PowerPC that contain a QUICC Engine.
+
+config SERIAL_SC26XX
+	tristate "SC2681/SC2692 serial port support"
+	depends on SNI_RM
+	select SERIAL_CORE
+	help
+	  This is a driver for the onboard serial ports of
+	  older RM400 machines.
+
+config SERIAL_SC26XX_CONSOLE
+	bool "Console on SC2681/SC2692 serial port"
+	depends on SERIAL_SC26XX
+	select SERIAL_CORE_CONSOLE
+	help
+	  Support for Console on SC2681/SC2692 serial ports.
 
 endmenu

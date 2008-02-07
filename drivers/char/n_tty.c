@@ -695,16 +695,15 @@ static inline void n_tty_receive_char(struct tty_struct *tty, unsigned char c)
 		return;
 	}
 	
-	if (tty->stopped && !tty->flow_stopped &&
-	    I_IXON(tty) && I_IXANY(tty)) {
-		start_tty(tty);
-		return;
-	}
-	
 	if (I_ISTRIP(tty))
 		c &= 0x7f;
 	if (I_IUCLC(tty) && L_IEXTEN(tty))
 		c=tolower(c);
+
+	if (tty->stopped && !tty->flow_stopped && I_IXON(tty) &&
+	    ((I_IXANY(tty) && c != START_CHAR(tty) && c != STOP_CHAR(tty)) ||
+	     c == INTR_CHAR(tty) || c == QUIT_CHAR(tty)))
+		start_tty(tty);
 
 	if (tty->closing) {
 		if (I_IXON(tty)) {
@@ -769,7 +768,21 @@ static inline void n_tty_receive_char(struct tty_struct *tty, unsigned char c)
 		signal = SIGTSTP;
 		if (c == SUSP_CHAR(tty)) {
 send_signal:
-			isig(signal, tty, 0);
+			/*
+			 * Echo character, and then send the signal.
+			 * Note that we do not use isig() here because we want
+			 * the order to be:
+			 * 1) flush, 2) echo, 3) signal
+			 */
+			if (!L_NOFLSH(tty)) {
+				n_tty_flush_buffer(tty);
+				if (tty->driver->flush_buffer)
+					tty->driver->flush_buffer(tty);
+			}
+			if (L_ECHO(tty))
+				echo_char(c, tty);
+			if (tty->pgrp)
+				kill_pgrp(tty->pgrp, signal, 1);
 			return;
 		}
 	}

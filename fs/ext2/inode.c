@@ -286,15 +286,12 @@ static unsigned long ext2_find_near(struct inode *inode, Indirect *ind)
  *	ext2_find_goal - find a prefered place for allocation.
  *	@inode: owner
  *	@block:  block we want
- *	@chain:  chain of indirect blocks
  *	@partial: pointer to the last triple within a chain
  *
  *	Returns preferred place for a block (the goal).
  */
 
-static inline int ext2_find_goal(struct inode *inode,
-				 long block,
-				 Indirect chain[4],
+static inline int ext2_find_goal(struct inode *inode, long block,
 				 Indirect *partial)
 {
 	struct ext2_block_alloc_info *block_i;
@@ -569,7 +566,6 @@ static void ext2_splice_branch(struct inode *inode,
  *
  * `handle' can be NULL if create == 0.
  *
- * The BKL may not be held on entry here.  Be sure to take it early.
  * return > 0, # of blocks mapped or allocated.
  * return = 0, if plain lookup failed.
  * return < 0, error case.
@@ -639,7 +635,7 @@ reread:
 	if (S_ISREG(inode->i_mode) && (!ei->i_block_alloc_info))
 		ext2_init_block_alloc_info(inode);
 
-	goal = ext2_find_goal(inode, iblock, chain, partial);
+	goal = ext2_find_goal(inode, iblock, partial);
 
 	/* the number of blocks need to allocate for [d,t]indirect blocks */
 	indirect_blks = (chain + depth) - partial - 1;
