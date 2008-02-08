@@ -220,12 +220,13 @@ void __init do_init_bootmem(void)
 				     lmb_size_bytes(&lmb.reserved, i) - 1;
 		if (addr < total_lowmem)
 			reserve_bootmem(lmb.reserved.region[i].base,
-					lmb_size_bytes(&lmb.reserved, i));
+					lmb_size_bytes(&lmb.reserved, i),
+					BOOTMEM_DEFAULT);
 		else if (lmb.reserved.region[i].base < total_lowmem) {
 			unsigned long adjusted_size = total_lowmem -
 				      lmb.reserved.region[i].base;
 			reserve_bootmem(lmb.reserved.region[i].base,
-					adjusted_size);
+					adjusted_size, BOOTMEM_DEFAULT);
 		}
 	}
 #else
@@ -234,7 +235,8 @@ void __init do_init_bootmem(void)
 	/* reserve the sections we're already using */
 	for (i = 0; i < lmb.reserved.cnt; i++)
 		reserve_bootmem(lmb.reserved.region[i].base,
-				lmb_size_bytes(&lmb.reserved, i));
+				lmb_size_bytes(&lmb.reserved, i),
+				BOOTMEM_DEFAULT);
 
 #endif
 	/* XXX need to clip this if using highmem? */
@@ -483,7 +485,12 @@ void update_mmu_cache(struct vm_area_struct *vma, unsigned long address,
 		 */
 		_tlbie(address, 0 /* 8xx doesn't care about PID */);
 #endif
-		if (!PageReserved(page)
+		/* The _PAGE_USER test should really be _PAGE_EXEC, but
+		 * older glibc versions execute some code from no-exec
+		 * pages, which for now we are supporting.  If exec-only
+		 * pages are ever implemented, this will have to change.
+		 */
+		if (!PageReserved(page) && (pte_val(pte) & _PAGE_USER)
 		    && !test_bit(PG_arch_1, &page->flags)) {
 			if (vma->vm_mm == current->active_mm) {
 				__flush_dcache_icache((void *) address);

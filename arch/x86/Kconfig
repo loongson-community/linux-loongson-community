@@ -52,6 +52,10 @@ config HAVE_LATENCYTOP_SUPPORT
 config SEMAPHORE_SLEEPERS
 	def_bool y
 
+config FAST_CMPXCHG_LOCAL
+	bool
+	default y
+
 config MMU
 	def_bool y
 
@@ -104,6 +108,9 @@ config GENERIC_CALIBRATE_DELAY
 config GENERIC_TIME_VSYSCALL
 	bool
 	default X86_64
+
+config ARCH_HAS_CPU_RELAX
+	def_bool y
 
 config HAVE_SETUP_PER_CPU_AREA
 	def_bool X86_64
@@ -631,7 +638,6 @@ config TOSHIBA
 
 config I8K
 	tristate "Dell laptop support"
-	depends on X86_32
 	---help---
 	  This adds a driver to safely access the System Management Mode
 	  of the CPU on the Dell Inspiron 8000. The System Management Mode

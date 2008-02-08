@@ -194,17 +194,6 @@ config MOXA_INTELLIO
 	  module will be called moxa.
 
 config MOXA_SMARTIO
-	tristate "Moxa SmartIO support (OBSOLETE)"
-	depends on SERIAL_NONSTANDARD
-	help
-	  Say Y here if you have a Moxa SmartIO multiport serial card.
-
-	  This driver can also be built as a module ( = code which can be
-	  inserted in and removed from the running kernel whenever you want).
-	  The module will be called mxser. If you want to do that, say M
-	  here.
-
-config MOXA_SMARTIO_NEW
 	tristate "Moxa SmartIO support v. 2.0"
 	depends on SERIAL_NONSTANDARD && (PCI || EISA || ISA)
 	help
@@ -215,7 +204,7 @@ config MOXA_SMARTIO_NEW
 	  changes finally resulting in PCI probing.
 
 	  This driver can also be built as a module. The module will be called
-	  mxser_new. If you want to do that, say M here.
+	  mxser. If you want to do that, say M here.
 
 config ISI
 	tristate "Multi-Tech multiport card support (EXPERIMENTAL)"
@@ -840,6 +829,16 @@ config DTLK
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called dtlk.
+
+config XILINX_HWICAP
+	tristate "Xilinx HWICAP Support"
+	depends on XILINX_VIRTEX
+	help
+	  This option enables support for Xilinx Internal Configuration
+	  Access Port (ICAP) driver.  The ICAP is used on Xilinx Virtex
+	  FPGA platforms to partially reconfigure the FPGA at runtime.
+
+	  If unsure, say N.
 
 config R3964
 	tristate "Siemens R3964 line discipline"
