@@ -8,6 +8,7 @@ mainmenu "Linux/SuperH Kernel Configuration"
 config SUPERH
 	def_bool y
 	select EMBEDDED
+	select HAVE_IDE
 	select HAVE_OPROFILE
 	help
 	  The SuperH is a RISC processor targeted for use in embedded systems
@@ -87,6 +88,9 @@ config ARCH_HAS_ILOG2_U64
 	def_bool n
 
 config ARCH_NO_VIRT_TO_BUS
+	def_bool y
+
+config ARCH_SUPPORTS_AOUT
 	def_bool y
 
 source "init/Kconfig"

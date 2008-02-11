@@ -13,6 +13,15 @@ menuconfig MISC_DEVICES
 
 if MISC_DEVICES
 
+config ATMEL_PWM
+	tristate "Atmel AT32/AT91 PWM support"
+	depends on AVR32 || ARCH_AT91
+	help
+	  This option enables device driver support for the PWM channels
+	  on certain Atmel prcoessors.  Pulse Width Modulation is used for
+	  purposes including software controlled power-efficent backlights
+	  on LCD displays, motor control, and waveform generation.
+
 config IBM_ASM
 	tristate "Device driver for IBM RSA service processor"
 	depends on X86 && PCI && INPUT && EXPERIMENTAL
@@ -97,13 +106,16 @@ config ACER_WMI
 	depends on X86
 	depends on EXPERIMENTAL
 	depends on ACPI
-	depends on ACPI_WMI
 	depends on LEDS_CLASS
 	depends on BACKLIGHT_CLASS_DEVICE
+	select ACPI_WMI
 	---help---
 	  This is a driver for newer Acer (and Wistron) laptops. It adds
 	  wireless radio and bluetooth control, and on some laptops,
 	  exposes the mail LED and LCD backlight.
+
+	  For more information about this driver see
+	  <file:Documentation/laptops/acer-wmi.txt>
 
 	  If you have an ACPI-WMI compatible Acer/ Wistron laptop, say Y or M
 	  here.
@@ -143,10 +155,11 @@ config FUJITSU_LAPTOP
 	  If you have a Fujitsu laptop, say Y or M here.
 
 config TC1100_WMI
-	tristate "HP Compaq TC1100 Tablet WMI Extras"
+	tristate "HP Compaq TC1100 Tablet WMI Extras (EXPERIMENTAL)"
 	depends on X86 && !X86_64
+	depends on EXPERIMENTAL
 	depends on ACPI
-	depends on ACPI_WMI
+	select ACPI_WMI
 	---help---
 	  This is a driver for the WMI extensions (wireless and bluetooth power
 	  control) of the HP Compaq TC1100 tablet.
@@ -183,7 +196,7 @@ config SONY_LAPTOP
 	  screen brightness control, Fn keys and allows powering on/off some
 	  devices.
 
-	  Read <file:Documentation/sony-laptop.txt> for more information.
+	  Read <file:Documentation/laptops/sony-laptop.txt> for more information.
 
 config SONYPI_COMPAT
 	bool "Sonypi compatibility"
@@ -202,8 +215,9 @@ config THINKPAD_ACPI
 	  This is a driver for the IBM and Lenovo ThinkPad laptops. It adds
 	  support for Fn-Fx key combinations, Bluetooth control, video
 	  output switching, ThinkLight control, UltraBay eject and more.
-	  For more information about this driver see 
-	  <file:Documentation/thinkpad-acpi.txt> and <http://ibm-acpi.sf.net/> .
+	  For more information about this driver see
+	  <file:Documentation/laptops/thinkpad-acpi.txt> and
+	  <http://ibm-acpi.sf.net/> .
 
 	  This driver was formerly known as ibm-acpi.
 
@@ -279,6 +293,7 @@ config ATMEL_SSC
 config INTEL_MENLOW
 	tristate "Thermal Management driver for Intel menlow platform"
 	depends on ACPI_THERMAL
+	depends on X86
 	---help---
 	  ACPI thermal management enhancement driver on
 	  Intel Menlow platform.

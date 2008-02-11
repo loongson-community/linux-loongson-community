@@ -320,6 +320,50 @@ void mnt_unpin(struct vfsmount *mnt)
 
 EXPORT_SYMBOL(mnt_unpin);
 
+static inline void mangle(struct seq_file *m, const char *s)
+{
+	seq_escape(m, s, " \t\n\\");
+}
+
+/*
+ * Simple .show_options callback for filesystems which don't want to
+ * implement more complex mount option showing.
+ *
+ * See also save_mount_options().
+ */
+int generic_show_options(struct seq_file *m, struct vfsmount *mnt)
+{
+	const char *options = mnt->mnt_sb->s_options;
+
+	if (options != NULL && options[0]) {
+		seq_putc(m, ',');
+		mangle(m, options);
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(generic_show_options);
+
+/*
+ * If filesystem uses generic_show_options(), this function should be
+ * called from the fill_super() callback.
+ *
+ * The .remount_fs callback usually needs to be handled in a special
+ * way, to make sure, that previous options are not overwritten if the
+ * remount fails.
+ *
+ * Also note, that if the filesystem's .remount_fs function doesn't
+ * reset all options to their default value, but changes only newly
+ * given options, then the displayed options will not reflect reality
+ * any more.
+ */
+void save_mount_options(struct super_block *sb, char *options)
+{
+	kfree(sb->s_options);
+	sb->s_options = kstrdup(options, GFP_KERNEL);
+}
+EXPORT_SYMBOL(save_mount_options);
+
 /* iterator */
 static void *m_start(struct seq_file *m, loff_t *pos)
 {
@@ -339,11 +383,6 @@ static void *m_next(struct seq_file *m, void *v, loff_t *pos)
 static void m_stop(struct seq_file *m, void *v)
 {
 	up_read(&namespace_sem);
-}
-
-static inline void mangle(struct seq_file *m, const char *s)
-{
-	seq_escape(m, s, " \t\n\\");
 }
 
 static int show_vfsmnt(struct seq_file *m, void *v)
@@ -897,8 +936,9 @@ out_unlock:
 
 /*
  * recursively change the type of the mountpoint.
+ * noinline this do_mount helper to save do_mount stack space.
  */
-static int do_change_type(struct nameidata *nd, int flag)
+static noinline int do_change_type(struct nameidata *nd, int flag)
 {
 	struct vfsmount *m, *mnt = nd->mnt;
 	int recurse = flag & MS_REC;
@@ -921,8 +961,10 @@ static int do_change_type(struct nameidata *nd, int flag)
 
 /*
  * do loopback mount.
+ * noinline this do_mount helper to save do_mount stack space.
  */
-static int do_loopback(struct nameidata *nd, char *old_name, int recurse)
+static noinline int do_loopback(struct nameidata *nd, char *old_name,
+				int recurse)
 {
 	struct nameidata old_nd;
 	struct vfsmount *mnt = NULL;
@@ -971,8 +1013,9 @@ out:
  * change filesystem flags. dir should be a physical root of filesystem.
  * If you've mounted a non-root directory somewhere and want to do remount
  * on it - tough luck.
+ * noinline this do_mount helper to save do_mount stack space.
  */
-static int do_remount(struct nameidata *nd, int flags, int mnt_flags,
+static noinline int do_remount(struct nameidata *nd, int flags, int mnt_flags,
 		      void *data)
 {
 	int err;
@@ -1007,7 +1050,10 @@ static inline int tree_contains_unbindable(struct vfsmount *mnt)
 	return 0;
 }
 
-static int do_move_mount(struct nameidata *nd, char *old_name)
+/*
+ * noinline this do_mount helper to save do_mount stack space.
+ */
+static noinline int do_move_mount(struct nameidata *nd, char *old_name)
 {
 	struct nameidata old_nd, parent_nd;
 	struct vfsmount *p;
@@ -1082,8 +1128,9 @@ out:
 /*
  * create a new mount for userspace and request it to be added into the
  * namespace's tree
+ * noinline this do_mount helper to save do_mount stack space.
  */
-static int do_new_mount(struct nameidata *nd, char *type, int flags,
+static noinline int do_new_mount(struct nameidata *nd, char *type, int flags,
 			int mnt_flags, char *name, void *data)
 {
 	struct vfsmount *mnt;

@@ -87,6 +87,7 @@ config ARCH_NO_VIRT_TO_BUS
 config PPC
 	bool
 	default y
+	select HAVE_IDE
 	select HAVE_OPROFILE
 	select HAVE_KPROBES
 
@@ -270,6 +271,12 @@ config HOTPLUG_CPU
 	  Say N if you are unsure.
 
 config ARCH_ENABLE_MEMORY_HOTPLUG
+	def_bool y
+
+config ARCH_HAS_WALK_MEMORY
+	def_bool y
+
+config ARCH_ENABLE_MEMORY_HOTREMOVE
 	def_bool y
 
 config KEXEC

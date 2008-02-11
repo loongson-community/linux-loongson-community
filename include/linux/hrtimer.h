@@ -78,7 +78,7 @@ enum hrtimer_cb_mode {
  * as otherwise the timer could be removed before the softirq code finishes the
  * the handling of the timer.
  *
- * The HRTIMER_STATE_ENQUEUE bit is always or'ed to the current state to
+ * The HRTIMER_STATE_ENQUEUED bit is always or'ed to the current state to
  * preserve the HRTIMER_STATE_CALLBACK bit in the above scenario.
  *
  * All state transitions are protected by cpu_base->lock.
@@ -316,7 +316,7 @@ static inline u64 hrtimer_forward_now(struct hrtimer *timer,
 
 /* Precise sleep: */
 extern long hrtimer_nanosleep(struct timespec *rqtp,
-			      struct timespec *rmtp,
+			      struct timespec __user *rmtp,
 			      const enum hrtimer_mode mode,
 			      const clockid_t clockid);
 extern long hrtimer_nanosleep_restart(struct restart_block *restart_block);
