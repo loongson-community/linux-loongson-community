@@ -370,8 +370,6 @@ static inline void local_r4k_flush_cache_range(void * args)
 		return;
 
 	r4k_blast_dcache();
-	if (exec && !cpu_has_ic_fills_f_dc)
-		r4k_blast_dcache();
 	if (exec)
 		r4k_blast_icache();
 }
