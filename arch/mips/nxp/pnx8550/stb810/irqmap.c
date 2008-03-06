@@ -1,5 +1,5 @@
 /*
- *  Philips STB810 board irqmap.
+ *  NXP STB810 board irqmap.
  *
  *  Author: MontaVista Software, Inc.
  *          source@mvista.com

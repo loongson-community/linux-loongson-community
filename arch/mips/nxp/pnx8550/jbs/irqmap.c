@@ -1,5 +1,5 @@
 /*
- *  Philips JBS board irqmap.
+ *  NXP JBS board irqmap.
  *
  *  Copyright 2005 Embedded Alley Solutions, Inc
  *  source@embeddealley.com
