@@ -672,8 +672,8 @@ asmlinkage void do_bp(struct pt_regs *regs)
 	 * We handle both cases with a simple heuristics.  --macro
 	 */
 	bcode = ((opcode >> 6) & ((1 << 20) - 1));
-	if (bcode < (1 << 10))
-		bcode <<= 10;
+	if (bcode >= (1 << 10))
+		bcode >>= 10;
 
 	/*
 	 * (A short test says that IRIX 5.3 sends SIGTRAP for all break
@@ -682,8 +682,8 @@ asmlinkage void do_bp(struct pt_regs *regs)
 	 * But should we continue the brokenness???  --macro
 	 */
 	switch (bcode) {
-	case BRK_OVERFLOW << 10:
-	case BRK_DIVZERO << 10:
+	case BRK_OVERFLOW:
+	case BRK_DIVZERO:
 		die_if_kernel("Break instruction in kernel code", regs);
 		if (bcode == (BRK_DIVZERO << 10))
 			info.si_code = FPE_INTDIV;
@@ -695,7 +695,8 @@ asmlinkage void do_bp(struct pt_regs *regs)
 		force_sig_info(SIGFPE, &info, current);
 		break;
 	case BRK_BUG:
-		die("Kernel bug detected", regs);
+		die_if_kernel("Kernel bug detected", regs);
+		force_sig(SIGTRAP, current);
 		break;
 	default:
 		die_if_kernel("Break instruction in kernel code", regs);
@@ -739,7 +740,8 @@ asmlinkage void do_tr(struct pt_regs *regs)
 		force_sig_info(SIGFPE, &info, current);
 		break;
 	case BRK_BUG:
-		die("Kernel bug detected", regs);
+		die_if_kernel("Kernel bug detected", regs);
+		force_sig(SIGTRAP, current);
 		break;
 	default:
 		die_if_kernel("Trap instruction in kernel code", regs);
