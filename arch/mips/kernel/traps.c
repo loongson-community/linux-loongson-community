@@ -657,10 +657,45 @@ asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 	force_sig_info(SIGFPE, &info, current);
 }
 
+static void do_trap_or_bp(struct pt_regs *regs, unsigned int code, int trap)
+{
+	const char *str = trap ? "Trap" : "Break";
+	siginfo_t info;
+	char b[30];
+
+	/*
+	 * A short test says that IRIX 5.3 sends SIGTRAP for all trap
+	 * insns, even for trap and break codes that indicate arithmetic
+	 * failures.  Weird ...
+	 * But should we continue the brokenness???  --macro
+	 */
+	switch (code) {
+	case BRK_OVERFLOW:
+	case BRK_DIVZERO:
+		scnprintf(b, sizeof(b), "%s instruction in kernel code", str);
+		die_if_kernel(b, regs);
+		if (code == BRK_DIVZERO)
+			info.si_code = FPE_INTDIV;
+		else
+			info.si_code = FPE_INTOVF;
+		info.si_signo = SIGFPE;
+		info.si_errno = 0;
+		info.si_addr = (void __user *) regs->cp0_epc;
+		force_sig_info(SIGFPE, &info, current);
+		break;
+	case BRK_BUG:
+		die_if_kernel("Kernel bug detected", regs);
+		force_sig(SIGTRAP, current);
+		break;
+	default:
+		scnprintf(b, sizeof(b), "%s instruction in kernel code", str);
+		force_sig(SIGTRAP, current);
+	}
+}
+
 asmlinkage void do_bp(struct pt_regs *regs)
 {
 	unsigned int opcode, bcode;
-	siginfo_t info;
 
 	if (__get_user(opcode, (unsigned int __user *) exception_epc(regs)))
 		goto out_sigsegv;
@@ -675,33 +710,7 @@ asmlinkage void do_bp(struct pt_regs *regs)
 	if (bcode >= (1 << 10))
 		bcode >>= 10;
 
-	/*
-	 * (A short test says that IRIX 5.3 sends SIGTRAP for all break
-	 * insns, even for break codes that indicate arithmetic failures.
-	 * Weird ...)
-	 * But should we continue the brokenness???  --macro
-	 */
-	switch (bcode) {
-	case BRK_OVERFLOW:
-	case BRK_DIVZERO:
-		die_if_kernel("Break instruction in kernel code", regs);
-		if (bcode == (BRK_DIVZERO << 10))
-			info.si_code = FPE_INTDIV;
-		else
-			info.si_code = FPE_INTOVF;
-		info.si_signo = SIGFPE;
-		info.si_errno = 0;
-		info.si_addr = (void __user *) regs->cp0_epc;
-		force_sig_info(SIGFPE, &info, current);
-		break;
-	case BRK_BUG:
-		die_if_kernel("Kernel bug detected", regs);
-		force_sig(SIGTRAP, current);
-		break;
-	default:
-		die_if_kernel("Break instruction in kernel code", regs);
-		force_sig(SIGTRAP, current);
-	}
+	do_trap_or_bp(regs, bcode, 0);
 	return;
 
 out_sigsegv:
@@ -711,7 +720,6 @@ out_sigsegv:
 asmlinkage void do_tr(struct pt_regs *regs)
 {
 	unsigned int opcode, tcode = 0;
-	siginfo_t info;
 
 	if (__get_user(opcode, (unsigned int __user *) exception_epc(regs)))
 		goto out_sigsegv;
@@ -720,33 +728,7 @@ asmlinkage void do_tr(struct pt_regs *regs)
 	if (!(opcode & OPCODE))
 		tcode = ((opcode >> 6) & ((1 << 10) - 1));
 
-	/*
-	 * (A short test says that IRIX 5.3 sends SIGTRAP for all trap
-	 * insns, even for trap codes that indicate arithmetic failures.
-	 * Weird ...)
-	 * But should we continue the brokenness???  --macro
-	 */
-	switch (tcode) {
-	case BRK_OVERFLOW:
-	case BRK_DIVZERO:
-		die_if_kernel("Trap instruction in kernel code", regs);
-		if (tcode == BRK_DIVZERO)
-			info.si_code = FPE_INTDIV;
-		else
-			info.si_code = FPE_INTOVF;
-		info.si_signo = SIGFPE;
-		info.si_errno = 0;
-		info.si_addr = (void __user *) regs->cp0_epc;
-		force_sig_info(SIGFPE, &info, current);
-		break;
-	case BRK_BUG:
-		die_if_kernel("Kernel bug detected", regs);
-		force_sig(SIGTRAP, current);
-		break;
-	default:
-		die_if_kernel("Trap instruction in kernel code", regs);
-		force_sig(SIGTRAP, current);
-	}
+	do_trap_or_bp(regs, tcode, 1);
 	return;
 
 out_sigsegv:
