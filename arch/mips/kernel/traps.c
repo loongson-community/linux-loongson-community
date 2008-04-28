@@ -1379,7 +1379,7 @@ int cp0_compare_irq;
 int cp0_perfcount_irq;
 EXPORT_SYMBOL_GPL(cp0_perfcount_irq);
 
-static int __initdata noulri;
+static int __cpuinitdata noulri;
 
 static int __init ulri_disable(char *s)
 {
