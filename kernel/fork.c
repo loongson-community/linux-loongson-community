@@ -521,7 +521,7 @@ void mm_release(struct task_struct *tsk, struct mm_struct *mm)
  * Allocate a new mm structure and copy contents from the
  * mm structure of the passed in task structure.
  */
-static struct mm_struct *dup_mm(struct task_struct *tsk)
+struct mm_struct *dup_mm(struct task_struct *tsk)
 {
 	struct mm_struct *mm, *oldmm = current->mm;
 	int err;
@@ -1787,7 +1787,7 @@ bad_unshare_out:
 int unshare_files(struct files_struct **displaced)
 {
 	struct task_struct *task = current;
-	struct files_struct *copy;
+	struct files_struct *copy = NULL;
 	int error;
 
 	error = unshare_fd(CLONE_FILES, &copy);
