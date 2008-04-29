@@ -91,6 +91,8 @@ endif
 obj-$(CONFIG_SCx200)		+= scx200.o
 scx200-y			+= scx200_32.o
 
+obj-$(CONFIG_OLPC)		+= olpc.o
+
 ###
 # 64 bit specific files
 ifeq ($(CONFIG_X86_64),y)
@@ -101,4 +103,6 @@ ifeq ($(CONFIG_X86_64),y)
         obj-$(CONFIG_GART_IOMMU)	+= pci-gart_64.o aperture_64.o
         obj-$(CONFIG_CALGARY_IOMMU)	+= pci-calgary_64.o tce_64.o
         obj-$(CONFIG_SWIOTLB)		+= pci-swiotlb_64.o
+
+        obj-$(CONFIG_PCI_MMCONFIG)	+= mmconf-fam10h_64.o
 endif

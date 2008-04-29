@@ -735,6 +735,7 @@ static int exec_mmap(struct mm_struct *mm)
 	tsk->active_mm = mm;
 	activate_mm(active_mm, mm);
 	task_unlock(tsk);
+	mm_update_next_owner(mm);
 	arch_pick_mmap_layout(mm);
 	if (old_mm) {
 		up_read(&old_mm->mmap_sem);
@@ -962,6 +963,8 @@ int flush_old_exec(struct linux_binprm * bprm)
 	retval = de_thread(current);
 	if (retval)
 		goto out;
+
+	set_mm_exe_file(bprm->mm, bprm->file);
 
 	/*
 	 * Release all of the old mmap stuff
@@ -1268,7 +1271,6 @@ int do_execve(char * filename,
 {
 	struct linux_binprm *bprm;
 	struct file *file;
-	unsigned long env_p;
 	struct files_struct *displaced;
 	int retval;
 
@@ -1321,11 +1323,9 @@ int do_execve(char * filename,
 	if (retval < 0)
 		goto out;
 
-	env_p = bprm->p;
 	retval = copy_strings(bprm->argc, argv, bprm);
 	if (retval < 0)
 		goto out;
-	bprm->argv_len = env_p - bprm->p;
 
 	retval = search_binary_handler(bprm,regs);
 	if (retval >= 0) {

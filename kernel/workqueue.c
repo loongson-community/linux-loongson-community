@@ -158,8 +158,8 @@ static void __queue_work(struct cpu_workqueue_struct *cwq,
  *
  * Returns 0 if @work was already on a queue, non-zero otherwise.
  *
- * We queue the work to the CPU it was submitted, but there is no
- * guarantee that it will be processed by that CPU.
+ * We queue the work to the CPU on which it was submitted, but if the CPU dies
+ * it can be processed by another CPU.
  */
 int queue_work(struct workqueue_struct *wq, struct work_struct *work)
 {
@@ -772,7 +772,7 @@ struct workqueue_struct *__create_workqueue_key(const char *name,
 }
 EXPORT_SYMBOL_GPL(__create_workqueue_key);
 
-static void cleanup_workqueue_thread(struct cpu_workqueue_struct *cwq, int cpu)
+static void cleanup_workqueue_thread(struct cpu_workqueue_struct *cwq)
 {
 	/*
 	 * Our caller is either destroy_workqueue() or CPU_DEAD,
@@ -808,19 +808,16 @@ static void cleanup_workqueue_thread(struct cpu_workqueue_struct *cwq, int cpu)
 void destroy_workqueue(struct workqueue_struct *wq)
 {
 	const cpumask_t *cpu_map = wq_cpu_map(wq);
-	struct cpu_workqueue_struct *cwq;
 	int cpu;
 
 	get_online_cpus();
 	spin_lock(&workqueue_lock);
 	list_del(&wq->list);
 	spin_unlock(&workqueue_lock);
-	put_online_cpus();
 
-	for_each_cpu_mask(cpu, *cpu_map) {
-		cwq = per_cpu_ptr(wq->cpu_wq, cpu);
-		cleanup_workqueue_thread(cwq, cpu);
-	}
+	for_each_cpu_mask(cpu, *cpu_map)
+		cleanup_workqueue_thread(per_cpu_ptr(wq->cpu_wq, cpu));
+	put_online_cpus();
 
 	free_percpu(wq->cpu_wq);
 	kfree(wq);
@@ -838,7 +835,6 @@ static int __devinit workqueue_cpu_callback(struct notifier_block *nfb,
 	action &= ~CPU_TASKS_FROZEN;
 
 	switch (action) {
-
 	case CPU_UP_PREPARE:
 		cpu_set(cpu, cpu_populated_map);
 	}
@@ -861,9 +857,15 @@ static int __devinit workqueue_cpu_callback(struct notifier_block *nfb,
 		case CPU_UP_CANCELED:
 			start_workqueue_thread(cwq, -1);
 		case CPU_DEAD:
-			cleanup_workqueue_thread(cwq, cpu);
+			cleanup_workqueue_thread(cwq);
 			break;
 		}
+	}
+
+	switch (action) {
+	case CPU_UP_CANCELED:
+	case CPU_DEAD:
+		cpu_clear(cpu, cpu_populated_map);
 	}
 
 	return NOTIFY_OK;

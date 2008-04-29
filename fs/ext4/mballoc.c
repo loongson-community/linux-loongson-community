@@ -2449,17 +2449,10 @@ static void ext4_mb_history_init(struct super_block *sb)
 	int i;
 
 	if (sbi->s_mb_proc != NULL) {
-		struct proc_dir_entry *p;
-		p = create_proc_entry("mb_history", S_IRUGO, sbi->s_mb_proc);
-		if (p) {
-			p->proc_fops = &ext4_mb_seq_history_fops;
-			p->data = sb;
-		}
-		p = create_proc_entry("mb_groups", S_IRUGO, sbi->s_mb_proc);
-		if (p) {
-			p->proc_fops = &ext4_mb_seq_groups_fops;
-			p->data = sb;
-		}
+		proc_create_data("mb_history", S_IRUGO, sbi->s_mb_proc,
+				 &ext4_mb_seq_history_fops, sb);
+		proc_create_data("mb_groups", S_IRUGO, sbi->s_mb_proc,
+				 &ext4_mb_seq_groups_fops, sb);
 	}
 
 	sbi->s_mb_history_max = 1000;
@@ -2867,7 +2860,6 @@ static void ext4_mb_free_committed_blocks(struct super_block *sb)
 	mb_debug("freed %u blocks in %u structures\n", count, count2);
 }
 
-#define EXT4_ROOT			"ext4"
 #define EXT4_MB_STATS_NAME		"stats"
 #define EXT4_MB_MAX_TO_SCAN_NAME	"max_to_scan"
 #define EXT4_MB_MIN_TO_SCAN_NAME	"min_to_scan"
@@ -3007,9 +2999,9 @@ int __init init_ext4_mballoc(void)
 		return -ENOMEM;
 	}
 #ifdef CONFIG_PROC_FS
-	proc_root_ext4 = proc_mkdir(EXT4_ROOT, proc_root_fs);
+	proc_root_ext4 = proc_mkdir("fs/ext4", NULL);
 	if (proc_root_ext4 == NULL)
-		printk(KERN_ERR "EXT4-fs: Unable to create %s\n", EXT4_ROOT);
+		printk(KERN_ERR "EXT4-fs: Unable to create fs/ext4\n");
 #endif
 	return 0;
 }
@@ -3020,7 +3012,7 @@ void exit_ext4_mballoc(void)
 	kmem_cache_destroy(ext4_pspace_cachep);
 	kmem_cache_destroy(ext4_ac_cachep);
 #ifdef CONFIG_PROC_FS
-	remove_proc_entry(EXT4_ROOT, proc_root_fs);
+	remove_proc_entry("fs/ext4", NULL);
 #endif
 }
 

@@ -752,11 +752,13 @@ W:	http://atmelwlandriver.sourceforge.net/
 S:	Maintained
 
 AUDIT SUBSYSTEM
-P:	David Woodhouse
-M:	dwmw2@infradead.org
+P:	Al Viro
+M:	viro@zeniv.linux.org.uk
+P:	Eric Paris
+M:	eparis@redhat.com
 L:	linux-audit@redhat.com (subscribers-only)
 W:	http://people.redhat.com/sgrubb/audit/
-T:	git kernel.org:/pub/scm/linux/kernel/git/dwmw2/audit-2.6.git
+T:	git git.kernel.org/pub/scm/linux/kernel/git/viro/audit-current.git
 S:	Maintained
 
 AUXILIARY DISPLAY DRIVERS
@@ -2694,7 +2696,7 @@ P:	David Howells
 M:	dhowells@redhat.com
 P:	Koichi Yasutake
 M:	yasutake.koichi@jp.panasonic.com
-L:	linux-am33-list@redhat.com
+L:	linux-am33-list@redhat.com (moderated for non-subscribers)
 W:	ftp://ftp.redhat.com/pub/redhat/gnupro/AM33/
 S:	Maintained
 
@@ -3114,6 +3116,7 @@ P:	Jesse Barnes
 M:	jbarnes@virtuousgeek.org
 L:	linux-kernel@vger.kernel.org
 L:	linux-pci@atrey.karlin.mff.cuni.cz
+T:	git kernel.org:/pub/scm/linux/kernel/git/jbarnes/pci-2.6.git
 S:	Supported
 
 PCI HOTPLUG CORE

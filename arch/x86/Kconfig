@@ -537,9 +537,6 @@ config CALGARY_IOMMU_ENABLED_BY_DEFAULT
 	  Calgary anyway, pass 'iommu=calgary' on the kernel command line.
 	  If unsure, say Y.
 
-config IOMMU_HELPER
-	def_bool (CALGARY_IOMMU || GART_IOMMU)
-
 # need this always selected by IOMMU for the VIA workaround
 config SWIOTLB
 	bool
@@ -550,6 +547,8 @@ config SWIOTLB
 	  access 32-bits of memory can be used on systems with more than
 	  3 GB of memory. If unsure, say Y.
 
+config IOMMU_HELPER
+	def_bool (CALGARY_IOMMU || GART_IOMMU || SWIOTLB)
 
 config NR_CPUS
 	int "Maximum number of CPUs (2-255)"
@@ -1505,6 +1504,10 @@ config PCI_GODIRECT
 config PCI_GOANY
 	bool "Any"
 
+config PCI_GOOLPC
+	bool "OLPC"
+	depends on OLPC
+
 endchoice
 
 config PCI_BIOS
@@ -1514,11 +1517,16 @@ config PCI_BIOS
 # x86-64 doesn't support PCI BIOS access from long mode so always go direct.
 config PCI_DIRECT
 	def_bool y
-	depends on PCI && (X86_64 || (PCI_GODIRECT || PCI_GOANY) || X86_VISWS)
+	depends on PCI && (X86_64 || (PCI_GODIRECT || PCI_GOANY || PCI_GOOLPC) || X86_VISWS)
 
 config PCI_MMCONFIG
 	def_bool y
 	depends on X86_32 && PCI && ACPI && (PCI_GOMMCONFIG || PCI_GOANY)
+
+config PCI_OLPC
+	bool
+	depends on PCI && PCI_GOOLPC
+	default y
 
 config PCI_DOMAINS
 	def_bool y
@@ -1638,6 +1646,13 @@ config GEODE_MFGPT_TIMER
 	  timer(s) in the CS5535 and CS5536 companion chip for the geode.
 	  MFGPTs have a better resolution and max interval than the
 	  generic PIT, and are suitable for use as high-res timers.
+
+config OLPC
+	bool "One Laptop Per Child support"
+	default n
+	help
+	  Add support for detecting the unique features of the OLPC
+	  XO hardware.
 
 endif # X86_32
 

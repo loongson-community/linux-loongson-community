@@ -574,8 +574,8 @@ static int smack_inode_getattr(struct vfsmount *mnt, struct dentry *dentry)
  *
  * Returns 0 if access is permitted, an error code otherwise
  */
-static int smack_inode_setxattr(struct dentry *dentry, char *name,
-				void *value, size_t size, int flags)
+static int smack_inode_setxattr(struct dentry *dentry, const char *name,
+				const void *value, size_t size, int flags)
 {
 	int rc = 0;
 
@@ -604,8 +604,8 @@ static int smack_inode_setxattr(struct dentry *dentry, char *name,
  * Set the pointer in the inode blob to the entry found
  * in the master label list.
  */
-static void smack_inode_post_setxattr(struct dentry *dentry, char *name,
-				      void *value, size_t size, int flags)
+static void smack_inode_post_setxattr(struct dentry *dentry, const char *name,
+				      const void *value, size_t size, int flags)
 {
 	struct inode_smack *isp;
 	char *nsp;
@@ -641,7 +641,7 @@ static void smack_inode_post_setxattr(struct dentry *dentry, char *name,
  *
  * Returns 0 if access is permitted, an error code otherwise
  */
-static int smack_inode_getxattr(struct dentry *dentry, char *name)
+static int smack_inode_getxattr(struct dentry *dentry, const char *name)
 {
 	return smk_curacc(smk_of_inode(dentry->d_inode), MAY_READ);
 }
@@ -655,7 +655,7 @@ static int smack_inode_getxattr(struct dentry *dentry, char *name)
  *
  * Returns 0 if access is permitted, an error code otherwise
  */
-static int smack_inode_removexattr(struct dentry *dentry, char *name)
+static int smack_inode_removexattr(struct dentry *dentry, const char *name)
 {
 	int rc = 0;
 
@@ -2406,7 +2406,7 @@ static int smack_secid_to_secctx(u32 secid, char **secdata, u32 *seclen)
  *
  * Exists for audit and networking code.
  */
-static int smack_secctx_to_secid(char *secdata, u32 seclen, u32 *secid)
+static int smack_secctx_to_secid(const char *secdata, u32 seclen, u32 *secid)
 {
 	*secid = smack_to_secid(secdata);
 	return 0;
