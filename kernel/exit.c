@@ -52,6 +52,11 @@
 
 static void exit_mm(struct task_struct * tsk);
 
+static inline int task_detached(struct task_struct *p)
+{
+	return p->exit_signal == -1;
+}
+
 static void __unhash_process(struct task_struct *p)
 {
 	nr_threads--;
@@ -160,7 +165,7 @@ repeat:
 	zap_leader = 0;
 	leader = p->group_leader;
 	if (leader != p && thread_group_empty(leader) && leader->exit_state == EXIT_ZOMBIE) {
-		BUG_ON(leader->exit_signal == -1);
+		BUG_ON(task_detached(leader));
 		do_notify_parent(leader, leader->exit_signal);
 		/*
 		 * If we were the last child thread and the leader has
@@ -170,7 +175,7 @@ repeat:
 		 * do_notify_parent() will have marked it self-reaping in
 		 * that case.
 		 */
-		zap_leader = (leader->exit_signal == -1);
+		zap_leader = task_detached(leader);
 	}
 
 	write_unlock_irq(&tasklist_lock);
@@ -329,13 +334,11 @@ void __set_special_pids(struct pid *pid)
 	pid_t nr = pid_nr(pid);
 
 	if (task_session(curr) != pid) {
-		detach_pid(curr, PIDTYPE_SID);
-		attach_pid(curr, PIDTYPE_SID, pid);
+		change_pid(curr, PIDTYPE_SID, pid);
 		set_task_session(curr, nr);
 	}
 	if (task_pgrp(curr) != pid) {
-		detach_pid(curr, PIDTYPE_PGID);
-		attach_pid(curr, PIDTYPE_PGID, pid);
+		change_pid(curr, PIDTYPE_PGID, pid);
 		set_task_pgrp(curr, nr);
 	}
 }
@@ -693,7 +696,7 @@ reparent_thread(struct task_struct *p, struct task_struct *father, int traced)
 	if (unlikely(traced)) {
 		/* Preserve ptrace links if someone else is tracing this child.  */
 		list_del_init(&p->ptrace_list);
-		if (p->parent != p->real_parent)
+		if (ptrace_reparented(p))
 			list_add(&p->ptrace_list, &p->real_parent->ptrace_children);
 	} else {
 		/* If this child is being traced, then we're the one tracing it
@@ -717,18 +720,18 @@ reparent_thread(struct task_struct *p, struct task_struct *father, int traced)
 	/* If this is a threaded reparent there is no need to
 	 * notify anyone anything has happened.
 	 */
-	if (p->real_parent->group_leader == father->group_leader)
+	if (same_thread_group(p->real_parent, father))
 		return;
 
 	/* We don't want people slaying init.  */
-	if (p->exit_signal != -1)
+	if (!task_detached(p))
 		p->exit_signal = SIGCHLD;
 
 	/* If we'd notified the old parent about this child's death,
 	 * also notify the new parent.
 	 */
 	if (!traced && p->exit_state == EXIT_ZOMBIE &&
-	    p->exit_signal != -1 && thread_group_empty(p))
+	    !task_detached(p) && thread_group_empty(p))
 		do_notify_parent(p, p->exit_signal);
 
 	kill_orphaned_pgrp(p, father);
@@ -781,18 +784,18 @@ static void forget_original_parent(struct task_struct *father)
 		} else {
 			/* reparent ptraced task to its real parent */
 			__ptrace_unlink (p);
-			if (p->exit_state == EXIT_ZOMBIE && p->exit_signal != -1 &&
+			if (p->exit_state == EXIT_ZOMBIE && !task_detached(p) &&
 			    thread_group_empty(p))
 				do_notify_parent(p, p->exit_signal);
 		}
 
 		/*
-		 * if the ptraced child is a zombie with exit_signal == -1
-		 * we must collect it before we exit, or it will remain
-		 * zombie forever since we prevented it from self-reap itself
-		 * while it was being traced by us, to be able to see it in wait4.
+		 * if the ptraced child is a detached zombie we must collect
+		 * it before we exit, or it will remain zombie forever since
+		 * we prevented it from self-reap itself while it was being
+		 * traced by us, to be able to see it in wait4.
 		 */
-		if (unlikely(ptrace && p->exit_state == EXIT_ZOMBIE && p->exit_signal == -1))
+		if (unlikely(ptrace && p->exit_state == EXIT_ZOMBIE && task_detached(p)))
 			list_add(&p->ptrace_list, &ptrace_dead);
 	}
 
@@ -849,29 +852,30 @@ static void exit_notify(struct task_struct *tsk, int group_dead)
 	 * we have changed execution domain as these two values started
 	 * the same after a fork.
 	 */
-	if (tsk->exit_signal != SIGCHLD && tsk->exit_signal != -1 &&
+	if (tsk->exit_signal != SIGCHLD && !task_detached(tsk) &&
 	    (tsk->parent_exec_id != tsk->real_parent->self_exec_id ||
-	     tsk->self_exec_id != tsk->parent_exec_id)
-	    && !capable(CAP_KILL))
+	     tsk->self_exec_id != tsk->parent_exec_id) &&
+	    !capable(CAP_KILL))
 		tsk->exit_signal = SIGCHLD;
-
 
 	/* If something other than our normal parent is ptracing us, then
 	 * send it a SIGCHLD instead of honoring exit_signal.  exit_signal
 	 * only has special meaning to our real parent.
 	 */
-	if (tsk->exit_signal != -1 && thread_group_empty(tsk)) {
-		int signal = tsk->parent == tsk->real_parent ? tsk->exit_signal : SIGCHLD;
+	if (!task_detached(tsk) && thread_group_empty(tsk)) {
+		int signal = ptrace_reparented(tsk) ?
+				SIGCHLD : tsk->exit_signal;
 		do_notify_parent(tsk, signal);
 	} else if (tsk->ptrace) {
 		do_notify_parent(tsk, SIGCHLD);
 	}
 
 	state = EXIT_ZOMBIE;
-	if (tsk->exit_signal == -1 && likely(!tsk->ptrace))
+	if (task_detached(tsk) && likely(!tsk->ptrace))
 		state = EXIT_DEAD;
 	tsk->exit_state = state;
 
+	/* mt-exec, de_thread() is waiting for us */
 	if (thread_group_leader(tsk) &&
 	    tsk->signal->notify_count < 0 &&
 	    tsk->signal->group_exit_task)
@@ -1115,12 +1119,13 @@ asmlinkage long sys_exit(int error_code)
 NORET_TYPE void
 do_group_exit(int exit_code)
 {
+	struct signal_struct *sig = current->signal;
+
 	BUG_ON(exit_code & 0x80); /* core dumps don't get here */
 
-	if (current->signal->flags & SIGNAL_GROUP_EXIT)
-		exit_code = current->signal->group_exit_code;
+	if (signal_group_exit(sig))
+		exit_code = sig->group_exit_code;
 	else if (!thread_group_empty(current)) {
-		struct signal_struct *const sig = current->signal;
 		struct sighand_struct *const sighand = current->sighand;
 		spin_lock_irq(&sighand->siglock);
 		if (signal_group_exit(sig))
@@ -1172,7 +1177,7 @@ static int eligible_child(enum pid_type type, struct pid *pid, int options,
 	 * Do not consider detached threads that are
 	 * not ptraced:
 	 */
-	if (p->exit_signal == -1 && !p->ptrace)
+	if (task_detached(p) && !p->ptrace)
 		return 0;
 
 	/* Wait for all children (clone and not) if __WALL is set;
@@ -1262,8 +1267,7 @@ static int wait_task_zombie(struct task_struct *p, int noreap,
 		return 0;
 	}
 
-	/* traced means p->ptrace, but not vice versa */
-	traced = (p->real_parent != p->parent);
+	traced = ptrace_reparented(p);
 
 	if (likely(!traced)) {
 		struct signal_struct *psig;
@@ -1364,9 +1368,9 @@ static int wait_task_zombie(struct task_struct *p, int noreap,
 		 * If it's still not detached after that, don't release
 		 * it now.
 		 */
-		if (p->exit_signal != -1) {
+		if (!task_detached(p)) {
 			do_notify_parent(p, p->exit_signal);
-			if (p->exit_signal != -1) {
+			if (!task_detached(p)) {
 				p->exit_state = EXIT_ZOMBIE;
 				p = NULL;
 			}

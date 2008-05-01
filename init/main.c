@@ -52,6 +52,7 @@
 #include <linux/unwind.h>
 #include <linux/buffer_head.h>
 #include <linux/debug_locks.h>
+#include <linux/debugobjects.h>
 #include <linux/lockdep.h>
 #include <linux/pid_namespace.h>
 #include <linux/device.h>
@@ -459,7 +460,7 @@ static void noinline __init_refok rest_init(void)
 	kernel_thread(kernel_init, NULL, CLONE_FS | CLONE_SIGHAND);
 	numa_default_policy();
 	pid = kernel_thread(kthreadd, NULL, CLONE_FS | CLONE_FILES);
-	kthreadd_task = find_task_by_pid(pid);
+	kthreadd_task = find_task_by_pid_ns(pid, &init_pid_ns);
 	unlock_kernel();
 
 	/*
@@ -543,6 +544,7 @@ asmlinkage void __init start_kernel(void)
 	 */
 	unwind_init();
 	lockdep_init();
+	debug_objects_early_init();
 	cgroup_init_early();
 
 	local_irq_disable();
@@ -638,6 +640,7 @@ asmlinkage void __init start_kernel(void)
 	enable_debug_pagealloc();
 	cpu_hotplug_init();
 	kmem_cache_init();
+	debug_objects_mem_init();
 	idr_init_cache();
 	setup_per_cpu_pageset();
 	numa_policy_init();
@@ -801,6 +804,8 @@ static int noinline init_post(void)
 
 	(void) sys_dup(0);
 	(void) sys_dup(0);
+
+	current->signal->flags |= SIGNAL_UNKILLABLE;
 
 	if (ramdisk_execute_command) {
 		run_init_process(ramdisk_execute_command);

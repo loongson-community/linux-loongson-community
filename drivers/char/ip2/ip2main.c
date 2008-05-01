@@ -169,7 +169,7 @@ static int Fip_firmware_size;
 static int  ip2_open(PTTY, struct file *);
 static void ip2_close(PTTY, struct file *);
 static int  ip2_write(PTTY, const unsigned char *, int);
-static void ip2_putchar(PTTY, unsigned char);
+static int  ip2_putchar(PTTY, unsigned char);
 static void ip2_flush_chars(PTTY);
 static int  ip2_write_room(PTTY);
 static int  ip2_chars_in_buf(PTTY);
@@ -355,14 +355,15 @@ have_requested_irq( char irq )
 /* the driver initialisation function and returns what it returns.            */
 /******************************************************************************/
 #ifdef MODULE
-int
-init_module(void)
+static int __init
+ip2_init_module(void)
 {
 #ifdef IP2DEBUG_INIT
 	printk (KERN_DEBUG "Loading module ...\n" );
 #endif
     return 0;
 }
+module_init(ip2_init_module);
 #endif /* MODULE */
 
 /******************************************************************************/
@@ -381,8 +382,8 @@ init_module(void)
 /* driver should be returned since it may be unloaded from memory.            */
 /******************************************************************************/
 #ifdef MODULE
-void
-cleanup_module(void)
+void __exit
+ip2_cleanup_module(void)
 {
 	int err;
 	int i;
@@ -452,6 +453,7 @@ cleanup_module(void)
 	printk (KERN_DEBUG "IP2 Unloaded\n" );
 #endif
 }
+module_exit(ip2_cleanup_module);
 #endif /* MODULE */
 
 static const struct tty_operations ip2_ops = {
@@ -1050,9 +1052,9 @@ set_irq( int boardnum, int boardIrq )
 	 * Write to FIFO; don't bother to adjust fifo capacity for this, since
 	 * board will respond almost immediately after SendMail hit.
 	 */
-	WRITE_LOCK_IRQSAVE(&pB->write_fifo_spinlock,flags);
+	write_lock_irqsave(&pB->write_fifo_spinlock, flags);
 	iiWriteBuf(pB, tempCommand, 4);
-	WRITE_UNLOCK_IRQRESTORE(&pB->write_fifo_spinlock,flags);
+	write_unlock_irqrestore(&pB->write_fifo_spinlock, flags);
 	pB->i2eUsingIrq = boardIrq;
 	pB->i2eOutMailWaiting |= MB_OUT_STUFFED;
 
@@ -1070,9 +1072,9 @@ set_irq( int boardnum, int boardIrq )
 	(CMD_OF(tempCommand))[4] = 64;	// chars
 
 	(CMD_OF(tempCommand))[5] = 87;	// HW_TEST
-	WRITE_LOCK_IRQSAVE(&pB->write_fifo_spinlock,flags);
+	write_lock_irqsave(&pB->write_fifo_spinlock, flags);
 	iiWriteBuf(pB, tempCommand, 8);
-	WRITE_UNLOCK_IRQRESTORE(&pB->write_fifo_spinlock,flags);
+	write_unlock_irqrestore(&pB->write_fifo_spinlock, flags);
 
 	CHANNEL_OF(tempCommand) = 0;
 	PTYPE_OF(tempCommand) = PTYPE_BYPASS;
@@ -1087,9 +1089,9 @@ set_irq( int boardnum, int boardIrq )
 	CMD_COUNT_OF(tempCommand) = 2;
 	(CMD_OF(tempCommand))[0] = 44;	/* get ping */
 	(CMD_OF(tempCommand))[1] = 200;	/* 200 ms */
-	WRITE_LOCK_IRQSAVE(&pB->write_fifo_spinlock,flags);
+	write_lock_irqsave(&pB->write_fifo_spinlock, flags);
 	iiWriteBuf(pB, tempCommand, 4);
-	WRITE_UNLOCK_IRQRESTORE(&pB->write_fifo_spinlock,flags);
+	write_unlock_irqrestore(&pB->write_fifo_spinlock, flags);
 #endif
 
 	iiEnableMailIrq(pB);
@@ -1268,12 +1270,12 @@ static void do_input(struct work_struct *work)
 
 	// Data input
 	if ( pCh->pTTY != NULL ) {
-		READ_LOCK_IRQSAVE(&pCh->Ibuf_spinlock,flags)
+		read_lock_irqsave(&pCh->Ibuf_spinlock, flags);
 		if (!pCh->throttled && (pCh->Ibuf_stuff != pCh->Ibuf_strip)) {
-			READ_UNLOCK_IRQRESTORE(&pCh->Ibuf_spinlock,flags)
+			read_unlock_irqrestore(&pCh->Ibuf_spinlock, flags);
 			i2Input( pCh );
 		} else
-			READ_UNLOCK_IRQRESTORE(&pCh->Ibuf_spinlock,flags)
+			read_unlock_irqrestore(&pCh->Ibuf_spinlock, flags);
 	} else {
 		ip2trace(CHANN, ITRC_INPUT, 22, 0 );
 
@@ -1614,10 +1616,8 @@ ip2_close( PTTY tty, struct file *pFile )
 
 	serviceOutgoingFifo ( pCh->pMyBord );
 
-	if ( tty->driver->flush_buffer ) 
-		tty->driver->flush_buffer(tty);
-	if ( tty->ldisc.flush_buffer )  
-		tty->ldisc.flush_buffer(tty);
+	tty_ldisc_flush(tty);
+	tty_driver_flush_buffer(tty);
 	tty->closing = 0;
 	
 	pCh->pTTY = NULL;
@@ -1717,9 +1717,9 @@ ip2_write( PTTY tty, const unsigned char *pData, int count)
 	ip2_flush_chars( tty );
 
 	/* This is the actual move bit. Make sure it does what we need!!!!! */
-	WRITE_LOCK_IRQSAVE(&pCh->Pbuf_spinlock,flags);
+	write_lock_irqsave(&pCh->Pbuf_spinlock, flags);
 	bytesSent = i2Output( pCh, pData, count);
-	WRITE_UNLOCK_IRQRESTORE(&pCh->Pbuf_spinlock,flags);
+	write_unlock_irqrestore(&pCh->Pbuf_spinlock, flags);
 
 	ip2trace (CHANN, ITRC_WRITE, ITRC_RETURN, 1, bytesSent );
 
@@ -1736,7 +1736,7 @@ ip2_write( PTTY tty, const unsigned char *pData, int count)
 /*                                                                            */
 /*                                                                            */
 /******************************************************************************/
-static void
+static int
 ip2_putchar( PTTY tty, unsigned char ch )
 {
 	i2ChanStrPtr  pCh = tty->driver_data;
@@ -1744,13 +1744,14 @@ ip2_putchar( PTTY tty, unsigned char ch )
 
 //	ip2trace (CHANN, ITRC_PUTC, ITRC_ENTER, 1, ch );
 
-	WRITE_LOCK_IRQSAVE(&pCh->Pbuf_spinlock,flags);
+	write_lock_irqsave(&pCh->Pbuf_spinlock, flags);
 	pCh->Pbuf[pCh->Pbuf_stuff++] = ch;
 	if ( pCh->Pbuf_stuff == sizeof pCh->Pbuf ) {
-		WRITE_UNLOCK_IRQRESTORE(&pCh->Pbuf_spinlock,flags);
+		write_unlock_irqrestore(&pCh->Pbuf_spinlock, flags);
 		ip2_flush_chars( tty );
 	} else
-		WRITE_UNLOCK_IRQRESTORE(&pCh->Pbuf_spinlock,flags);
+		write_unlock_irqrestore(&pCh->Pbuf_spinlock, flags);
+	return 1;
 
 //	ip2trace (CHANN, ITRC_PUTC, ITRC_RETURN, 1, ch );
 }
@@ -1770,7 +1771,7 @@ ip2_flush_chars( PTTY tty )
 	i2ChanStrPtr  pCh = tty->driver_data;
 	unsigned long flags;
 
-	WRITE_LOCK_IRQSAVE(&pCh->Pbuf_spinlock,flags);
+	write_lock_irqsave(&pCh->Pbuf_spinlock, flags);
 	if ( pCh->Pbuf_stuff ) {
 
 //		ip2trace (CHANN, ITRC_PUTC, 10, 1, strip );
@@ -1784,7 +1785,7 @@ ip2_flush_chars( PTTY tty )
 		}
 		pCh->Pbuf_stuff -= strip;
 	}
-	WRITE_UNLOCK_IRQRESTORE(&pCh->Pbuf_spinlock,flags);
+	write_unlock_irqrestore(&pCh->Pbuf_spinlock, flags);
 }
 
 /******************************************************************************/
@@ -1802,9 +1803,9 @@ ip2_write_room ( PTTY tty )
 	i2ChanStrPtr  pCh = tty->driver_data;
 	unsigned long flags;
 
-	READ_LOCK_IRQSAVE(&pCh->Pbuf_spinlock,flags);
+	read_lock_irqsave(&pCh->Pbuf_spinlock, flags);
 	bytesFree = i2OutputFree( pCh ) - pCh->Pbuf_stuff;
-	READ_UNLOCK_IRQRESTORE(&pCh->Pbuf_spinlock,flags);
+	read_unlock_irqrestore(&pCh->Pbuf_spinlock, flags);
 
 	ip2trace (CHANN, ITRC_WRITE, 11, 1, bytesFree );
 
@@ -1834,12 +1835,12 @@ ip2_chars_in_buf ( PTTY tty )
 				 pCh->Obuf_char_count + pCh->Pbuf_stuff,
 				 pCh->Obuf_char_count, pCh->Pbuf_stuff );
 #endif
-	READ_LOCK_IRQSAVE(&pCh->Obuf_spinlock,flags);
+	read_lock_irqsave(&pCh->Obuf_spinlock, flags);
 	rc =  pCh->Obuf_char_count;
-	READ_UNLOCK_IRQRESTORE(&pCh->Obuf_spinlock,flags);
-	READ_LOCK_IRQSAVE(&pCh->Pbuf_spinlock,flags);
+	read_unlock_irqrestore(&pCh->Obuf_spinlock, flags);
+	read_lock_irqsave(&pCh->Pbuf_spinlock, flags);
 	rc +=  pCh->Pbuf_stuff;
-	READ_UNLOCK_IRQRESTORE(&pCh->Pbuf_spinlock,flags);
+	read_unlock_irqrestore(&pCh->Pbuf_spinlock, flags);
 	return rc;
 }
 
@@ -1863,9 +1864,9 @@ ip2_flush_buffer( PTTY tty )
 #ifdef IP2DEBUG_WRITE
 	printk (KERN_DEBUG "IP2: flush buffer\n" );
 #endif
-	WRITE_LOCK_IRQSAVE(&pCh->Pbuf_spinlock,flags);
+	write_lock_irqsave(&pCh->Pbuf_spinlock, flags);
 	pCh->Pbuf_stuff = 0;
-	WRITE_UNLOCK_IRQRESTORE(&pCh->Pbuf_spinlock,flags);
+	write_unlock_irqrestore(&pCh->Pbuf_spinlock, flags);
 	i2FlushOutput( pCh );
 	ip2_owake(tty);
 
@@ -1951,15 +1952,15 @@ ip2_unthrottle ( PTTY tty )
 	pCh->throttled = 0;
  	i2QueueCommands(PTYPE_BYPASS, pCh, 0, 1, CMD_RESUME);
 	serviceOutgoingFifo( pCh->pMyBord );
-	READ_LOCK_IRQSAVE(&pCh->Ibuf_spinlock,flags)
+	read_lock_irqsave(&pCh->Ibuf_spinlock, flags);
 	if ( pCh->Ibuf_stuff != pCh->Ibuf_strip ) {
-		READ_UNLOCK_IRQRESTORE(&pCh->Ibuf_spinlock,flags)
+		read_unlock_irqrestore(&pCh->Ibuf_spinlock, flags);
 #ifdef IP2DEBUG_READ
 		printk (KERN_DEBUG "i2Input called from unthrottle\n" );
 #endif
 		i2Input( pCh );
 	} else
-		READ_UNLOCK_IRQRESTORE(&pCh->Ibuf_spinlock,flags)
+		read_unlock_irqrestore(&pCh->Ibuf_spinlock, flags);
 }
 
 static void
@@ -2202,9 +2203,9 @@ ip2_ioctl ( PTTY tty, struct file *pFile, UINT cmd, ULONG arg )
 	 * for masking). Caller should use TIOCGICOUNT to see which one it was
 	 */
 	case TIOCMIWAIT:
-		WRITE_LOCK_IRQSAVE(&pB->read_fifo_spinlock, flags);
+		write_lock_irqsave(&pB->read_fifo_spinlock, flags);
 		cprev = pCh->icount;	 /* note the counters on entry */
-		WRITE_UNLOCK_IRQRESTORE(&pB->read_fifo_spinlock, flags);
+		write_unlock_irqrestore(&pB->read_fifo_spinlock, flags);
 		i2QueueCommands(PTYPE_BYPASS, pCh, 100, 4, 
 						CMD_DCD_REP, CMD_CTS_REP, CMD_DSR_REP, CMD_RI_REP);
 		init_waitqueue_entry(&wait, current);
@@ -2224,9 +2225,9 @@ ip2_ioctl ( PTTY tty, struct file *pFile, UINT cmd, ULONG arg )
 				rc = -ERESTARTSYS;
 				break;
 			}
-			WRITE_LOCK_IRQSAVE(&pB->read_fifo_spinlock, flags);
+			write_lock_irqsave(&pB->read_fifo_spinlock, flags);
 			cnow = pCh->icount; /* atomic copy */
-			WRITE_UNLOCK_IRQRESTORE(&pB->read_fifo_spinlock, flags);
+			write_unlock_irqrestore(&pB->read_fifo_spinlock, flags);
 			if (cnow.rng == cprev.rng && cnow.dsr == cprev.dsr &&
 				cnow.dcd == cprev.dcd && cnow.cts == cprev.cts) {
 				rc =  -EIO; /* no change => rc */
@@ -2264,9 +2265,9 @@ ip2_ioctl ( PTTY tty, struct file *pFile, UINT cmd, ULONG arg )
 	case TIOCGICOUNT:
 		ip2trace (CHANN, ITRC_IOCTL, 11, 1, rc );
 
-		WRITE_LOCK_IRQSAVE(&pB->read_fifo_spinlock, flags);
+		write_lock_irqsave(&pB->read_fifo_spinlock, flags);
 		cnow = pCh->icount;
-		WRITE_UNLOCK_IRQRESTORE(&pB->read_fifo_spinlock, flags);
+		write_unlock_irqrestore(&pB->read_fifo_spinlock, flags);
 		p_cuser = argp;
 		rc = put_user(cnow.cts, &p_cuser->cts);
 		rc = put_user(cnow.dsr, &p_cuser->dsr);
@@ -2872,7 +2873,7 @@ ip2_ipl_ioctl ( struct inode *pInode, struct file *pFile, UINT cmd, ULONG arg )
 		case 65:	/* Board  - ip2stat */
 			if ( pB ) {
 				rc = copy_to_user(argp, pB, sizeof(i2eBordStr));
-				rc = put_user(INB(pB->i2eStatus),
+				rc = put_user(inb(pB->i2eStatus),
 					(ULONG __user *)(arg + (ULONG)(&pB->i2eStatus) - (ULONG)pB ) );
 			} else {
 				rc = -ENODEV;

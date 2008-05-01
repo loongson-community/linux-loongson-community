@@ -978,8 +978,7 @@ asmlinkage long sys_setpgid(pid_t pid, pid_t pgid)
 		goto out;
 
 	if (task_pgrp(p) != pgrp) {
-		detach_pid(p, PIDTYPE_PGID);
-		attach_pid(p, PIDTYPE_PGID, pgrp);
+		change_pid(p, PIDTYPE_PGID, pgrp);
 		set_task_pgrp(p, pid_nr(pgrp));
 	}
 
@@ -992,54 +991,67 @@ out:
 
 asmlinkage long sys_getpgid(pid_t pid)
 {
-	if (!pid)
-		return task_pgrp_vnr(current);
-	else {
-		int retval;
-		struct task_struct *p;
+	struct task_struct *p;
+	struct pid *grp;
+	int retval;
 
-		read_lock(&tasklist_lock);
-		p = find_task_by_vpid(pid);
+	rcu_read_lock();
+	if (!pid)
+		grp = task_pgrp(current);
+	else {
 		retval = -ESRCH;
-		if (p) {
-			retval = security_task_getpgid(p);
-			if (!retval)
-				retval = task_pgrp_vnr(p);
-		}
-		read_unlock(&tasklist_lock);
-		return retval;
+		p = find_task_by_vpid(pid);
+		if (!p)
+			goto out;
+		grp = task_pgrp(p);
+		if (!grp)
+			goto out;
+
+		retval = security_task_getpgid(p);
+		if (retval)
+			goto out;
 	}
+	retval = pid_vnr(grp);
+out:
+	rcu_read_unlock();
+	return retval;
 }
 
 #ifdef __ARCH_WANT_SYS_GETPGRP
 
 asmlinkage long sys_getpgrp(void)
 {
-	/* SMP - assuming writes are word atomic this is fine */
-	return task_pgrp_vnr(current);
+	return sys_getpgid(0);
 }
 
 #endif
 
 asmlinkage long sys_getsid(pid_t pid)
 {
-	if (!pid)
-		return task_session_vnr(current);
-	else {
-		int retval;
-		struct task_struct *p;
+	struct task_struct *p;
+	struct pid *sid;
+	int retval;
 
-		rcu_read_lock();
-		p = find_task_by_vpid(pid);
+	rcu_read_lock();
+	if (!pid)
+		sid = task_session(current);
+	else {
 		retval = -ESRCH;
-		if (p) {
-			retval = security_task_getsid(p);
-			if (!retval)
-				retval = task_session_vnr(p);
-		}
-		rcu_read_unlock();
-		return retval;
+		p = find_task_by_vpid(pid);
+		if (!p)
+			goto out;
+		sid = task_session(p);
+		if (!sid)
+			goto out;
+
+		retval = security_task_getsid(p);
+		if (retval)
+			goto out;
 	}
+	retval = pid_vnr(sid);
+out:
+	rcu_read_unlock();
+	return retval;
 }
 
 asmlinkage long sys_setsid(void)
@@ -1572,11 +1584,8 @@ static void k_getrusage(struct task_struct *p, int who, struct rusage *r)
 		goto out;
 	}
 
-	rcu_read_lock();
-	if (!lock_task_sighand(p, &flags)) {
-		rcu_read_unlock();
+	if (!lock_task_sighand(p, &flags))
 		return;
-	}
 
 	switch (who) {
 		case RUSAGE_BOTH:
@@ -1612,9 +1621,7 @@ static void k_getrusage(struct task_struct *p, int who, struct rusage *r)
 		default:
 			BUG();
 	}
-
 	unlock_task_sighand(p, &flags);
-	rcu_read_unlock();
 
 out:
 	cputime_to_timeval(utime, &r->ru_utime);
