@@ -1196,9 +1196,9 @@ S:	Maintained
 
 CPUSETS
 P:	Paul Jackson
-P:	Simon Derr
+P:	Paul Menage
 M:	pj@sgi.com
-M:	simon.derr@bull.net
+M:	menage@google.com
 L:	linux-kernel@vger.kernel.org
 W:	http://www.bullopensource.org/cpuset/
 S:	Supported
@@ -1556,6 +1556,14 @@ P:	Christoph Raisch
 M:	raisch@de.ibm.com
 L:	general@lists.openfabrics.org
 S:	Supported
+
+EMBEDDED LINUX
+P:	Paul Gortmaker
+M:	paul.gortmaker@windriver.com
+P	David Woodhouse
+M:	dwmw2@infradead.org
+L:	linux-embedded@vger.kernel.org
+S:	Maintained
 
 EMULEX LPFC FC SCSI DRIVER
 P:	James Smart
