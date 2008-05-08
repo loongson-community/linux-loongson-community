@@ -79,7 +79,7 @@ void __init board_setup(void)
 
 		/* CPU core freq to 384 MHz */
 		au_writel(0x20, SYS_CPUPLL);
-  
+
 		printk(KERN_INFO "Au1000: 48 MHz OHCI workaround enabled\n");
 		break;
 
