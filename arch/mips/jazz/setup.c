@@ -10,30 +10,17 @@
  * Copyright (C) 2007 by Thomas Bogendoerfer
  */
 #include <linux/eisa.h>
-#include <linux/hdreg.h>
 #include <linux/init.h>
 #include <linux/ioport.h>
-#include <linux/sched.h>
-#include <linux/interrupt.h>
-#include <linux/mm.h>
 #include <linux/console.h>
-#include <linux/fb.h>
-#include <linux/ide.h>
-#include <linux/pm.h>
 #include <linux/screen_info.h>
 #include <linux/platform_device.h>
 #include <linux/serial_8250.h>
 
-#include <asm/bootinfo.h>
-#include <asm/irq.h>
 #include <asm/jazz.h>
 #include <asm/jazzdma.h>
 #include <asm/reboot.h>
-#include <asm/io.h>
 #include <asm/pgtable.h>
-#include <asm/time.h>
-#include <asm/traps.h>
-#include <asm/mc146818-time.h>
 
 extern asmlinkage void jazz_handle_int(void);
 
