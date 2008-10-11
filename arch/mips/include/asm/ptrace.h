@@ -118,6 +118,8 @@ struct pt_watch_regs {
 #include <linux/linkage.h>
 #include <asm/isadep.h>
 
+struct task_struct;
+
 extern int ptrace_getregs(struct task_struct *child, __s64 __user *data);
 extern int ptrace_setregs(struct task_struct *child, __s64 __user *data);
 
