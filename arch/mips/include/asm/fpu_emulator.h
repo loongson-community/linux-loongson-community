@@ -23,6 +23,7 @@
 #ifndef _ASM_FPU_EMULATOR_H
 #define _ASM_FPU_EMULATOR_H
 
+#include <asm/break.h>
 #include <asm/inst.h>
 
 struct mips_fpu_emulator_stats {
