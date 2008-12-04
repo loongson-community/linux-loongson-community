@@ -58,7 +58,7 @@ static struct plat_serial8250_port uart8250_data[] = {
 
 static struct platform_device malta_uart8250_device = {
 	.name			= "serial8250",
-	.id			= PLAT8250_DEV_PLATFORM2,
+	.id			= PLAT8250_DEV_PLATFORM,
 	.dev			= {
 		.platform_data	= uart8250_data,
 	},
@@ -113,7 +113,7 @@ static struct resource malta_flash_resource = {
 	.flags		= IORESOURCE_MEM
 };
 
-static struct platform_device malta_flash = {
+static struct platform_device malta_flash_device = {
 	.name		= "physmap-flash",
 	.id		= 0,
 	.dev		= {
@@ -122,13 +122,6 @@ static struct platform_device malta_flash = {
 	.num_resources	= 1,
 	.resource	= &malta_flash_resource,
 };
-
-static int __init malta_mtd_init(void)
-{
-	platform_device_register(&malta_flash);
-
-	return 0;
-}
 
 static struct platform_device *malta_devices[] __initdata = {
 	&malta_uart8250_device,
