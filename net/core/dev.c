@@ -132,6 +132,9 @@
 /* Instead of increasing this, you should create a hash table. */
 #define MAX_GRO_SKBS 8
 
+/* This should be increased if a protocol with a bigger head is added. */
+#define GRO_MAX_HEAD (MAX_HEADER + 128)
+
 /*
  *	The list of packet types we will receive (as opposed to discard)
  *	and the routines to invoke.
@@ -2345,7 +2348,7 @@ static int napi_gro_complete(struct sk_buff *skb)
 	struct list_head *head = &ptype_base[ntohs(type) & PTYPE_HASH_MASK];
 	int err = -ENOENT;
 
-	if (!skb_shinfo(skb)->frag_list)
+	if (NAPI_GRO_CB(skb)->count == 1)
 		goto out;
 
 	rcu_read_lock();
@@ -2365,6 +2368,7 @@ static int napi_gro_complete(struct sk_buff *skb)
 	}
 
 out:
+	skb_shinfo(skb)->gso_size = 0;
 	__skb_push(skb, -skb_network_offset(skb));
 	return netif_receive_skb(skb);
 }
@@ -2383,7 +2387,7 @@ void napi_gro_flush(struct napi_struct *napi)
 }
 EXPORT_SYMBOL(napi_gro_flush);
 
-int napi_gro_receive(struct napi_struct *napi, struct sk_buff *skb)
+int dev_gro_receive(struct napi_struct *napi, struct sk_buff *skb)
 {
 	struct sk_buff **pp = NULL;
 	struct packet_type *ptype;
@@ -2392,6 +2396,7 @@ int napi_gro_receive(struct napi_struct *napi, struct sk_buff *skb)
 	int count = 0;
 	int same_flow;
 	int mac_len;
+	int free;
 
 	if (!(skb->dev->features & NETIF_F_GRO))
 		goto normal;
@@ -2408,14 +2413,18 @@ int napi_gro_receive(struct napi_struct *napi, struct sk_buff *skb)
 		skb->mac_len = mac_len;
 		NAPI_GRO_CB(skb)->same_flow = 0;
 		NAPI_GRO_CB(skb)->flush = 0;
+		NAPI_GRO_CB(skb)->free = 0;
 
 		for (p = napi->gro_list; p; p = p->next) {
 			count++;
-			NAPI_GRO_CB(p)->same_flow =
-				p->mac_len == mac_len &&
-				!memcmp(skb_mac_header(p), skb_mac_header(skb),
-					mac_len);
-			NAPI_GRO_CB(p)->flush = 0;
+
+			if (!NAPI_GRO_CB(p)->same_flow)
+				continue;
+
+			if (p->mac_len != mac_len ||
+			    memcmp(skb_mac_header(p), skb_mac_header(skb),
+				   mac_len))
+				NAPI_GRO_CB(p)->same_flow = 0;
 		}
 
 		pp = ptype->gro_receive(&napi->gro_list, skb);
@@ -2427,6 +2436,7 @@ int napi_gro_receive(struct napi_struct *napi, struct sk_buff *skb)
 		goto normal;
 
 	same_flow = NAPI_GRO_CB(skb)->same_flow;
+	free = NAPI_GRO_CB(skb)->free;
 
 	if (pp) {
 		struct sk_buff *nskb = *pp;
@@ -2446,16 +2456,123 @@ int napi_gro_receive(struct napi_struct *napi, struct sk_buff *skb)
 	}
 
 	NAPI_GRO_CB(skb)->count = 1;
+	skb_shinfo(skb)->gso_size = skb->len;
 	skb->next = napi->gro_list;
 	napi->gro_list = skb;
 
 ok:
-	return NET_RX_SUCCESS;
+	return free;
 
 normal:
-	return netif_receive_skb(skb);
+	return -1;
+}
+EXPORT_SYMBOL(dev_gro_receive);
+
+static int __napi_gro_receive(struct napi_struct *napi, struct sk_buff *skb)
+{
+	struct sk_buff *p;
+
+	for (p = napi->gro_list; p; p = p->next) {
+		NAPI_GRO_CB(p)->same_flow = 1;
+		NAPI_GRO_CB(p)->flush = 0;
+	}
+
+	return dev_gro_receive(napi, skb);
+}
+
+int napi_gro_receive(struct napi_struct *napi, struct sk_buff *skb)
+{
+	switch (__napi_gro_receive(napi, skb)) {
+	case -1:
+		return netif_receive_skb(skb);
+
+	case 1:
+		kfree_skb(skb);
+		break;
+	}
+
+	return NET_RX_SUCCESS;
 }
 EXPORT_SYMBOL(napi_gro_receive);
+
+void napi_reuse_skb(struct napi_struct *napi, struct sk_buff *skb)
+{
+	skb_shinfo(skb)->nr_frags = 0;
+
+	skb->len -= skb->data_len;
+	skb->truesize -= skb->data_len;
+	skb->data_len = 0;
+
+	__skb_pull(skb, skb_headlen(skb));
+	skb_reserve(skb, NET_IP_ALIGN - skb_headroom(skb));
+
+	napi->skb = skb;
+}
+EXPORT_SYMBOL(napi_reuse_skb);
+
+struct sk_buff *napi_fraginfo_skb(struct napi_struct *napi,
+				  struct napi_gro_fraginfo *info)
+{
+	struct net_device *dev = napi->dev;
+	struct sk_buff *skb = napi->skb;
+
+	napi->skb = NULL;
+
+	if (!skb) {
+		skb = netdev_alloc_skb(dev, GRO_MAX_HEAD + NET_IP_ALIGN);
+		if (!skb)
+			goto out;
+
+		skb_reserve(skb, NET_IP_ALIGN);
+	}
+
+	BUG_ON(info->nr_frags > MAX_SKB_FRAGS);
+	skb_shinfo(skb)->nr_frags = info->nr_frags;
+	memcpy(skb_shinfo(skb)->frags, info->frags, sizeof(info->frags));
+
+	skb->data_len = info->len;
+	skb->len += info->len;
+	skb->truesize += info->len;
+
+	if (!pskb_may_pull(skb, ETH_HLEN)) {
+		napi_reuse_skb(napi, skb);
+		goto out;
+	}
+
+	skb->protocol = eth_type_trans(skb, dev);
+
+	skb->ip_summed = info->ip_summed;
+	skb->csum = info->csum;
+
+out:
+	return skb;
+}
+EXPORT_SYMBOL(napi_fraginfo_skb);
+
+int napi_gro_frags(struct napi_struct *napi, struct napi_gro_fraginfo *info)
+{
+	struct sk_buff *skb = napi_fraginfo_skb(napi, info);
+	int err = NET_RX_DROP;
+
+	if (!skb)
+		goto out;
+
+	err = NET_RX_SUCCESS;
+
+	switch (__napi_gro_receive(napi, skb)) {
+	case -1:
+		return netif_receive_skb(skb);
+
+	case 0:
+		goto out;
+	}
+
+	napi_reuse_skb(napi, skb);
+
+out:
+	return err;
+}
+EXPORT_SYMBOL(napi_gro_frags);
 
 static int process_backlog(struct napi_struct *napi, int quota)
 {
@@ -2535,11 +2652,12 @@ void netif_napi_add(struct net_device *dev, struct napi_struct *napi,
 {
 	INIT_LIST_HEAD(&napi->poll_list);
 	napi->gro_list = NULL;
+	napi->skb = NULL;
 	napi->poll = poll;
 	napi->weight = weight;
 	list_add(&napi->dev_list, &dev->napi_list);
-#ifdef CONFIG_NETPOLL
 	napi->dev = dev;
+#ifdef CONFIG_NETPOLL
 	spin_lock_init(&napi->poll_lock);
 	napi->poll_owner = -1;
 #endif
@@ -2552,6 +2670,7 @@ void netif_napi_del(struct napi_struct *napi)
 	struct sk_buff *skb, *next;
 
 	list_del_init(&napi->dev_list);
+	kfree(napi->skb);
 
 	for (skb = napi->gro_list; skb; skb = next) {
 		next = skb->next;
