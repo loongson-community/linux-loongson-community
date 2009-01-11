@@ -618,8 +618,11 @@ static void r4k_dma_cache_inv(unsigned long addr, unsigned long size)
 	if (cpu_has_inclusive_pcaches) {
 		if (size >= scache_size)
 			r4k_blast_scache();
-		else
+		else {
+			cache_op(Hit_Writeback_Inv_SD, addr);
+			cache_op(Hit_Writeback_Inv_SD, addr + size - 1);
 			blast_inv_scache_range(addr, addr + size);
+		}
 		return;
 	}
 
@@ -627,6 +630,8 @@ static void r4k_dma_cache_inv(unsigned long addr, unsigned long size)
 		r4k_blast_dcache();
 	} else {
 		R4600_HIT_CACHEOP_WAR_IMPL;
+		cache_op(Hit_Writeback_Inv_D, addr);
+		cache_op(Hit_Writeback_Inv_D, addr + size - 1);
 		blast_inv_dcache_range(addr, addr + size);
 	}
 
