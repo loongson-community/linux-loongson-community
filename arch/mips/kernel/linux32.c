@@ -318,6 +318,13 @@ SYSCALL_DEFINE1(32_sysctl, struct sysctl_args32 __user *, args)
 	return error;
 }
 
+#else
+
+SYSCALL_DEFINE1(32_sysctl, struct sysctl_args32 __user *, args)
+{
+	return -ENOSYS;
+}
+
 #endif /* CONFIG_SYSCTL_SYSCALL */
 
 SYSCALL_DEFINE1(32_newuname, struct new_utsname __user *, name)
