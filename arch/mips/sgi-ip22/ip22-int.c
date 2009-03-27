@@ -153,9 +153,10 @@ extern void ip22_be_interrupt(int irq);
 static void indy_buserror_irq(void)
 {
 	int irq = SGI_BUSERR_IRQ;
+	struct irq_desc *desc = irq_to_desc(irq);
 
 	irq_enter();
-	kstat_this_cpu.irqs[irq]++;
+	kstat_incr_irqs_this_cpu(irq, desc);
 	ip22_be_interrupt(irq);
 	irq_exit();
 }
