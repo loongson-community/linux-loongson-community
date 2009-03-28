@@ -118,12 +118,11 @@ __init void plat_time_init(void)
 void indy_8254timer_irq(void)
 {
 	int irq = SGI_8254_0_IRQ;
-	struct irq_desc *desc = irq_to_desc(irq);
 	ULONG cnt;
 	char c;
 
 	irq_enter();
-	kstat_incr_irqs_this_cpu(irq, desc);
+	kstat_incr_irqs_this_cpu(irq, irq_to_desc(irq));
 	printk(KERN_ALERT "Oops, got 8254 interrupt.\n");
 	ArcRead(0, &c, 1, &cnt);
 	ArcEnterInteractiveMode();
