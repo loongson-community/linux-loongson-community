@@ -1763,6 +1763,12 @@ M:	viro@zeniv.linux.org.uk
 L:	linux-fsdevel@vger.kernel.org
 S:	Maintained
 
+FINTEK F75375S HARDWARE MONITOR AND FAN CONTROLLER DRIVER
+P:	Riku Voipio
+M:	riku.vipio@iki.fi
+L:	lm-sensors@lm-sensors.org
+S:	Maintained
+
 FIREWIRE SUBSYSTEM (drivers/firewire, <linux/firewire*.h>)
 P:	Kristian Hoegsberg, Stefan Richter
 M:	krh@redhat.com, stefanr@s5r6.in-berlin.de
@@ -3408,6 +3414,11 @@ P:	Jim Cromie
 M:	jim.cromie@gmail.com
 S:	Maintained
 
+PCA9532 LED DRIVER
+P:	Riku Voipio
+M:	riku.voipio@iki.fi
+S:	Maintained
+
 PCI ERROR RECOVERY
 P:	Linas Vepstas
 M:	linas@austin.ibm.com
@@ -4847,7 +4858,7 @@ M:	lrg@slimlogic.co.uk
 P:	Mark Brown
 M:	broonie@opensource.wolfsonmicro.com
 W:	http://opensource.wolfsonmicro.com/node/15
-W:	http://www.slimlogic.co.uk/?page_id=5
+W:	http://www.slimlogic.co.uk/?p=48
 T:	git kernel.org/pub/scm/linux/kernel/git/lrg/voltage-2.6.git
 S:	Supported
 
@@ -4969,7 +4980,8 @@ S:	Supported
 
 XFS FILESYSTEM
 P:	Silicon Graphics Inc
-P:	Bill O'Donnell
+P:	Felix Blyakher
+M:	felixb@sgi.com
 M:	xfs-masters@oss.sgi.com
 L:	xfs@oss.sgi.com
 W:	http://oss.sgi.com/projects/xfs
