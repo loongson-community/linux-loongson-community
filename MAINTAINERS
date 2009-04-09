@@ -1422,6 +1422,11 @@ P:	Doug Warzecha
 M:	Douglas_Warzecha@dell.com
 S:	Maintained
 
+DELL WMI EXTRAS DRIVER
+P:	Matthew Garrett
+M:	mjg59@srcf.ucam.org
+S:	Maintained
+
 DEVICE NUMBER REGISTRY
 P:	Torben Mathiasen
 M:	device@lanana.org
@@ -1539,7 +1544,6 @@ S:	Maintained
 DVB SUBSYSTEM AND DRIVERS
 P:	LinuxTV.org Project
 M:	linux-media@vger.kernel.org
-L:	linux-dvb@linuxtv.org (subscription required)
 W:	http://linuxtv.org/
 T:	git kernel.org:/pub/scm/linux/kernel/git/mchehab/linux-2.6.git
 S:	Maintained
@@ -2654,6 +2658,12 @@ M:	jason.wessel@windriver.com
 L:	kgdb-bugreport@lists.sourceforge.net
 S:	Maintained
 
+KMEMTRACE
+P:	Eduard - Gabriel Munteanu
+M:	eduard.munteanu@linux360.ro
+L:	linux-kernel@vger.kernel.org
+S:	Maintained
+
 KPROBES
 P:	Ananth N Mavinakayanahalli
 M:	ananth@in.ibm.com
@@ -2924,6 +2934,12 @@ M:	buytenh@marvell.com
 L:	netdev@vger.kernel.org
 S:	Supported
 
+MARVELL SOC MMC/SD/SDIO CONTROLLER DRIVER
+P:	Nicolas Pitre
+M:	nico@cam.org
+L:	linux-kernel@vger.kernel.org
+S:	Maintained
+
 MARVELL YUKON / SYSKONNECT DRIVER
 P:	Mirko Lindner
 M:	mlindner@syskonnect.de
@@ -3034,8 +3050,9 @@ S:	Maintained
 
 MULTIFUNCTION DEVICES (MFD)
 P:	Samuel Ortiz
-M:	sameo@openedhand.com
+M:	sameo@linux.intel.com
 L:	linux-kernel@vger.kernel.org
+T:	git kernel.org:/pub/scm/linux/kernel/git/sameo/mfd-2.6.git
 S:	Supported
 
 MULTIMEDIA CARD (MMC), SECURE DIGITAL (SD) AND SDIO SUBSYSTEM
@@ -3226,6 +3243,13 @@ P:	Andreas Mohr
 M:	andi@lisas.de
 L:	netdev@vger.kernel.org
 S:	Maintained
+
+NILFS2 FILESYSTEM
+P:	KONISHI Ryusuke
+M:	konishi.ryusuke@lab.ntt.co.jp
+L:	users@nilfs.org
+W:	http://www.nilfs.org/en/
+S:	Supported
 
 NINJA SCSI-3 / NINJA SCSI-32Bi (16bit/CardBus) PCMCIA SCSI HOST ADAPTER DRIVER
 P:	YOKOTA Hiroshi
@@ -3916,7 +3940,14 @@ S:	Maintained
 SECURE DIGITAL HOST CONTROLLER INTERFACE (SDHCI) DRIVER
 P:	Pierre Ossman
 M:	drzeus-sdhci@drzeus.cx
-L:	sdhci-devel@list.drzeus.cx
+L:	sdhci-devel@lists.ossman.eu
+S:	Maintained
+
+SECURE DIGITAL HOST CONTROLLER INTERFACE, OPEN FIRMWARE BINDINGS (SDHCI-OF)
+P:	Anton Vorontsov
+M:	avorontsov@ru.mvista.com
+L:	linuxppc-dev@ozlabs.org
+L:	sdhci-devel@lists.ossman.eu
 S:	Maintained
 
 SECURITY SUBSYSTEM
@@ -4382,16 +4413,18 @@ T:	quilt http://svn.sourceforge.jp/svnroot/tomoyo/trunk/2.2.x/tomoyo-lsm/patches
 S:	Maintained
 
 TOSHIBA ACPI EXTRAS DRIVER
-P:	John Belmonte
-M:	toshiba_acpi@memebeam.org
-W:	http://memebeam.org/toys/ToshibaAcpiDriver
-S:	Maintained
+S:	Orphan
 
 TOSHIBA SMM DRIVER
 P:	Jonathan Buzzard
 M:	jonathan@buzzard.org.uk
 L:	tlinux-users@tce.toshiba-dme.co.jp
 W:	http://www.buzzard.org.uk/toshiba/
+S:	Maintained
+
+TMIO MMC DRIVER
+P:	Ian Molton
+M:	ian@mnementh.co.uk
 S:	Maintained
 
 TPM DEVICE DRIVER
