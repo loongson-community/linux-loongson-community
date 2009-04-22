@@ -2065,6 +2065,8 @@ F:	drivers/infiniband/hw/ehca/
 EMBEDDED LINUX
 P:	Paul Gortmaker
 M:	paul.gortmaker@windriver.com
+P:	Matt Mackall
+M:	mpm@selenic.com
 P:	David Woodhouse
 M:	dwmw2@infradead.org
 L:	linux-embedded@vger.kernel.org
@@ -2562,7 +2564,6 @@ F:	kernel/power/
 F:	include/linux/suspend.h
 F:	include/linux/freezer.h
 F:	include/linux/pm.h
-F:	include/asm-*/suspend*.h
 F:	arch/*/include/asm/suspend*.h
 
 HID CORE LAYER
@@ -3340,7 +3341,7 @@ P:	Eduard - Gabriel Munteanu
 M:	eduard.munteanu@linux360.ro
 L:	linux-kernel@vger.kernel.org
 S:	Maintained
-F:	Documentation/vm/kmemtrace.txt
+F:	Documentation/trace/kmemtrace.txt
 F:	include/trace/kmemtrace.h
 F:	kernel/trace/kmemtrace.c
 
@@ -5404,7 +5405,6 @@ F:	kernel/power/
 F:	include/linux/suspend.h
 F:	include/linux/freezer.h
 F:	include/linux/pm.h
-F:	include/asm-*/suspend.h
 
 SVGA HANDLING
 P:	Martin Mares
@@ -5638,7 +5638,7 @@ L:	uclinux-dev@uclinux.org  (subscribers-only)
 S:	Maintained
 F:	arch/m68knommu/
 
-UCLINUX FOR RENESAS H8/300
+UCLINUX FOR RENESAS H8/300 (H8300)
 P:	Yoshinori Sato
 M:	ysato@users.sourceforge.jp
 W:	http://uclinux-h8.sourceforge.jp/
