@@ -34,6 +34,7 @@
 tags
 TAGS
 vmlinux
+vmlinux.32
 System.map
 Module.markers
 Module.symvers
