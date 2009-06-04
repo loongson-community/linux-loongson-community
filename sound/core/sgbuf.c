@@ -114,7 +114,11 @@ void *snd_malloc_sgbuf_pages(struct device *device,
 			if (!i)
 				table->addr |= chunk; /* mark head */
 			table++;
+#if defined(__mips__) && defined(CONFIG_DMA_NONCOHERENT)
+			*pgtable++ = virt_to_page(CAC_ADDR(tmpb.area));
+#else
 			*pgtable++ = virt_to_page(tmpb.area);
+#endif
 			tmpb.area += PAGE_SIZE;
 			tmpb.addr += PAGE_SIZE;
 		}
@@ -125,7 +129,12 @@ void *snd_malloc_sgbuf_pages(struct device *device,
 	}
 
 	sgbuf->size = size;
+#if defined(__mips__) && defined(CONFIG_DMA_NONCOHERENT)
+	dmab->area = vmap(sgbuf->page_table, sgbuf->pages, \
+			VM_MAP | VM_IO, pgprot_noncached(PAGE_KERNEL));
+#else
 	dmab->area = vmap(sgbuf->page_table, sgbuf->pages, VM_MAP, PAGE_KERNEL);
+#endif
 	if (! dmab->area)
 		goto _failed;
 	if (res_size)
