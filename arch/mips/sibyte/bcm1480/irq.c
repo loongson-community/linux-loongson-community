@@ -116,10 +116,6 @@ static void bcm1480_set_affinity(unsigned int irq, const struct cpumask *mask)
 	unsigned long flags;
 	unsigned int irq_dirty;
 
-	if (cpumask_weight(mask) != 1) {
-		printk("attempted to set irq affinity for irq %d to multiple CPUs\n", irq);
-		return;
-	}
 	i = cpumask_first(mask);
 
 	/* Convert logical CPU to physical CPU */
