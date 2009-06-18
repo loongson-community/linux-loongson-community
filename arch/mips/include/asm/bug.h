@@ -5,6 +5,8 @@
 
 #ifdef CONFIG_BUG
 
+#include <linux/compiler.h>
+
 #include <asm/break.h>
 
 static inline void __noreturn BUG(void)
