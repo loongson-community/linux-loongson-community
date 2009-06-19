@@ -1544,6 +1544,7 @@ L:	containers@lists.linux-foundation.org
 S:	Maintained
 F:	include/linux/cgroup*
 F:	kernel/cgroup*
+F:	mm/*cgroup*
 
 CORETEMP HARDWARE MONITORING DRIVER
 P:	Rudolf Marek
@@ -2274,11 +2275,9 @@ F:	drivers/net/wan/dlci.c
 F:	drivers/net/wan/sdla.c
 
 FRAMEBUFFER LAYER
-P:	Antonino Daplas
-M:	adaplas@gmail.com
 L:	linux-fbdev-devel@lists.sourceforge.net (moderated for non-subscribers)
 W:	http://linux-fbdev.sourceforge.net/
-S:	Maintained
+S:	Orphan
 F:	Documentation/fb/
 F:	drivers/video/fb*
 F:	include/linux/fb.h
@@ -4577,6 +4576,13 @@ M:	jchapman@katalix.com
 S:	Maintained
 F:	drivers/net/pppol2tp.c
 F:	include/linux/if_pppol2tp.h
+
+PPS SUPPORT
+P:	Rodolfo Giometti
+M:	giometti@enneenne.com
+W:	http://wiki.enneenne.com/index.php/LinuxPPS_support
+L:	linuxpps@ml.enneenne.com (subscribers-only)
+S:	Maintained
 
 PREEMPTIBLE KERNEL
 P:	Robert Love
