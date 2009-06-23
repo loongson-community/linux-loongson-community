@@ -25,7 +25,10 @@
 volatile unsigned long octeon_processor_boot = 0xff;
 volatile unsigned long octeon_processor_sp;
 volatile unsigned long octeon_processor_gp;
-unsigned int InitTLBStart_addr;
+
+#ifdef CONFIG_HOTPLUG_CPU
+static unsigned int InitTLBStart_addr;
+#endif
 
 static irqreturn_t mailbox_interrupt(int irq, void *dev_id)
 {
@@ -73,12 +76,31 @@ static inline void octeon_send_ipi_mask(cpumask_t mask, unsigned int action)
 /**
  * Detect available CPUs, populate cpu_possible_map
  */
+static void octeon_smp_hotplug_setup(void)
+{
+#ifdef CONFIG_HOTPLUG_CPU
+	uint32_t labi_signature;
+
+	labi_signature =
+		cvmx_read64_uint32(CVMX_ADD_SEG(CVMX_MIPS_SPACE_XKPHYS,
+					LABI_ADDR_IN_BOOTLOADER +
+					offsetof(struct linux_app_boot_info,
+						    labi_signature)));
+	if (labi_signature != LABI_SIGNATURE)
+		pr_err("The bootloader version on this board is incorrect\n");
+	InitTLBStart_addr =
+		cvmx_read64_uint32(CVMX_ADD_SEG(CVMX_MIPS_SPACE_XKPHYS,
+				   LABI_ADDR_IN_BOOTLOADER +
+					   offsetof(struct linux_app_boot_info,
+						    InitTLBStart_addr)));
+#endif
+}
+
 static void octeon_smp_setup(void)
 {
 	const int coreid = cvmx_get_core_num();
 	int cpus;
 	int id;
-       uint32_t labi_signature;
 
 	int core_mask = octeon_get_boot_coremask();
 
@@ -96,22 +118,9 @@ static void octeon_smp_setup(void)
 			cpus++;
 		}
 	}
-       cpu_present_map = cpu_possible_map;
+	cpu_present_map = cpu_possible_map;
 
-#ifdef CONFIG_HOTPLUG_CPU
-       labi_signature =
-	   cvmx_read64_uint32(CVMX_ADD_SEG(CVMX_MIPS_SPACE_XKPHYS,
-					   LABI_ADDR_IN_BOOTLOADER +
-					   offsetof(struct linux_app_boot_info,
-						    labi_signature)));
-	if (labi_signature != LABI_SIGNATURE)
-		pr_err("The bootloader version on this board is incorrect\n");
-	InitTLBStart_addr =
-		cvmx_read64_uint32(CVMX_ADD_SEG(CVMX_MIPS_SPACE_XKPHYS,
-				   LABI_ADDR_IN_BOOTLOADER +
-					   offsetof(struct linux_app_boot_info,
-						    InitTLBStart_addr)));
-#endif
+	octeon_smp_hotplug_setup();
 }
 
 /**
@@ -149,8 +158,9 @@ static void octeon_init_secondary(void)
 	const int coreid = cvmx_get_core_num();
 	union cvmx_ciu_intx_sum0 interrupt_enable;
 
-	unsigned int cur_exception_base;
 #ifdef CONFIG_HOTPLUG_CPU
+	unsigned int cur_exception_base;
+
 	cur_exception_base = cvmx_read64_uint32(
 		CVMX_ADD_SEG(CVMX_MIPS_SPACE_XKPHYS,
 			     LABI_ADDR_IN_BOOTLOADER +
@@ -243,12 +253,10 @@ static int octeon_cpu_disable(void)
 {
 	unsigned int cpu = smp_processor_id();
 
-	spin_lock(&smp_reserve_lock);
-
-	if (cpu == 0 /* boot_cpuid */) {
-		spin_unlock(&smp_reserve_lock);
+	if (cpu == 0)
 		return -EBUSY;
-	}
+
+	spin_lock(&smp_reserve_lock);
 
 	cpu_clear(cpu, cpu_online_map);
 	cpu_clear(cpu, cpu_callin_map);
@@ -404,13 +412,14 @@ static int __cpuinit octeon_cpu_callback(struct notifier_block *nfb,
 	return NOTIFY_OK;
 }
 
-static struct notifier_block octeon_cpu_notifier = {
+static struct notifier_block __cpuinitdata octeon_cpu_notifier = {
 	.notifier_call = octeon_cpu_callback,
 };
 
-static int register_cavium_notifier(void)
+static int __cpuinit register_cavium_notifier(void)
 {
 	register_hotcpu_notifier(&octeon_cpu_notifier);
+
 	return 0;
 }
 
