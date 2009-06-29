@@ -58,6 +58,8 @@ asmlinkage void plat_irq_dispatch(void)
 
 	if (pending & CAUSEF_IP7)
 		do_IRQ(MIPS_CPU_IRQ_BASE + 7);
+	else if (pending & CAUSEF_IP6) /* perf counter loverflow */
+		do_IRQ(LOONGSON2_PERFCNT_IRQ);
 	else if (pending & CAUSEF_IP5)
 		i8259_irqdispatch();
 	else if (pending & CAUSEF_IP2)
@@ -65,6 +67,17 @@ asmlinkage void plat_irq_dispatch(void)
 	else
 		spurious_interrupt();
 }
+
+static irqreturn_t ip6_action(int cpl, void *dev_id)
+{
+	return IRQ_HANDLED;
+}
+
+static struct irqaction ip6_irqaction = {
+	.handler = ip6_action,
+	.name = "cascade",
+	.flags = IRQF_SHARED,
+};
 
 static struct irqaction cascade_irqaction = {
 	.handler = no_action,
@@ -102,7 +115,7 @@ void __init arch_init_irq(void)
 	bonito_irq_init();
 
 	/* bonito irq at IP2 */
-	setup_irq(MIPS_CPU_IRQ_BASE + 2, &cascade_irqaction);
+	setup_irq(MIPS_CPU_IRQ_BASE + 2, &ip6_irqaction);
 	/* 8259 irq at IP5 */
 	setup_irq(MIPS_CPU_IRQ_BASE + 5, &cascade_irqaction);
 }
