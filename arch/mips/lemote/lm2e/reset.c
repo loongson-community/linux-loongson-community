@@ -10,10 +10,10 @@
  * Author: Zhangjin Wu, wuzj@lemote.com
  */
 #include <linux/pm.h>
-#include <linux/io.h>
 
 #include <asm/reboot.h>
-#include <asm/mips-boards/bonito64.h>
+
+#include <loongson.h>
 
 static void loongson2e_restart(char *command)
 {
@@ -27,7 +27,8 @@ static void loongson2e_restart(char *command)
 
 static void loongson2e_halt(void)
 {
-	while (1) ;
+	while (1)
+		;
 }
 
 void mips_reboot_setup(void)
