@@ -2130,9 +2130,9 @@ F:	drivers/edac/i5400_edac.c
 
 EDAC-I82975X
 P:	Ranganathan Desikan
-M:	rdesikan@jetzbroadband.com
+M:	ravi@jetztechnologies.com
 P:	Arvind R.
-M:	arvind@acarlab.com
+M:	arvind@jetztechnologies.com
 L:	bluesmoke-devel@lists.sourceforge.net (moderated for non-subscribers)
 W:	bluesmoke.sourceforge.net
 S:	Maintained
@@ -2851,7 +2851,9 @@ S:	Maintained
 
 IA64 (Itanium) PLATFORM
 P:	Tony Luck
+P:	Fenghua Yu
 M:	tony.luck@intel.com
+M:	fenghua.yu@intel.com
 L:	linux-ia64@vger.kernel.org
 W:	http://www.ia64-linux.org/
 T:	git git://git.kernel.org/pub/scm/linux/kernel/git/aegl/linux-2.6.git
@@ -5576,8 +5578,8 @@ F:	drivers/staging/
 
 STARFIRE/DURALAN NETWORK DRIVER
 P:	Ion Badulescu
-M:	ionut@cs.columbia.edu
-S:	Maintained
+M:	ionut@badula.org
+S:	Odd Fixes
 F:	drivers/net/starfire*
 
 STARMODE RADIO IP (STRIP) PROTOCOL DRIVER
