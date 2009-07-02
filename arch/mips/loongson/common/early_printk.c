@@ -12,8 +12,7 @@
 #include <linux/serial_reg.h>
 
 #include <loongson.h>
-
-#define UART_BASE (BONITO_PCIIO_BASE + 0x3f8)
+#include <machine.h>
 
 #define PORT(base, offset) (u8 *)(base + offset)
 
@@ -30,7 +29,7 @@ static inline void serial_out(unsigned char *base, int offset, int value)
 void prom_putchar(char c)
 {
 	unsigned char *uart_base =
-		(unsigned char *) ioremap_nocache(UART_BASE, 8);
+		(unsigned char *) ioremap_nocache(LOONGSON_UART_BASE, 8);
 
 	while ((serial_in(uart_base, UART_LSR) & UART_LSR_THRE) == 0)
 		;

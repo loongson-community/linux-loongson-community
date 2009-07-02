@@ -21,7 +21,7 @@
 void (*__wbflush)(void);
 EXPORT_SYMBOL(__wbflush);
 
-static void wbflush_loongson2e(void)
+static void wbflush_loongson(void)
 {
 	asm(".set\tpush\n\t"
 	    ".set\tnoreorder\n\t"
@@ -36,7 +36,7 @@ void __init plat_mem_setup(void)
 {
 	mips_reboot_setup();
 
-	__wbflush = wbflush_loongson2e;
+	__wbflush = wbflush_loongson;
 
 #ifdef CONFIG_VT
 #if defined(CONFIG_VGA_CONSOLE)
