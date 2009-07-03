@@ -24,20 +24,21 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 
-#include <asm/mips-boards/bonito64.h>
+#include <loongson.h>
 
 #define PCI_ACCESS_READ  0
 #define PCI_ACCESS_WRITE 1
 
-#define CFG_SPACE_REG(offset) (void *)CKSEG1ADDR(_pcictrl_bonito_pcicfg + (offset))
-#define ID_SEL_BEGIN 10
+#define CFG_SPACE_REG(offset) \
+	(void *)CKSEG1ADDR(LOONGSON_PCICFG_BASE | (offset))
+#define ID_SEL_BEGIN 11
 #define MAX_DEV_NUM (31 - ID_SEL_BEGIN)
 
 
-static int bonito64_pcibios_config_access(unsigned char access_type,
+static int loongson_pcibios_config_access(unsigned char access_type,
 				      struct pci_bus *bus,
 				      unsigned int devfn, int where,
-				      u32 * data)
+				      u32 *data)
 {
 	u32 busnum = bus->number;
 	u32 addr, type;
@@ -61,31 +62,29 @@ static int bonito64_pcibios_config_access(unsigned char access_type,
 	}
 
 	/* Clear aborts */
-	BONITO_PCICMD |= BONITO_PCICMD_MABORT_CLR | BONITO_PCICMD_MTABORT_CLR;
+	LOONGSON_PCICMD |= LOONGSON_PCICMD_MABORT_CLR | \
+				LOONGSON_PCICMD_MTABORT_CLR;
 
-	BONITO_PCIMAP_CFG = (addr >> 16) | type;
+	LOONGSON_PCIMAP_CFG = (addr >> 16) | type;
 
 	/* Flush Bonito register block */
-	dummy = BONITO_PCIMAP_CFG;
+	dummy = LOONGSON_PCIMAP_CFG;
 	mmiowb();
 
 	addrp = CFG_SPACE_REG(addr & 0xffff);
-	if (access_type == PCI_ACCESS_WRITE) {
+	if (access_type == PCI_ACCESS_WRITE)
 		writel(cpu_to_le32(*data), addrp);
-		/* Wait till done */
-		while (BONITO_PCIMSTAT & 0xF);
-	} else {
+	else
 		*data = le32_to_cpu(readl(addrp));
-	}
 
 	/* Detect Master/Target abort */
-	if (BONITO_PCICMD & (BONITO_PCICMD_MABORT_CLR |
-			     BONITO_PCICMD_MTABORT_CLR)) {
+	if (LOONGSON_PCICMD & (LOONGSON_PCICMD_MABORT_CLR |
+			     LOONGSON_PCICMD_MTABORT_CLR)) {
 		/* Error occurred */
 
 		/* Clear bits */
-		BONITO_PCICMD |= (BONITO_PCICMD_MABORT_CLR |
-				  BONITO_PCICMD_MTABORT_CLR);
+		LOONGSON_PCICMD |= (LOONGSON_PCICMD_MABORT_CLR |
+				  LOONGSON_PCICMD_MTABORT_CLR);
 
 		return -1;
 	}
@@ -99,8 +98,8 @@ static int bonito64_pcibios_config_access(unsigned char access_type,
  * We can't address 8 and 16 bit words directly.  Instead we have to
  * read/write a 32bit word and mask/modify the data we actually want.
  */
-static int bonito64_pcibios_read(struct pci_bus *bus, unsigned int devfn,
-			     int where, int size, u32 * val)
+static int loongson_pcibios_read(struct pci_bus *bus, unsigned int devfn,
+			     int where, int size, u32 *val)
 {
 	u32 data = 0;
 
@@ -109,7 +108,7 @@ static int bonito64_pcibios_read(struct pci_bus *bus, unsigned int devfn,
 	else if ((size == 4) && (where & 3))
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 
-	if (bonito64_pcibios_config_access(PCI_ACCESS_READ, bus, devfn, where,
+	if (loongson_pcibios_config_access(PCI_ACCESS_READ, bus, devfn, where,
 				       &data))
 		return -1;
 
@@ -123,7 +122,7 @@ static int bonito64_pcibios_read(struct pci_bus *bus, unsigned int devfn,
 	return PCIBIOS_SUCCESSFUL;
 }
 
-static int bonito64_pcibios_write(struct pci_bus *bus, unsigned int devfn,
+static int loongson_pcibios_write(struct pci_bus *bus, unsigned int devfn,
 			      int where, int size, u32 val)
 {
 	u32 data = 0;
@@ -136,8 +135,8 @@ static int bonito64_pcibios_write(struct pci_bus *bus, unsigned int devfn,
 	if (size == 4)
 		data = val;
 	else {
-		if (bonito64_pcibios_config_access(PCI_ACCESS_READ, bus, devfn,
-		                               where, &data))
+		if (loongson_pcibios_config_access(PCI_ACCESS_READ, bus, devfn,
+					where, &data))
 			return -1;
 
 		if (size == 1)
@@ -148,14 +147,14 @@ static int bonito64_pcibios_write(struct pci_bus *bus, unsigned int devfn,
 				(val << ((where & 3) << 3));
 	}
 
-	if (bonito64_pcibios_config_access(PCI_ACCESS_WRITE, bus, devfn, where,
+	if (loongson_pcibios_config_access(PCI_ACCESS_WRITE, bus, devfn, where,
 				       &data))
 		return -1;
 
 	return PCIBIOS_SUCCESSFUL;
 }
 
-struct pci_ops bonito64_pci_ops = {
-	.read = bonito64_pcibios_read,
-	.write = bonito64_pcibios_write
+struct pci_ops loongson_pci_ops = {
+	.read = loongson_pcibios_read,
+	.write = loongson_pcibios_write
 };
