@@ -29,3 +29,22 @@ config LEMOTE_FULOONG2E
 
 	  Lemote Fuloong(2e) mini PC have a VIA686B south bridge.
 endchoice
+
+config CS5536
+	bool
+
+config CS5536_FLASH
+	bool
+	depends on CS5536
+
+config CS5536_NOR_FLASH
+	bool
+	depends on CS5536_FLASH
+
+config CS5536_OTG
+	bool
+	depends on CS5536
+
+config CS5536_UDC
+	bool
+	depends on CS5536

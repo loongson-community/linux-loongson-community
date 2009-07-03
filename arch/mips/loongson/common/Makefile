@@ -14,3 +14,9 @@ obj-$(CONFIG_EARLY_PRINTK) += early_printk.o dbg.o
 # Enable serial port
 #
 obj-$(CONFIG_SERIAL_8250) += serial.o
+
+#
+# Enable CS5536 Virtual Support Module(VSM) for virtulize the PCI configure
+# space
+#
+obj-$(CONFIG_CS5536) += cs5536/
