@@ -11,7 +11,6 @@ config LEMOTE_FULOONG2E
 	select DMA_NONCOHERENT
 	select BOOT_ELF32
 	select BOARD_SCACHE
-	select HAVE_STD_PC_SERIAL_PORT
 	select HW_HAS_PCI
 	select I8259
 	select ISA
