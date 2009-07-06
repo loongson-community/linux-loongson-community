@@ -11,6 +11,12 @@ obj-y += setup.o init.o cmdline.o env.o time.o reset.o irq.o \
 obj-$(CONFIG_EARLY_PRINTK) += early_printk.o dbg.o
 
 #
+# Enable fuloong(2f) and yeeloong(2f) cpu frequency scaling support
+# This is based on CS5536 mfgpt timer
+#
+obj-$(CONFIG_LOONGSON2F_CPU_FREQ) += clock.o
+
+#
 # Enable serial port
 #
 obj-$(CONFIG_SERIAL_8250) += serial.o

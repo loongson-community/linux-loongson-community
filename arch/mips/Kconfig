@@ -2186,6 +2186,25 @@ source "kernel/power/Kconfig"
 
 endmenu
 
+menu "CPU Frequency scaling"
+
+source "drivers/cpufreq/Kconfig"
+
+config LOONGSON2F_CPU_FREQ
+	bool "Loongson-2F CPU Frequency driver"
+	depends on CPU_LOONGSON2F && CPU_FREQ && (CS5536_MFGPT || I8253)
+	select CPU_FREQ_TABLE
+	help
+	  This adds the cpufreq driver for Loongson-2F.
+
+	  NOTE: if you want to enable this option, an external timer is needed.
+
+	  For details, take a look at <file:Documentation/cpu-freq>.
+
+	  If unsure, say N.
+
+endmenu
+
 source "net/Kconfig"
 
 source "drivers/Kconfig"
