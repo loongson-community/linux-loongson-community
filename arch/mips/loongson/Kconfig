@@ -32,8 +32,8 @@ config LEMOTE_FULOONG2E
 config LEMOTE_FULOONG2F
 	bool "Lemote Fuloong(2f) mini-PC"
 	select ARCH_SPARSEMEM_ENABLE
-	select CEVT_R4K
-	select CSRC_R4K
+	select CEVT_R4K if !CS5536_MFGPT
+	select CSRC_R4K if !CS5536_MFGPT
 	select SYS_HAS_CPU_LOONGSON2F
 	select DMA_NONCOHERENT
 	select BOOT_ELF32
@@ -78,3 +78,10 @@ config CS5536_OTG
 config CS5536_UDC
 	bool
 	depends on CS5536
+
+config CS5536_MFGPT
+	bool "Using cs5536's MFGPT as system clock"
+	depends on CS5536
+	help
+	  This is needed if cpufreq and oprofile is enabled in Loongson2(F)
+	  machines

@@ -17,4 +17,9 @@ obj-$(CONFIG_CS5536_NOR_FLASH) += cs5536_flash.o
 obj-$(CONFIG_CS5536_OTG) += cs5536_otg.o
 obj-$(CONFIG_CS5536_UDC) += cs5536_udc.o
 
+#
+# Enable cs5536 mfgpt Timer
+#
+obj-$(CONFIG_CS5536_MFGPT) += cs5536_mfgpt.o
+
 EXTRA_CFLAGS += -Werror
