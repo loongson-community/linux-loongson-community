@@ -85,3 +85,15 @@ config CS5536_MFGPT
 	help
 	  This is needed if cpufreq and oprofile is enabled in Loongson2(F)
 	  machines
+
+config UCA_SIZE
+	hex "Uncache Accelerated Region size"
+	depends on CPU_LOONGSON2F
+	default 0x400000 if LEMOTE_YEELOONG2F
+	default 0x2000000 if LEMOTE_FULOONG2F
+	help
+	  Uncached Acceleration(UCA) can greatly improve video performance.
+	  Normally the Video memory can be accessed in Uncached Accelerated mode,
+	  other peripheral spaces not.
+
+	  Specify a zeroed size to disable this feature.
