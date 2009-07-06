@@ -52,6 +52,13 @@ extern void loongson2f_cpu_wait(void);
 extern struct cpufreq_frequency_table loongson2f_clockmod_table[];
 #endif
 
+/* We need this in some places... */
+#define delay()	({		\
+	int x;				\
+	for (x = 0; x < 100000; x++)	\
+		__asm__ __volatile__(""); \
+})
+
 #define LOONGSON_REG(x) \
 	(*(volatile u32 *)((char *)CKSEG1ADDR(LOONGSON_REG_BASE) + (x)))
 

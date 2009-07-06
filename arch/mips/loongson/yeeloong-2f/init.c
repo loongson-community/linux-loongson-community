@@ -68,4 +68,14 @@ void __init mach_prom_init_cmdline(void)
 		strcat(arcs_cmdline, " console=tty2");
 		strcat(arcs_cmdline, " quiet");
 	}
+
+	/*
+	 * automatically pass the vga argument via machtype argument if
+	 * vga is not passed: yeeloong-7inch's vga mode is 800x480x24
+	 */
+
+	if ((strstr(arcs_cmdline, "vga") == NULL)
+			&& (strstr(arcs_cmdline, "machtype") != NULL)
+				&& (strstr(arcs_cmdline, "7inch") != NULL))
+		strcat(arcs_cmdline, " vga=800x480x16");
 }
