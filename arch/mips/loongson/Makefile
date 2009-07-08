@@ -15,3 +15,9 @@ obj-$(CONFIG_LEMOTE_FULOONG2E)  += fuloong-2e/
 #
 
 obj-$(CONFIG_LEMOTE_FULOONG2F)  += fuloong-2f/
+
+#
+# Lemote Yeeloong mini-PC (Loongson 2F-based)
+#
+
+obj-$(CONFIG_LEMOTE_YEELOONG2F)	+= yeeloong-2f/

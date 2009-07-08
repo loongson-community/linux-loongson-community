@@ -58,6 +58,38 @@ config LEMOTE_FULOONG2F
 	  bridge of LOONGSON2E.
 
 	  Lemote Fuloong(2f) mini PC have an AMD CS5536 south bridge.
+
+config LEMOTE_YEELOONG2F
+	bool "Lemote Yeeloong(2f) mini Notebook"
+	select ARCH_SPARSEMEM_ENABLE
+	select CEVT_R4K if !CS5536_MFGPT
+	select CSRC_R4K if !CS5536_MFGPT
+	select SYS_HAS_CPU_LOONGSON2F
+	select DMA_NONCOHERENT
+	select BOOT_ELF32
+	select BOARD_SCACHE
+	select HW_HAS_PCI
+	select I8259
+	select ISA
+	select IRQ_CPU
+	select SYS_SUPPORTS_32BIT_KERNEL
+	select SYS_SUPPORTS_64BIT_KERNEL
+	select SYS_SUPPORTS_LITTLE_ENDIAN
+	select SYS_SUPPORTS_HIGHMEM
+	select SYS_HAS_EARLY_PRINTK
+	select SYS_HAS_MACH_PROM_INIT_CMDLINE
+	select GENERIC_HARDIRQS_NO__DO_IRQ
+	select GENERIC_ISA_DMA_SUPPORT_BROKEN
+	select CPU_HAS_WB
+	select CS5536
+	help
+	  Lemote Laptop based on the Chinese Loongson-2F CPU, which has an
+	  internal DDR and PCIX controller. the PCIX controller have the
+	  similiar programming interface of the FPGA north bridge of
+	  LOONGSON2E.
+
+	  Lemote Yeeloong(2f) laptop have an AMD CS5536 south bridge and an EC
+	  controller.
 endchoice
 
 config CS5536
@@ -97,3 +129,6 @@ config UCA_SIZE
 	  other peripheral spaces not.
 
 	  Specify a zeroed size to disable this feature.
+
+config SYS_HAS_MACH_PROM_INIT_CMDLINE
+	bool
