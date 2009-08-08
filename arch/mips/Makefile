@@ -719,7 +719,10 @@ vmlinux.64: vmlinux
 
 makeboot =$(Q)$(MAKE) $(build)=arch/mips/boot VMLINUX=$(vmlinux-32) $(1)
 
-all:	$(all-y)
+all:	$(all-y) zImage
+
+zImage: vmlinux
+	$(Q)$(MAKE) $(build)=arch/mips/boot/compressed $@ LOADADDR=$(load-y)
 
 vmlinux.bin: $(vmlinux-32)
 	+@$(call makeboot,$@)
@@ -745,11 +748,13 @@ endif
 
 install:
 	$(Q)install -D -m 755 vmlinux $(INSTALL_PATH)/vmlinux-$(KERNELRELEASE)
+	$(Q)install -D -m 755 vmlinuz $(INSTALL_PATH)/vmlinuz-$(KERNELRELEASE)
 	$(Q)install -D -m 644 .config $(INSTALL_PATH)/config-$(KERNELRELEASE)
 	$(Q)install -D -m 644 System.map $(INSTALL_PATH)/System.map-$(KERNELRELEASE)
 
 archclean:
 	@$(MAKE) $(clean)=arch/mips/boot
+	@$(MAKE) $(clean)=arch/mips/boot/compressed
 	@$(MAKE) $(clean)=arch/mips/lasat
 
 define archhelp
@@ -757,10 +762,12 @@ define archhelp
 	echo '  vmlinux.ecoff        - ECOFF boot image'
 	echo '  vmlinux.bin          - Raw binary boot image'
 	echo '  vmlinux.srec         - SREC boot image'
+	echo '  vmlinuz              - Compressed boot image'
 	echo
 	echo '  These will be default as apropriate for a configured platform.'
 endef
 
 CLEAN_FILES += vmlinux.32 \
 	       vmlinux.64 \
-	       vmlinux.ecoff
+	       vmlinux.ecoff \
+	       vmlinuz
