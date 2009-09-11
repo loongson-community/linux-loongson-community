@@ -132,3 +132,12 @@ config UCA_SIZE
 
 config SYS_HAS_MACH_PROM_INIT_CMDLINE
 	bool
+
+config LEMOTE_FL2FNAS
+	bool "Lemote NAS(2F) machine"
+	depends on LEMOTE_FULOONG2F
+	help
+	  Lemote's Loongson-2F based network attached system, The kernel
+	  support to this machine is almost the same as fuloong2f, the only
+	  difference is that it use the serial port provided by loongson2f
+	  processor as yeeloong2f does.
