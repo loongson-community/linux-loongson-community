@@ -4886,7 +4886,7 @@ SiS_EnableBridge(struct SiS_Private *SiS_Pr)
     } /* 310 series */
 
   }  /* LVDS */
-
+  SiS_SetReg(SiS_Pr->SiS_Part1Port, 0x2d, 0x11);
 }
 
 /*********************************************/
