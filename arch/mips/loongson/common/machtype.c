@@ -23,6 +23,7 @@ static const char *system_types[] = {
 	[MACH_LEMOTE_YL2F89]            "lemote-yeeloong-2f-8.9inches",
 	[MACH_DEXXON_GDIUM2F10]         "dexxon-gidum-2f-10inches",
 	[MACH_LEMOTE_FL2FNAS]           "lemote-fuloong-2f-nas",
+	[MACH_LEMOTE_LL2F]              "lemote-lynloong-2f",
 	[MACH_LOONGSON_END]             NULL,
 };
 

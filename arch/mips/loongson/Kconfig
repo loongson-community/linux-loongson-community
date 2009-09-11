@@ -141,3 +141,12 @@ config LEMOTE_FL2FNAS
 	  support to this machine is almost the same as fuloong2f, the only
 	  difference is that it use the serial port provided by loongson2f
 	  processor as yeeloong2f does.
+
+config LEMOTE_LYNLOONG2F
+	bool "Lemote LynLoong(Allinone) machine"
+	depends on LEMOTE_FULOONG2F
+	help
+	  Lemote's Loongson-2F based LynLoong(Allinone) machine, The kernel
+	  support of this machine is basically the same as fuloong2f, the only
+	  difference is that it has a size-fixed screen: 1360x768 with sisfb
+	  video driver. and also, it has its own specific Standby support.
