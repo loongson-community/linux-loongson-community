@@ -9,6 +9,7 @@
  */
 
 #include <linux/interrupt.h>
+#include <linux/module.h>
 
 #include <asm/irq_cpu.h>
 #include <asm/i8259.h>
@@ -25,7 +26,7 @@
 #define LOONGSON_INT_BIT_INT0		(1 << 11)
 #define LOONGSON_INT_BIT_INT1		(1 << 12)
 
-static int mach_i8259_irq(void)
+int mach_i8259_irq(void)
 {
 	int irq, isr, imr;
 
@@ -41,6 +42,7 @@ static int mach_i8259_irq(void)
 
 	return irq;
 }
+EXPORT_SYMBOL(mach_i8259_irq);
 
 static void i8259_irqdispatch(void)
 {
