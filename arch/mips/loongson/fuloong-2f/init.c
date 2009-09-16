@@ -18,4 +18,9 @@ void __init mach_prom_init_cmdline(void)
 {
 	if ((strstr(arcs_cmdline, "ide_core.ignore_cable=")) == NULL)
 		strcat(arcs_cmdline, " ide_core.ignore_cable=0");
+
+#ifdef CONFIG_LEMOTE_LYNLOONG
+	if ((strstr(arcs_cmdline, "video=")) == NULL)
+		strcat(arcs_cmdline, " video=sisfb:1360x768-16@60");
+#endif
 }
