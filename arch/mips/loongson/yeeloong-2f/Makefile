@@ -3,3 +3,9 @@
 #
 
 obj-y += init.o irq.o reset.o
+
+#
+# Power Management Support
+#
+
+obj-$(CONFIG_PM) += pm.o
