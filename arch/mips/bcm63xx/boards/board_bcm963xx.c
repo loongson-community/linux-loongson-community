@@ -22,11 +22,7 @@
 #include <bcm63xx_io.h>
 #include <bcm63xx_board.h>
 #include <bcm63xx_dev_pci.h>
-#include <bcm63xx_dev_uart.h>
 #include <bcm63xx_dev_enet.h>
-#include <bcm63xx_dev_pcmcia.h>
-#include <bcm63xx_dev_usb_ohci.h>
-#include <bcm63xx_dev_usb_ehci.h>
 #include <bcm63xx_dev_dsp.h>
 #include <board_bcm963xx.h>
 
@@ -797,11 +793,6 @@ int __init board_register_devices(void)
 {
 	u32 val;
 
-	bcm63xx_uart_register();
-
-	if (board.has_pccard)
-		bcm63xx_pcmcia_register();
-
 	if (board.has_enet0 &&
 	    !board_get_mac_address(board.enet0.mac_addr))
 		bcm63xx_enet_register(0, &board.enet0);
@@ -809,12 +800,6 @@ int __init board_register_devices(void)
 	if (board.has_enet1 &&
 	    !board_get_mac_address(board.enet1.mac_addr))
 		bcm63xx_enet_register(1, &board.enet1);
-
-	if (board.has_ohci0)
-		bcm63xx_ohci_register();
-
-	if (board.has_ehci0)
-		bcm63xx_ehci_register();
 
 	if (board.has_dsp)
 		bcm63xx_dsp_register(&board.dsp);
