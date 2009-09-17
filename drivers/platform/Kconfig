@@ -3,3 +3,7 @@
 if X86
 source "drivers/platform/x86/Kconfig"
 endif
+
+if MACH_LOONGSON
+source "drivers/platform/loongson/Kconfig"
+endif

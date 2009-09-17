@@ -1,0 +1,36 @@
+#
+# Loongson Platform Specific Drivers
+#
+
+menuconfig LOONGSON_PLATFORM_DEVICES
+	bool "Loongson Platform Specific Device Drivers"
+	default y
+	---help---
+	  Say Y here to get to see options for device drivers for various
+	  loongson platforms, including vendor-specific laptop extension drivers.
+	  This option alone does not add any kernel code.
+
+	  If you say N, all options in this submenu will be skipped and disabled.
+
+if LOONGSON_PLATFORM_DEVICES
+
+config LEMOTE_YEELOONG2F_PDEV
+	tristate "Lemote YeeLoong Platform Specific Driver"
+	depends on LEMOTE_YEELOONG2F
+	default y
+	select INPUT_EVDEV
+	select HWMON
+	select VIDEO_OUTPUT_CONTROL
+	select THERMAL
+	help
+	  This is a driver for yeeloong laptops. It adds the yeeloong-specific
+	  hwmon, hotkey, battery, backlight, video output and thermal cooling
+	  device sub drivers.
+
+	  This driver is orignally written by Liu junliang <liujl@lemote.com>
+	  and maintained by huangwei <huangw@lemote.com> in this git
+	  repository: http://dev.lemote.com/code/ec_module, but this driver is
+	  almost rewritten totally by Wu Zhangjin <wuzhangjin@gmail.com> and Hu
+	  Hongbing <huhb@lemote.com> to provide with standard interfaces.
+
+endif # LOONGSON_PLATFORM_DEVICES
