@@ -1096,20 +1096,11 @@ static void ipi_irq_dispatch(void)
 	do_IRQ(cpu_ipi_irq);
 }
 
-/*
- * FIXME: This struct used to have a duplicate struct initializer:
- *
- *	.flags		= IRQF_DISABLED,
- *	.flags		= IRQF_PERCPU
- *
- * Gcc ignores all but the last so the code was changed to only use use
- * IRQF_PERCPU until somebody tests IRQF_DISABLED | IRQF_PERCPU which probably
- * is what was intended.
- */
 static struct irqaction irq_ipi = {
 	.handler	= ipi_interrupt,
+	.flags		= IRQF_DISABLED,
 	.name		= "SMTC_IPI",
-	.flags		= IRQF_PERCPU,
+	.flags		= IRQF_PERCPU
 };
 
 static void setup_cross_vpe_interrupts(unsigned int nvpe)
