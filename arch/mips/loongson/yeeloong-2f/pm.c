@@ -14,12 +14,15 @@
 #include <linux/interrupt.h>
 #include <linux/pm.h>
 #include <linux/i8042.h>
+#include <linux/module.h>
 
 #include <asm/i8259.h>
 #include <asm/delay.h>
 #include <asm/mipsregs.h>
 
 #include <loongson.h>
+
+#include <ec/kb3310b.h>
 
 #define I8042_KBD_IRQ		1
 #define I8042_CTR_KBDINT	0x01
@@ -47,6 +50,9 @@ static int i8042_enable_kbd_port(void)
 	return 0;
 }
 
+#define SCI_IRQ_NUM 0x0A	/* system control interface */
+#define CASCADE_IRQ_NUM 2	/* cascade irq num of i8259A */
+
 /* i8042 is connnectted to i8259A */
 static void mach_setup_wakeup_events(void)
 {
@@ -60,9 +66,29 @@ static void mach_setup_wakeup_events(void)
 
 	/* enable keyboard port */
 	i8042_enable_kbd_port();
+
+	/* there is a need to wakeup the cpu via sci interrupt with relative
+	 * lid openning event
+	 */
+	outb(irq_mask & ~(1 << CASCADE_IRQ_NUM), PIC_MASTER_IMR);
+	inb(PIC_MASTER_IMR);
+	outb(0xff & ~(1 << (SCI_IRQ_NUM - 8)), PIC_SLAVE_IMR);
+	inb(PIC_SLAVE_IMR);
 }
+
 void setup_wakeup_events(void)
 __attribute__((alias("mach_setup_wakeup_events")));
+
+static struct delayed_work lid_task;
+static int initialized;
+/* yeeloong_report_lid_status will be implemented in drivers/platform/loongson/yeeloong_laptop.c*/
+sci_event_handler yeeloong_report_lid_status = NULL;
+EXPORT_SYMBOL(yeeloong_report_lid_status);
+static void yeeloong_lid_update_task(struct work_struct *work)
+{
+	if (yeeloong_report_lid_status)
+		yeeloong_report_lid_status(BIT_LID_DETECT_ON);
+}
 
 static int mach_wakeup_loongson(void)
 {
@@ -77,6 +103,41 @@ static int mach_wakeup_loongson(void)
 
 	if (irq == I8042_KBD_IRQ)
 		return 1;
+	else if (irq == SCI_IRQ_NUM) {
+		int ret, sci_event;
+		/* query the event number */
+		ret = ec_query_seq(CMD_GET_EVENT_NUM);
+		if (ret < 0)
+			return 0;
+		sci_event = ec_get_event_num();
+		if (sci_event < 0)
+			return 0;
+		if (sci_event == EVENT_LID) {
+			int lid_status;
+			/* check the LID status */
+			lid_status = ec_read(REG_LID_DETECT);
+			/* wakeup cpu when people open the LID */
+			if (lid_status == BIT_LID_DETECT_ON) {
+				/* send out this event */
+				printk(KERN_INFO "send out lid open event in %s\n", __func__);
+
+				/* if we call it directly here, the WARNING
+				 * will happen at line 98 of
+				 * kerenl/time/timekeeping.c (getnstimeofday)
+				 * via "WARN_ON(timekeeping_suspended);" because,
+				 * currently, we are in the suspend status
+				 */
+				if (initialized == 0) {
+					/* init the rfkill work task */
+					INIT_DELAYED_WORK(&lid_task, yeeloong_lid_update_task);
+					initialized = 1;
+				}
+				schedule_delayed_work(&lid_task, 1);
+				return 1;
+			}
+		}
+	}
+
 	return 0;
 }
 int wakeup_loongson(void)

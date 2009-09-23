@@ -44,3 +44,8 @@ extern int ec_get_event_num(void);
 #define	CMD_REBOOT_SYSTEM	0x8c
 #define	CMD_GET_EVENT_NUM	0x84
 #define	CMD_PROGRAM_PIECE	0xda
+
+typedef int (*sci_event_handler) (int status);
+extern int ec_query_seq(unsigned char cmd);
+extern int sci_get_event_num(void);
+extern sci_event_handler yeeloong_report_lid_status;
