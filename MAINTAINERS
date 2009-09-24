@@ -686,6 +686,13 @@ M:	Lennert Buytenhek <kernel@wantstofly.org>
 L:	linux-arm-kernel@lists.infradead.org (moderated for non-subscribers)
 S:	Maintained
 
+ARM/INTEL IXP4XX ARM ARCHITECTURE
+M:	Imre Kaloz <kaloz@openwrt.org>
+M:	Krzysztof Halasa <khc@pm.waw.pl>
+L:	linux-arm-kernel@lists.infradead.org
+S:	Maintained
+F:	arch/arm/mach-ixp4xx/
+
 ARM/INTEL XSC3 (MANZANO) ARM CORE
 M:	Lennert Buytenhek <kernel@wantstofly.org>
 M:	Dan Williams <dan.j.williams@intel.com>
@@ -894,6 +901,13 @@ F:	crypto/async_tx/
 F:	drivers/dma/
 F:	include/linux/dmaengine.h
 F:	include/linux/async_tx.h
+
+AT24 EEPROM DRIVER
+M:	Wolfram Sang <w.sang@pengutronix.de>
+L:	linux-i2c@vger.kernel.org
+S:	Maintained
+F:	drivers/misc/eeprom/at24.c
+F:	include/linux/i2c/at24.h
 
 ATA OVER ETHERNET (AOE) DRIVER
 M:	"Ed L. Cashin" <ecashin@coraid.com>
@@ -2107,12 +2121,12 @@ S:	Supported
 F:	arch/powerpc/sysdev/qe_lib/
 F:	arch/powerpc/include/asm/*qe.h
 
-FREESCALE HIGHSPEED USB DEVICE DRIVER
+FREESCALE USB PERIPHERIAL DRIVERS
 M:	Li Yang <leoli@freescale.com>
 L:	linux-usb@vger.kernel.org
 L:	linuxppc-dev@ozlabs.org
 S:	Maintained
-F:	drivers/usb/gadget/fsl_usb2_udc.c
+F:	drivers/usb/gadget/fsl*
 
 FREESCALE QUICC ENGINE UCC ETHERNET DRIVER
 M:	Li Yang <leoli@freescale.com>
@@ -3527,7 +3541,6 @@ F:	drivers/net/natsemi.c
 
 NCP FILESYSTEM
 M:	Petr Vandrovec <vandrove@vc.cvut.cz>
-L:	linware@sh.cvut.cz
 S:	Maintained
 F:	fs/ncpfs/
 
@@ -3769,7 +3782,13 @@ OMAP MMC SUPPORT
 M:	Jarkko Lavinen <jarkko.lavinen@nokia.com>
 L:	linux-omap@vger.kernel.org
 S:	Maintained
-F:	drivers/mmc/host/*omap*
+F:	drivers/mmc/host/omap.c
+
+OMAP HS MMC SUPPORT
+M:	Madhusudhan Chikkature <madhu.cr@ti.com>
+L:	linux-omap@vger.kernel.org
+S:	Maintained
+F:	drivers/mmc/host/omap_hsmmc.c
 
 OMAP RANDOM NUMBER GENERATOR SUPPORT
 M:	Deepak Saxena <dsaxena@plexity.net>
@@ -3958,6 +3977,15 @@ M:	Riku Voipio <riku.voipio@iki.fi>
 S:	Maintained
 F:	drivers/leds/leds-pca9532.c
 F:	include/linux/leds-pca9532.h
+
+PCA9564/PCA9665 I2C BUS DRIVER
+M:	Wolfram Sang <w.sang@pengutronix.de>
+L:	linux-i2c@vger.kernel.org
+S:	Maintained
+F:	drivers/i2c/algos/i2c-algo-pca.c
+F:	drivers/i2c/busses/i2c-pca-*
+F:	include/linux/i2c-algo-pca.h
+F:	include/linux/i2c-pca-platform.h
 
 PCI ERROR RECOVERY
 M:	Linas Vepstas <linas@austin.ibm.com>
@@ -4460,7 +4488,7 @@ SCORE ARCHITECTURE
 P:	Chen Liqin
 M:	liqin.chen@sunplusct.com
 P:	Lennox Wu
-M:	lennox.wu@sunplusct.com
+M:	lennox.wu@gmail.com
 W:	http://www.sunplusct.com
 S:	Supported
 
@@ -4647,6 +4675,18 @@ M:	Kristen Carlson Accardi <kristen.c.accardi@intel.com>
 L:	linux-pci@vger.kernel.org
 S:	Supported
 F:	drivers/pci/hotplug/shpchp*
+
+SIMPLE FIRMWARE INTERFACE (SFI)
+P:	Len Brown
+M:	lenb@kernel.org
+L:	sfi-devel@simplefirmware.org
+W:	http://simplefirmware.org/
+T:	git git://git.kernel.org/pub/scm/linux/kernel/git/lenb/linux-sfi-2.6.git
+S:	Supported
+F:	arch/x86/kernel/*sfi*
+F:	drivers/sfi/
+F:	include/linux/sfi*.h
+
 
 SIMTEC EB110ATX (Chalice CATS)
 P:	Ben Dooks
@@ -5047,6 +5087,11 @@ W:	http://tomoyo.sourceforge.jp/
 T:	quilt http://svn.sourceforge.jp/svnroot/tomoyo/trunk/2.2.x/tomoyo-lsm/patches/
 S:	Maintained
 F:	security/tomoyo/
+
+TOPSTAR LAPTOP EXTRAS DRIVER
+M:	Herton Ronaldo Krzesinski <herton@mandriva.com.br>
+S:	Maintained
+F:	drivers/platform/x86/topstar-laptop.c
 
 TOSHIBA ACPI EXTRAS DRIVER
 S:	Orphan
