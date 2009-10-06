@@ -12,11 +12,11 @@
 # Author: Wu Zhangjin <wuzj@lemote.com>
 #
 
-# The load address of the compressed kernel, VMLINUZ_LOAD_ADDRESS > VMLINUX_LOAD_ADDRESS + VMLINUX_SIZE
+# compressed kernel load addr: VMLINUZ_LOAD_ADDRESS > VMLINUX_LOAD_ADDRESS + VMLINUX_SIZE
 VMLINUX_SIZE := $(shell wc -c $(objtree)/$(KBUILD_IMAGE) 2>/dev/null | cut -d' ' -f1)
-VMLINUX_SIZE := $(shell echo "obase=16;ibase=10;(($(VMLINUX_SIZE)/65536 + 1) * 65536)" | bc | cut -d'.' -f1)
-VMLINUX_LOAD_ADDRESS = $(shell echo $(LOADADDR) | sed -e "s/0xffffffff//g")
-VMLINUZ_LOAD_ADDRESS := $(shell echo "obase=16; ibase=16; ($(VMLINUX_LOAD_ADDRESS) + $(VMLINUX_SIZE))" | bc)
+VMLINUX_SIZE := $(shell echo $$(($(VMLINUX_SIZE) + (65536 - $(VMLINUX_SIZE) % 65536))))
+VMLINUX_LOAD_ADDRESS = $(shell echo $(LOADADDR) | sed -e 's/0xffffffff//')
+VMLINUZ_LOAD_ADDRESS := $(shell printf %x $$((0x$(VMLINUX_LOAD_ADDRESS) + $(VMLINUX_SIZE))))
 VMLINUZ_LOAD_ADDRESS := 0x$(if $(CONFIG_64BIT),ffffffff,)$(VMLINUZ_LOAD_ADDRESS)
 LOADADDR := 0x$(if $(CONFIG_64BIT),ffffffff,)$(VMLINUX_LOAD_ADDRESS)
 
