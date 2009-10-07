@@ -54,6 +54,20 @@ u32 mfgpt_base;
  * bit 11:0 is write once
  */
 
+/* disable counter */
+void disable_mfgpt0_counter(void)
+{
+	outw(inw(MFGPT0_SETUP) & 0x7fff, MFGPT0_SETUP);
+}
+EXPORT_SYMBOL(disable_mfgpt0_counter);
+
+/* enable counter, comparator2 to event mode, 14.318MHz clock */
+void enable_mfgpt0_counter(void)
+{
+	outw(0xe310, MFGPT0_SETUP);
+}
+EXPORT_SYMBOL(enable_mfgpt0_counter);
+
 static void init_mfgpt_timer(enum clock_event_mode mode,
 			     struct clock_event_device *evt)
 {
@@ -63,17 +77,14 @@ static void init_mfgpt_timer(enum clock_event_mode mode,
 	case CLOCK_EVT_MODE_PERIODIC:
 		outw(COMPARE, MFGPT0_CMP2);	/* set comparator2 */
 		outw(0, MFGPT0_CNT);	/* set counter to 0 */
-		/* enable counter, comparator2 to event mode, 14.318MHz clock */
-		outw(0xe310, MFGPT0_SETUP);
+		enable_mfgpt0_counter();
 		break;
 
 	case CLOCK_EVT_MODE_SHUTDOWN:
 	case CLOCK_EVT_MODE_UNUSED:
 		if (evt->mode == CLOCK_EVT_MODE_PERIODIC ||
-		    evt->mode == CLOCK_EVT_MODE_ONESHOT) {
-			/* disable counter */
-			outw(inw(MFGPT0_SETUP) & 0x7fff, MFGPT0_SETUP);
-		}
+		    evt->mode == CLOCK_EVT_MODE_ONESHOT)
+			disable_mfgpt0_counter();
 		break;
 
 	case CLOCK_EVT_MODE_ONESHOT:

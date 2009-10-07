@@ -10,6 +10,18 @@
 extern u32 mfgpt_base;
 extern void setup_mfgpt_timer(void);
 
+#ifdef CONFIG_CS5536_MFGPT
+extern void disable_mfgpt0_counter(void);
+extern void enable_mfgpt0_counter(void);
+#else
+static void disable_mfgpt0_counter(void)
+{
+}
+static void enable_mfgpt0_counter(void)
+{
+}
+#endif
+
 #if 1
 #define MFGPT_TICK_RATE 14318000
 #else
