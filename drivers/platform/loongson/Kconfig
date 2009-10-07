@@ -33,6 +33,14 @@ config LEMOTE_YEELOONG2F_PDEV
 	  almost rewritten totally by Wu Zhangjin <wuzhangjin@gmail.com> and Hu
 	  Hongbing <huhb@lemote.com> to provide with standard interfaces.
 
+config LEMOTE_YEELOONG2F_PDEV_ROM
+	tristate "Lemote YeeLoong PMON & EC accessing support"
+	depends on LEMOTE_YEELOONG2F && MTD && MTD_PARTITIONS
+	default n
+	help
+	  This driver add the ROM of PMON & EC accessing(dump/flush) support.
+	  It's very dangerous to flush the ROM of PMON & EC, so please NOT do it!
+
 config LEMOTE_LYNLOONG2F_PDEV
 	tristate "Lemote LynLoong(Allinone) Platform Specific Driver"
 	depends on LEMOTE_LYNLOONG2F
