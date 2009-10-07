@@ -1,0 +1,153 @@
+choice
+	prompt "Machine Type"
+	depends on MACH_LOONGSON
+
+config LEMOTE_FULOONG2E
+	bool "Lemote Fuloong(2e) mini-PC"
+	select ARCH_SPARSEMEM_ENABLE
+	select CEVT_R4K
+	select CSRC_R4K
+	select SYS_HAS_CPU_LOONGSON2E
+	select DMA_NONCOHERENT
+	select BOOT_ELF32
+	select BOARD_SCACHE
+	select HW_HAS_PCI
+	select I8259
+	select ISA
+	select IRQ_CPU
+	select SYS_SUPPORTS_32BIT_KERNEL
+	select SYS_SUPPORTS_64BIT_KERNEL
+	select SYS_SUPPORTS_LITTLE_ENDIAN
+	select SYS_SUPPORTS_HIGHMEM
+	select SYS_HAS_EARLY_PRINTK
+	select GENERIC_HARDIRQS_NO__DO_IRQ
+	select GENERIC_ISA_DMA_SUPPORT_BROKEN
+	select CPU_HAS_WB
+	help
+	  Lemote Fuloong(2e) mini-PC board based on the Chinese Loongson-2E CPU and
+	  an FPGA northbridge
+
+	  Lemote Fuloong(2e) mini PC have a VIA686B south bridge.
+
+config LEMOTE_FULOONG2F
+	bool "Lemote Fuloong(2f) mini-PC"
+	select ARCH_SPARSEMEM_ENABLE
+	select CEVT_R4K if !CS5536_MFGPT
+	select CSRC_R4K if !CS5536_MFGPT
+	select SYS_HAS_CPU_LOONGSON2F
+	select DMA_NONCOHERENT
+	select BOOT_ELF32
+	select BOARD_SCACHE
+	select HW_HAS_PCI
+	select I8259
+	select ISA
+	select IRQ_CPU
+	select SYS_SUPPORTS_32BIT_KERNEL
+	select SYS_SUPPORTS_64BIT_KERNEL
+	select SYS_SUPPORTS_LITTLE_ENDIAN
+	select SYS_SUPPORTS_HIGHMEM
+	select SYS_HAS_EARLY_PRINTK
+	select SYS_HAS_MACH_PROM_INIT_CMDLINE
+	select GENERIC_HARDIRQS_NO__DO_IRQ
+	select GENERIC_ISA_DMA_SUPPORT_BROKEN
+	select CPU_HAS_WB
+	select CS5536
+	help
+	  Lemote Fuloong(2f) mini-PC board based on the Chinese Loongson-2F
+	  CPU, which has an internal DDR and PCIX controller. the PCIX
+	  controller have the similiar programming interface of the FPGA north
+	  bridge of LOONGSON2E.
+
+	  Lemote Fuloong(2f) mini PC have an AMD CS5536 south bridge.
+
+config LEMOTE_YEELOONG2F
+	bool "Lemote Yeeloong(2f) mini Notebook"
+	select ARCH_SPARSEMEM_ENABLE
+	select CEVT_R4K if !CS5536_MFGPT
+	select CSRC_R4K if !CS5536_MFGPT
+	select SYS_HAS_CPU_LOONGSON2F
+	select DMA_NONCOHERENT
+	select BOOT_ELF32
+	select BOARD_SCACHE
+	select HW_HAS_PCI
+	select I8259
+	select ISA
+	select IRQ_CPU
+	select SYS_SUPPORTS_32BIT_KERNEL
+	select SYS_SUPPORTS_64BIT_KERNEL
+	select SYS_SUPPORTS_LITTLE_ENDIAN
+	select SYS_SUPPORTS_HIGHMEM
+	select SYS_HAS_EARLY_PRINTK
+	select SYS_HAS_MACH_PROM_INIT_CMDLINE
+	select GENERIC_HARDIRQS_NO__DO_IRQ
+	select GENERIC_ISA_DMA_SUPPORT_BROKEN
+	select CPU_HAS_WB
+	select CS5536
+	help
+	  Lemote Laptop based on the Chinese Loongson-2F CPU, which has an
+	  internal DDR and PCIX controller. the PCIX controller have the
+	  similiar programming interface of the FPGA north bridge of
+	  LOONGSON2E.
+
+	  Lemote Yeeloong(2f) laptop have an AMD CS5536 south bridge and an EC
+	  controller.
+endchoice
+
+config CS5536
+	bool
+
+config CS5536_FLASH
+	bool
+	depends on CS5536
+
+config CS5536_NOR_FLASH
+	bool
+	depends on CS5536_FLASH
+
+config CS5536_OTG
+	bool
+	depends on CS5536
+
+config CS5536_UDC
+	bool
+	depends on CS5536
+
+config CS5536_MFGPT
+	bool "Using cs5536's MFGPT as system clock"
+	depends on CS5536
+	help
+	  This is needed if cpufreq and oprofile is enabled in Loongson2(F)
+	  machines
+
+config UCA_SIZE
+	hex "Uncache Accelerated Region size"
+	depends on CPU_LOONGSON2F
+	default 0x400000 if LEMOTE_YEELOONG2F
+	default 0x2000000 if LEMOTE_FULOONG2F
+	help
+	  Uncached Acceleration(UCA) can greatly improve video performance.
+	  Normally the Video memory can be accessed in Uncached Accelerated mode,
+	  other peripheral spaces not.
+
+	  Specify a zeroed size to disable this feature.
+
+config SYS_HAS_MACH_PROM_INIT_CMDLINE
+	bool
+
+config LEMOTE_FL2FNAS
+	bool "Lemote NAS(2F) machine"
+	depends on LEMOTE_FULOONG2F
+	help
+	  Lemote's Loongson-2F based network attached system, The kernel
+	  support to this machine is almost the same as fuloong2f, the only
+	  difference is that it use the serial port provided by loongson2f
+	  processor as yeeloong2f does.
+
+config LEMOTE_LYNLOONG2F
+	bool "Lemote LynLoong(Allinone) machine"
+	depends on LEMOTE_FULOONG2F
+	help
+	  Lemote's Loongson-2F based LynLoong(Allinone) machine, The kernel
+	  support of this machine is basically the same as fuloong2f, the only
+	  difference is that it has a size-fixed screen: 1360x768 with sisfb
+	  video driver. and also, it has its own specific Standby support.
