@@ -33,4 +33,13 @@ config LEMOTE_YEELOONG2F_PDEV
 	  almost rewritten totally by Wu Zhangjin <wuzhangjin@gmail.com> and Hu
 	  Hongbing <huhb@lemote.com> to provide with standard interfaces.
 
+config LEMOTE_LYNLOONG2F_PDEV
+	tristate "Lemote LynLoong(Allinone) Platform Specific Driver"
+	depends on LEMOTE_LYNLOONG2F
+	select THERMAL
+	default y
+	help
+	  This is a driver for lynloong machine, It adds the lynloong-specific
+	  backlight driver and the lynloong platform driver.
+
 endif # LOONGSON_PLATFORM_DEVICES
