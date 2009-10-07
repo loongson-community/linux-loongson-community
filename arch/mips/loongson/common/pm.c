@@ -20,6 +20,8 @@
 
 #include <loongson.h>
 
+#include <cs5536/cs5536_mfgpt.h>
+
 static unsigned int cached_master_mask;	/* i8259A */
 static unsigned int cached_slave_mask;
 static unsigned int cached_bonito_irq_mask; /* bonito */
@@ -111,10 +113,12 @@ static void loongson_suspend_enter(void)
 
 void __attribute__((weak)) mach_suspend(void)
 {
+	disable_mfgpt0_counter();
 }
 
 void __attribute__((weak)) mach_resume(void)
 {
+	enable_mfgpt0_counter();
 }
 
 static int loongson_pm_enter(suspend_state_t state)
