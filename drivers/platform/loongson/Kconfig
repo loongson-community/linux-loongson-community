@@ -46,6 +46,7 @@ config LEMOTE_LYNLOONG2F_PDEV
 	tristate "Lemote LynLoong(Allinone) Platform Specific Driver"
 	depends on LEMOTE_LYNLOONG2F
 	select THERMAL
+	select BACKLIGHT_CLASS_DEVICE
 	default y
 	help
 	  This is a driver for lynloong machine, It adds the lynloong-specific
