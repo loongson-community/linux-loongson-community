@@ -22,6 +22,7 @@ config LEMOTE_YEELOONG2F_PDEV
 	select HWMON
 	select VIDEO_OUTPUT_CONTROL
 	select THERMAL
+	select BACKLIGHT_CLASS_DEVICE
 	help
 	  This is a driver for yeeloong laptops. It adds the yeeloong-specific
 	  hwmon, hotkey, battery, backlight, video output and thermal cooling
