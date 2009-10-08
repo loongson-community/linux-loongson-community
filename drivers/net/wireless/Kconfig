@@ -448,6 +448,7 @@ config RTL8187B
 	depends on LEMOTE_YEELOONG2F_PDEV || !LEMOTE_YEELOONG2F_PDEV
 	depends on RFKILL || !RFKILL
 	select EEPROM_93CX6
+	select CRYPTO
 	---help---
 	  This is a driver for RTL8187B based cards, this driver is especially
 	  for yeeloon2f laptop.
