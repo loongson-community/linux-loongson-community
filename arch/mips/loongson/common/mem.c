@@ -12,10 +12,14 @@
 
 #include <loongson.h>
 #include <mem.h>
+#include <pci.h>
 
 void __init prom_init_memory(void)
 {
     add_memory_region(0x0, (memsize << 20), BOOT_MEM_RAM);
+
+    add_memory_region(memsize << 20, LOONGSON_PCI_MEM_START - (memsize <<
+			    20), BOOT_MEM_RESERVED);
 #ifdef CONFIG_64BIT
 #ifdef CONFIG_CPU_LOONGSON2F
 	{
@@ -37,6 +41,10 @@ void __init prom_init_memory(void)
     if (highmemsize > 0)
 	add_memory_region(LOONGSON_HIGHMEM_START,
 		highmemsize << 20, BOOT_MEM_RAM);
+
+    add_memory_region(LOONGSON_PCI_MEM_END + 1, LOONGSON_HIGHMEM_START -
+		    LOONGSON_PCI_MEM_END - 1, BOOT_MEM_RESERVED);
+
 #endif /* CONFIG_64BIT */
 }
 
