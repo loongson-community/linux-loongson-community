@@ -145,6 +145,27 @@ typedef struct { unsigned long pgprot; } pgprot_t;
  */
 #define ptep_buddy(x)	((pte_t *)((unsigned long)(x) ^ sizeof(pte_t)))
 
+#ifdef CONFIG_FLATMEM
+
+extern int pfn_valid(unsigned long);
+
+#elif defined(CONFIG_SPARSEMEM)
+
+/* pfn_valid is defined in linux/mmzone.h */
+
+#elif defined(CONFIG_NEED_MULTIPLE_NODES)
+
+#define pfn_valid(pfn)							\
+({									\
+	unsigned long __pfn = (pfn);					\
+	int __n = pfn_to_nid(__pfn);					\
+	((__n >= 0) ? (__pfn < NODE_DATA(__n)->node_start_pfn +		\
+	                       NODE_DATA(__n)->node_spanned_pages)	\
+	            : 0);						\
+})
+
+#endif /* CONFIG_NEED_MULTIPLE_NODES */
+
 #endif /* !__ASSEMBLY__ */
 
 /*
@@ -164,34 +185,6 @@ typedef struct { unsigned long pgprot; } pgprot_t;
 #define __pa_symbol(x)	__pa(RELOC_HIDE((unsigned long)(x), 0))
 
 #define pfn_to_kaddr(pfn)	__va((pfn) << PAGE_SHIFT)
-
-#ifdef CONFIG_FLATMEM
-
-#define pfn_valid(pfn)							\
-({									\
-	unsigned long __pfn = (pfn);					\
-	/* avoid <linux/bootmem.h> include hell */			\
-	extern unsigned long min_low_pfn;				\
-									\
-	__pfn >= min_low_pfn && __pfn < max_mapnr;			\
-})
-
-#elif defined(CONFIG_SPARSEMEM)
-
-/* pfn_valid is defined in linux/mmzone.h */
-
-#elif defined(CONFIG_NEED_MULTIPLE_NODES)
-
-#define pfn_valid(pfn)							\
-({									\
-	unsigned long __pfn = (pfn);					\
-	int __n = pfn_to_nid(__pfn);					\
-	((__n >= 0) ? (__pfn < NODE_DATA(__n)->node_start_pfn +		\
-	                       NODE_DATA(__n)->node_spanned_pages)	\
-	            : 0);						\
-})
-
-#endif
 
 #define virt_to_page(kaddr)	pfn_to_page(PFN_DOWN(virt_to_phys(kaddr)))
 #define virt_addr_valid(kaddr)	pfn_valid(PFN_DOWN(virt_to_phys(kaddr)))

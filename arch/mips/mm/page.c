@@ -689,3 +689,21 @@ void copy_page(void *to, void *from)
 }
 
 #endif /* CONFIG_SIBYTE_DMA_PAGEOPS */
+
+#ifdef CONFIG_FLATMEM
+int pfn_valid(unsigned long pfn)
+{
+	int i;
+
+	for (i = 0; i < boot_mem_map.nr_map; i++) {
+		if ((boot_mem_map.map[i].type != BOOT_MEM_RAM) &&
+			(boot_mem_map.map[i].type != BOOT_MEM_ROM_DATA))
+			continue;
+		if ((pfn >= PFN_DOWN(boot_mem_map.map[i].addr)) &&
+			(pfn < PFN_UP(boot_mem_map.map[i].addr +
+				boot_mem_map.map[i].size)))
+			return 1;
+	}
+	return 0;
+}
+#endif
