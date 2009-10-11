@@ -366,6 +366,9 @@ static int __init apm_init(void)
 
 static void __exit apm_exit(void)
 {
+	/* uninstall battery event handler */
+	yeeloong_uninstall_sci_event_handler(EVENT_AC_BAT, ac_bat_action);
+
 	misc_deregister(&apm_device);
 #ifdef	CONFIG_PROC_FS
 	remove_proc_entry("apm", NULL);

@@ -162,6 +162,9 @@ int r8187b_rfkill_init(struct net_device *dev)
 
 void r8187b_rfkill_exit(void)
 {
+	/* uninstall the event handler */
+	yeeloong_uninstall_sci_event_handler(EVENT_WLAN,
+					   r8187b_wifi_update_rfkill_state);
 	if (r8187b_rfkill) {
 		rfkill_unregister(r8187b_rfkill);
 		rfkill_destroy(r8187b_rfkill);

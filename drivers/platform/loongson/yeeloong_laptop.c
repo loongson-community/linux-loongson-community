@@ -454,6 +454,14 @@ static int yeeloong_vo_init(struct device *dev)
 
 static void yeeloong_vo_exit(void)
 {
+	/* uninstall event handlers */
+	yeeloong_uninstall_sci_event_handler(EVENT_CRT_DETECT,
+					   &crt_detect_handler);
+	yeeloong_uninstall_sci_event_handler(EVENT_BLACK_SCREEN,
+					   &black_screen_handler);
+	yeeloong_uninstall_sci_event_handler(EVENT_DISPLAY_TOGGLE,
+					   &display_toggle_handler);
+
 	if (lcd_output_dev) {
 		video_output_unregister(lcd_output_dev);
 		lcd_output_dev = NULL;
@@ -694,6 +702,23 @@ int yeeloong_install_sci_event_handler(int event, sci_event_handler handler)
 	return 0;
 }
 EXPORT_SYMBOL(yeeloong_install_sci_event_handler);
+
+int yeeloong_uninstall_sci_event_handler(int event, sci_event_handler handler)
+{
+	if (event_handler[event - EVENT_LID] == NULL) {
+		printk(KERN_INFO "There is no handler installed for event: %d\n",
+		       event);
+		return -1;
+	}
+	if (event_handler[event - EVENT_LID] != handler) {
+		printk(KERN_INFO "You can not uninstall the handler installed by others\n");
+		return -1;
+	}
+	event_handler[event - EVENT_LID] = NULL;
+
+	return 0;
+}
+EXPORT_SYMBOL(yeeloong_uninstall_sci_event_handler);
 
 static void yeeloong_event_action(void)
 {
@@ -946,6 +971,12 @@ static int yeeloong_hotkey_init(struct device *dev)
 
 static void yeeloong_hotkey_exit(void)
 {
+	/* uninstall the real yeeloong_report_lid_status for pm.c */
+	yeeloong_report_lid_status = NULL;
+
+	/* install event handler */
+	yeeloong_uninstall_sci_event_handler(EVENT_CAMERA, camera_set);
+
 	if (yeeloong_hotkey_dev) {
 		sysfs_remove_group(&yeeloong_hotkey_dev->dev.kobj,
 				   &hotkey_attribute_group);

@@ -188,4 +188,5 @@ typedef int (*sci_event_handler) (int status);
 extern int ec_query_seq(unsigned char cmd);
 extern int sci_get_event_num(void);
 extern int yeeloong_install_sci_event_handler(int event, sci_event_handler handler);
+extern int yeeloong_uninstall_sci_event_handler(int event, sci_event_handler handler);
 extern sci_event_handler yeeloong_report_lid_status;
