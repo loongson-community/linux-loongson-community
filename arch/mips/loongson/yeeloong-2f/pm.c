@@ -54,7 +54,7 @@ static int i8042_enable_kbd_port(void)
 #define CASCADE_IRQ_NUM 2	/* cascade irq num of i8259A */
 
 /* i8042 is connnectted to i8259A */
-static void mach_setup_wakeup_events(void)
+void setup_wakeup_events(void)
 {
 	int irq_mask;
 
@@ -76,9 +76,6 @@ static void mach_setup_wakeup_events(void)
 	inb(PIC_SLAVE_IMR);
 }
 
-void setup_wakeup_events(void)
-__attribute__((alias("mach_setup_wakeup_events")));
-
 static struct delayed_work lid_task;
 static int initialized;
 /* yeeloong_report_lid_status will be implemented in drivers/platform/loongson/yeeloong_laptop.c*/
@@ -90,7 +87,7 @@ static void yeeloong_lid_update_task(struct work_struct *work)
 		yeeloong_report_lid_status(BIT_LID_DETECT_ON);
 }
 
-static int mach_wakeup_loongson(void)
+int wakeup_loongson(void)
 {
 	int irq;
 
@@ -140,5 +137,3 @@ static int mach_wakeup_loongson(void)
 
 	return 0;
 }
-int wakeup_loongson(void)
-__attribute__((alias("mach_wakeup_loongson")));
