@@ -115,7 +115,7 @@ void __init prom_setup_cmdline(void)
 		strcpy(cp, arcs_cmdline);
 		cp += strlen(arcs_cmdline);
 	}
-	cmd_line[CL_SIZE-1] = '\0';
+	cmd_line[COMMAND_LINE_SIZE-1] = '\0';
 
 	strcpy(arcs_cmdline, cmd_line);
 }
