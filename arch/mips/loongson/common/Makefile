@@ -31,7 +31,9 @@ obj-$(CONFIG_CS5536) += cs5536/
 # Power Management Support
 #
 
+ifdef CONFIG_CPU_LOONGSON2F
 obj-$(CONFIG_PM) += pm.o
+endif
 
 #
 # Enable RTC Class support

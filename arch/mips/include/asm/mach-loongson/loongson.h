@@ -226,7 +226,9 @@ extern struct cpufreq_frequency_table loongson2f_clockmod_table[];
 #define LOONGSON_PXARB_STATUS		LOONGSON_REG(LOONGSON_REGBASE + 0x6c)
 
 /* Chip Config */
+#ifdef CONFIG_CPU_LOONGSON2F
 #define LOONGSON_CHIPCFG0		LOONGSON_REG(LOONGSON_REGBASE + 0x80)
+#endif
 
 /* pcimap */
 
