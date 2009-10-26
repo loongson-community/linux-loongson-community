@@ -22,7 +22,6 @@
 #include <linux/list.h>
 #include <linux/init.h>
 #include <linux/completion.h>
-#include <linux/kthread.h>
 #include <linux/delay.h>
 #include <linux/timer.h>
 
@@ -95,8 +94,6 @@ struct apm_pwr_info {
 	/* battery current temperature */
 	unsigned int bat_temperature;
 };
-
-static struct task_struct *battery_tsk;
 
 static DEFINE_MUTEX(bat_info_lock);
 struct bat_info {
@@ -358,7 +355,6 @@ static int __init apm_init(void)
 	ret = misc_register(&apm_device);
 	if (ret != 0) {
 		remove_proc_entry("apm", NULL);
-		kthread_stop(battery_tsk);
 		printk(KERN_ERR "ecbat : misc register error.\n");
 	}
 	return ret;
@@ -373,7 +369,6 @@ static void __exit apm_exit(void)
 #ifdef	CONFIG_PROC_FS
 	remove_proc_entry("apm", NULL);
 #endif
-	kthread_stop(battery_tsk);
 }
 
 module_init(apm_init);
