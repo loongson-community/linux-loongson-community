@@ -443,11 +443,11 @@ static int yeeloong_vo_init(struct device *dev)
 
 	/* install event handlers */
 	yeeloong_install_sci_event_handler(EVENT_CRT_DETECT,
-					   &crt_detect_handler);
+					   crt_detect_handler);
 	yeeloong_install_sci_event_handler(EVENT_BLACK_SCREEN,
-					   &black_screen_handler);
+					   black_screen_handler);
 	yeeloong_install_sci_event_handler(EVENT_DISPLAY_TOGGLE,
-					   &display_toggle_handler);
+					   display_toggle_handler);
 
 	return 0;
 }
@@ -456,11 +456,11 @@ static void yeeloong_vo_exit(void)
 {
 	/* uninstall event handlers */
 	yeeloong_uninstall_sci_event_handler(EVENT_CRT_DETECT,
-					   &crt_detect_handler);
+					   crt_detect_handler);
 	yeeloong_uninstall_sci_event_handler(EVENT_BLACK_SCREEN,
-					   &black_screen_handler);
+					   black_screen_handler);
 	yeeloong_uninstall_sci_event_handler(EVENT_DISPLAY_TOGGLE,
-					   &display_toggle_handler);
+					   display_toggle_handler);
 
 	if (lcd_output_dev) {
 		video_output_unregister(lcd_output_dev);
@@ -971,10 +971,13 @@ static int yeeloong_hotkey_init(struct device *dev)
 
 static void yeeloong_hotkey_exit(void)
 {
+	/* free irq */
+	remove_irq(SCI_IRQ_NUM, &sci_irqaction);
+
 	/* uninstall the real yeeloong_report_lid_status for pm.c */
 	yeeloong_report_lid_status = NULL;
 
-	/* install event handler */
+	/* uninstall event handler */
 	yeeloong_uninstall_sci_event_handler(EVENT_CAMERA, camera_set);
 
 	if (yeeloong_hotkey_dev) {
@@ -1139,7 +1142,6 @@ static int __init yeeloong_init(void)
 		       "init yeeloong thermal cooling device(LCD backlight) failure\n");
 		return ret;
 	}
-
 	ret = yeeloong_hwmon_init(&yeeloong_pdev->dev);
 	if (ret) {
 		yeeloong_hwmon_exit();
@@ -1153,25 +1155,23 @@ static int __init yeeloong_init(void)
 		printk(KERN_INFO "init yeeloong video output driver failure\n");
 		return ret;
 	}
-
 	ret = yeeloong_hotkey_init(&yeeloong_pdev->dev);
 	if (ret) {
 		yeeloong_hotkey_exit();
 		printk(KERN_INFO "init yeeloong hotkey driver failure\n");
 		return ret;
 	}
-
 	return 0;
 }
 
 static void __exit yeeloong_exit(void)
 {
-	yeeloong_pdev_exit();
+	yeeloong_hotkey_exit();
+	yeeloong_vo_exit();
+	yeeloong_hwmon_exit();
 	yeeloong_thermal_exit(&yeeloong_backlight_dev->dev);
 	yeeloong_backlight_exit();
-	yeeloong_hwmon_exit();
-	yeeloong_vo_exit();
-	yeeloong_hotkey_exit();
+	yeeloong_pdev_exit();
 }
 
 module_init(yeeloong_init);
