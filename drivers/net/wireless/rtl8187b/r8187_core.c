@@ -6913,13 +6913,13 @@ static int __init rtl8187_usb_module_init(void)
 
 static void __exit rtl8187_usb_module_exit(void)
 {
+	r8187b_rfkill_exit();
 	usb_deregister(&rtl8187_usb_driver);
 	rtl8180_proc_module_remove();
 	ieee80211_crypto_tkip_exit();
 	ieee80211_crypto_ccmp_exit();
 	ieee80211_crypto_wep_exit();
 	ieee80211_crypto_deinit();
-	r8187b_rfkill_exit();
 
 	DMESG("Exiting\n");
 }
@@ -7014,12 +7014,10 @@ void r8187b_wifi_change_rfkill_state(struct net_device *dev, RT_RF_POWER_STATE e
 {
 	struct r8180_priv *priv = ieee80211_priv(dev);
 
-	if ((priv->ieee80211->bHwRadioOff == true) && (eRfPowerStateToSet == eRfOn))
+	if (eRfPowerStateToSet == eRfOn)
 		priv->ieee80211->bHwRadioOff = false;
-	else if ((priv->ieee80211->bHwRadioOff == false) && (eRfPowerStateToSet == eRfOff))
-		priv->ieee80211->bHwRadioOff = true;
 	else
-		return;
+		priv->ieee80211->bHwRadioOff = true;
 
 	DMESG("SCI interrupt Methord Will Turn Radio %s",
 		(priv->ieee80211->bHwRadioOff == true) ? "Off" : "On");
@@ -7027,7 +7025,7 @@ void r8187b_wifi_change_rfkill_state(struct net_device *dev, RT_RF_POWER_STATE e
 #ifdef LED //by lizhaoming
 	if (priv->ieee80211->bHwRadioOff)
 		priv->ieee80211->ieee80211_led_contorl(dev, LED_CTL_POWER_OFF);
-	else if (priv->up)
+	else
 		priv->ieee80211->ieee80211_led_contorl(dev, LED_CTL_POWER_ON);
 #endif
 

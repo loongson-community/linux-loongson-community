@@ -31,7 +31,7 @@ static int initialized;
 /* turn off by default */
 int r8187b_rfkill_state = RFKILL_USER_STATE_SOFT_BLOCKED;
 struct net_device *r8187b_dev = NULL;
-RT_RF_POWER_STATE eRfPowerStateToSet = eRfOff;
+RT_RF_POWER_STATE eRfPowerStateToSet;
 
 /* These two mutexes are used to ensure the relative rfkill status are accessed
  * by different tasks exclusively */
@@ -97,15 +97,15 @@ static int r8187b_rfkill_set(void *data, bool blocked)
 
 static void r8187b_rfkill_query(struct rfkill *rfkill, void *data)
 {
-	bool blocked;
+	static bool blocked;
 
-	blocked = 2;
 	mutex_lock(&state_lock);
 	if (r8187b_rfkill_state == RFKILL_USER_STATE_UNBLOCKED)
 		blocked = 0;
 	else if (r8187b_rfkill_state == RFKILL_USER_STATE_SOFT_BLOCKED)
 		blocked = 1;
 	mutex_unlock(&state_lock);
+
 	rfkill_set_hw_state(rfkill, blocked);
 }
 
@@ -154,8 +154,15 @@ int r8187b_rfkill_init(struct net_device *dev)
 	yeeloong_install_sci_event_handler(EVENT_WLAN,
 					   r8187b_wifi_update_rfkill_state);
 
-	/* power off the wifi by default */
-	r8187b_wifi_change_rfkill_state(r8187b_dev, eRfOff);
+	/* poweroff wifi by default, if you want to enable it when booting the
+	 * kernel, just need to add this line in /etc/rc.local or the other
+	 * relative scripts which will be excuted on booting:
+	 *
+	 *   echo 1 > /sys/class/rfkill/rfkill0/state
+	 */
+
+	eRfPowerStateToSet = eRfOff;
+	r8187b_wifi_change_rfkill_state(r8187b_dev, eRfPowerStateToSet);
 
 	return 0;
 }
