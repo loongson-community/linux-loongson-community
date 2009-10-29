@@ -822,7 +822,7 @@ void smtc_head2_init(struct smtcfb_info *sfb)
 /*
  * Alloc struct smtcfb_info and assign the default value
  */
-static struct smtcfb_info *__devinit smtc_alloc_fb_info(struct pci_dev *dev,
+static struct smtcfb_info *smtc_alloc_fb_info(struct pci_dev *dev,
 							char *name)
 {
 	struct smtcfb_info *sfb;
@@ -869,7 +869,7 @@ static struct smtcfb_info *__devinit smtc_alloc_fb_info(struct pci_dev *dev,
  * Unmap in the memory mapped IO registers
  */
 
-static void __devinit smtc_unmap_mmio(struct smtcfb_info *sfb)
+static void smtc_unmap_mmio(struct smtcfb_info *sfb)
 {
 	if (sfb && smtc_RegBaseAddress)
 		smtc_RegBaseAddress = NULL;
@@ -879,7 +879,7 @@ static void __devinit smtc_unmap_mmio(struct smtcfb_info *sfb)
  * Map in the screen memory
  */
 
-static int __devinit smtc_map_smem(struct smtcfb_info *sfb,
+static int smtc_map_smem(struct smtcfb_info *sfb,
 		struct pci_dev *dev, u_long smem_len)
 {
 	if (sfb->fb.var.bits_per_pixel == 32) {
@@ -910,7 +910,7 @@ static int __devinit smtc_map_smem(struct smtcfb_info *sfb,
  * Unmap in the screen memory
  *
  */
-static void __devinit smtc_unmap_smem(struct smtcfb_info *sfb)
+static void smtc_unmap_smem(struct smtcfb_info *sfb)
 {
 	if (sfb && sfb->fb.screen_base) {
 		iounmap(sfb->fb.screen_base);
@@ -921,7 +921,7 @@ static void __devinit smtc_unmap_smem(struct smtcfb_info *sfb)
 /*
  * We need to wake up the LynxEM+, and make sure its in linear memory mode.
  */
-static inline void __devinit sm712_init_hw(void)
+static inline void sm712_init_hw(void)
 {
 	outb_p(0x18, 0x3c4);
 	outb_p(0x11, 0x3c5);
