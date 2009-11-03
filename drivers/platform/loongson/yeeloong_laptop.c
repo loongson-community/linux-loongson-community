@@ -22,6 +22,8 @@
 #include <linux/platform_device.h>
 #include <linux/thermal.h>
 
+#include <asm/bootinfo.h>	/* for arcs_cmdline */
+
 #include <loongson.h>
 
 #include <ec/kb3310b.h>
@@ -365,7 +367,19 @@ static int crt_detect_handler(int status)
 
 static int black_screen_handler(int status)
 {
-	lcd_vo_set(status);
+	char *p = NULL, *ec_ver = NULL;
+
+	ec_ver = strstr(arcs_cmdline, "EC_VER=");
+	if (ec_ver) {
+		p = strstr(ec_ver, " ");
+		if (p)
+			*p = '\0';
+	}
+
+	/* Seems EC(>=PQ1D26) does this job for us, we can not do it again,
+	 * otherwise, the brightness will not resume! */
+	if ((ec_ver == NULL) || strncasecmp(ec_ver, "EC_VER=PQ1D26", 64) < 0)
+		lcd_vo_set(status);
 
 	return status;
 }
