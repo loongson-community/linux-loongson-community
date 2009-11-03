@@ -67,15 +67,6 @@ static int r8187b_wifi_update_rfkill_state(int status)
 		eRfPowerStateToSet = eRfOn;
 	else if (status == 0)
 		eRfPowerStateToSet = eRfOff;
-	else if (status == 2) {
-		/* if the KEY_WLAN is pressed, just switch it! */
-		mutex_lock(&state_lock);
-		if (r8187b_rfkill_state == RFKILL_USER_STATE_UNBLOCKED)
-			eRfPowerStateToSet = eRfOff;
-		else if (r8187b_rfkill_state == RFKILL_USER_STATE_SOFT_BLOCKED)
-			eRfPowerStateToSet = eRfOn;
-		mutex_unlock(&state_lock);
-	}
 	mutex_unlock(&statetoset_lock);
 
 	/* ignore the first interrupt to ensure the wifi is powered off when starting */
@@ -153,16 +144,6 @@ int r8187b_rfkill_init(struct net_device *dev)
 	/* install the event handler */
 	yeeloong_install_sci_event_handler(EVENT_WLAN,
 					   r8187b_wifi_update_rfkill_state);
-
-	/* poweroff wifi by default, if you want to enable it when booting the
-	 * kernel, just need to add this line in /etc/rc.local or the other
-	 * relative scripts which will be excuted on booting:
-	 *
-	 *   echo 1 > /sys/class/rfkill/rfkill0/state
-	 */
-
-	eRfPowerStateToSet = eRfOff;
-	r8187b_wifi_change_rfkill_state(r8187b_dev, eRfPowerStateToSet);
 
 	return 0;
 }
