@@ -31,7 +31,6 @@
 
 /********************** backlight sub driver *****************/
 #define MAX_BRIGHTNESS 8
-#define DEFAULT_BRIGHTNESS (MAX_BRIGHTNESS - 1)
 
 static int yeeloong_set_brightness(struct backlight_device *bd)
 {
@@ -83,7 +82,8 @@ static int yeeloong_backlight_init(struct device *dev)
 	}
 
 	yeeloong_backlight_dev->props.max_brightness = MAX_BRIGHTNESS;
-	yeeloong_backlight_dev->props.brightness = DEFAULT_BRIGHTNESS;
+	yeeloong_backlight_dev->props.brightness =
+		yeeloong_get_brightness(yeeloong_backlight_dev);
 	backlight_update_status(yeeloong_backlight_dev);
 
 	return 0;
@@ -280,8 +280,6 @@ static int lcd_video_output_set(struct output_device *od)
 		value = (value & 0xf8) | 0x03;
 		outb(0x31, 0x3c4);
 		outb(value, 0x3c5);
-		/* ensure the brightness is suitable */
-		ec_write(REG_DISPLAY_BRIGHTNESS, DEFAULT_BRIGHTNESS);
 		/* open backlight */
 		ec_write(REG_BACKLIGHT_CTRL, BIT_BACKLIGHT_ON);
 	} else {
