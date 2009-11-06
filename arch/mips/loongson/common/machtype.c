@@ -27,24 +27,27 @@ static const char *system_types[] = {
 
 const char *get_system_type(void)
 {
-	if (mips_machtype == MACH_UNKNOWN)
-		mips_machtype = LOONGSON_MACHTYPE;
-
 	return system_types[mips_machtype];
 }
 
-static __init int machtype_setup(char *str)
+void __init prom_init_machtype(void)
 {
+	char *str, *p;
 	int machtype = MACH_LEMOTE_FL2E;
 
+	mips_machtype = LOONGSON_MACHTYPE;
+
+	str = strstr(arcs_cmdline, "machtype=");
 	if (!str)
-		return -EINVAL;
+		return;
+	str += strlen("machtype=");
+	p = strstr(str, " ");
+	if (p)
+		*p++ = '\0';
 
 	for (; system_types[machtype]; machtype++)
 		if (strstr(system_types[machtype], str)) {
 			mips_machtype = machtype;
 			break;
 		}
-	return 0;
 }
-__setup("machtype=", machtype_setup);
