@@ -14,10 +14,10 @@ extern void setup_mfgpt_timer(void);
 extern void disable_mfgpt0_counter(void);
 extern void enable_mfgpt0_counter(void);
 #else
-static void disable_mfgpt0_counter(void)
+static void __maybe_unused disable_mfgpt0_counter(void)
 {
 }
-static void enable_mfgpt0_counter(void)
+static void __maybe_unused enable_mfgpt0_counter(void)
 {
 }
 #endif

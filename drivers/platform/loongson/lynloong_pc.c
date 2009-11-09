@@ -26,8 +26,8 @@
 #include <cs5536/cs5536_pci.h>
 #include <cs5536/cs5536_mfgpt.h>
 
-#ifndef CONFIG_MFGPT
-static u32 mfgpt_base;
+#ifndef CONFIG_CS5536_MFGPT
+u32 mfgpt_base;
 #endif
 static u32 gpio_base, smb_base;
 
