@@ -11,11 +11,11 @@ PHDRS {
 }
 
 #ifdef CONFIG_32BIT
-#ifdef CONFIG_CPU_LITTLE_ENDIAN
+	#ifdef CONFIG_CPU_LITTLE_ENDIAN
 		jiffies  = jiffies_64;
-#else
+	#else
 		jiffies  = jiffies_64 + 4;
-#endif
+	#endif
 #else
 	jiffies  = jiffies_64;
 #endif
