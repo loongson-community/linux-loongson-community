@@ -2146,6 +2146,7 @@ config MMU
 
 config I8253
 	bool
+	select MIPS_EXTERNAL_TIMER
 
 config ZONE_DMA32
 	bool
@@ -2221,6 +2222,8 @@ config ARCH_SUSPEND_POSSIBLE
 source "kernel/power/Kconfig"
 
 endmenu
+
+source "arch/mips/kernel/cpufreq/Kconfig"
 
 source "net/Kconfig"
 
