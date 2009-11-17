@@ -378,6 +378,7 @@ extern void _wrmsr(u32 msr, u32 hi, u32 lo);
 /* GPIO : I/O SPACE; REG : 32BITS */
 #define	GPIOL_OUT_VAL		0x00
 #define	GPIOL_OUT_EN		0x04
+#define	GPIOL_OUT_AUX1_SEL	0x10
 /* SMB : I/O SPACE, REG : 8BITS WIDTH */
 #define	SMB_SDA			0x00
 #define	SMB_STS			0x01

@@ -143,12 +143,16 @@ static void lynloong_backlight_exit(void)
 	set_gpio_low(7);
 
 	printk(KERN_INFO "exit from LingLoong Backlight Driver");
-
 }
 
 static int __init lynloong_backlight_init(struct device *dev)
 {
 	int ret;
+
+	/* select for mfgpt */
+	GPIO_HI_BIT(7, GPIOL_OUT_AUX1_SEL);
+	/* enable gpio7 */
+	set_gpio_high(7);
 
 	lynloong_backlight_dev =
 	    backlight_device_register("backlight0", dev, NULL,
@@ -443,7 +447,7 @@ static int lynloong_suspend(struct platform_device *pdev, pm_message_t state)
 	/* disable AMP */
 	set_gpio_high(6);
 	/* disable the brightness control */
-	set_gpio_high(7);
+	set_gpio_low(7);
 	/* disable the backlight output */
 	set_gpio_low(11);
 
@@ -479,7 +483,7 @@ static int lynloong_resume(struct platform_device *pdev)
 	/* enable the backlight output */
 	set_gpio_high(11);
 	/* enable the brightness control */
-	set_gpio_low(7);
+	set_gpio_high(7);
 	/* enable AMP */
 	set_gpio_low(6);
 
