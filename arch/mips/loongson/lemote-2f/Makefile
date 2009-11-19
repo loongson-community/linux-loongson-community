@@ -9,3 +9,8 @@ obj-y += irq.o reset.o ec_kb3310b.o
 #
 
 obj-$(CONFIG_LOONGSON_SUSPEND) += pm.o
+
+#
+# Platform Drivers
+#
+obj-$(CONFIG_LEMOTE_LYNLOONG2F_PDEV) += lynloong_pc.o

@@ -78,3 +78,38 @@ config LOONGSON_SUSPEND
 	bool
 	default y
 	depends on CPU_SUPPORTS_CPUFREQ && SUSPEND
+
+#
+# Loongson Platform Specific Drivers
+#
+
+comment "Loongson Platform Specific Drivers"
+
+menuconfig LOONGSON_PLATFORM_DEVICES
+	bool "Loongson Platform Specific Drivers"
+	default y
+	---help---
+	  Say Y here to get to see options for device drivers for various
+	  loongson platforms, including vendor-specific laptop/pc extension drivers.
+	  This option alone does not add any kernel code.
+
+	  If you say N, all options in this submenu will be skipped and disabled.
+
+if LOONGSON_PLATFORM_DEVICES
+
+config LEMOTE_LYNLOONG2F_PDEV
+	tristate "Lemote LynLoong(ALLINONE) Platform Specific Driver"
+	depends on LEMOTE_MACH2F
+	select THERMAL
+	select BACKLIGHT_CLASS_DEVICE
+	default m
+	help
+	  LynLoong PC is an AllINONE machine made by Lemote, which is basically
+	  compatible to FuLoong2F Mini PC, the only difference is that it has a
+	  size-fixed screen: 1360x768 with sisfb video driver. and also, it has
+	  its own specific suspend support.
+
+	  This driver adds the lynloong specific backlight driver and platform
+	  driver(mainly the suspend support).
+
+endif # LOONGSON_PLATFORM_DEVICES
