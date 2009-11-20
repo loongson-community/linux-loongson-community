@@ -32,6 +32,8 @@ int __init init_r4k_clocksource(void)
 
 	clocksource_set_clock(&clocksource_mips, mips_hpt_frequency);
 
+	setup_hres_sched_clock(clocksource_mips, mips_hpt_frequency);
+
 	clocksource_register(&clocksource_mips);
 
 	return 0;

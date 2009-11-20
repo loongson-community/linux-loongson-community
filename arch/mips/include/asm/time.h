@@ -84,6 +84,21 @@ static inline int init_mips_clocksource(void)
 #endif
 }
 
+/*
+ * Setup the high resolution sched_clock()
+ */
+#ifdef CONFIG_HR_SCHED_CLOCK
+extern void setup_r4k_sched_clock(struct clocksource cs, unsigned int clock);
+#endif
+
+static inline void setup_hres_sched_clock(struct clocksource cs,
+		unsigned int clock)
+{
+#ifdef CONFIG_HR_SCHED_CLOCK
+	setup_r4k_sched_clock(cs, clock);
+#endif
+}
+
 extern void clocksource_set_clock(struct clocksource *cs, unsigned int clock);
 extern void clockevent_set_clock(struct clock_event_device *cd,
 		unsigned int clock);
