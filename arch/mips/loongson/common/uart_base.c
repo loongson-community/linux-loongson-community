@@ -29,7 +29,7 @@ unsigned long __maybe_unused uart8250_base[] = {
 };
 EXPORT_SYMBOL(uart8250_base);
 
-inline void __maybe_unused prom_init_uart_base(void)
+void __maybe_unused prom_init_uart_base(void)
 {
 	_loongson_uart_base =
 		(unsigned long)ioremap_nocache(uart8250_base[mips_machtype], 8);
