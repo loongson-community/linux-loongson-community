@@ -15,6 +15,9 @@
 #include <loongson.h>
 #include <machine.h>
 
+/* please ensure the length of the machtype string is less than 50 */
+#define MACHTYPE_LEN 50
+
 static const char *system_types[] = {
 	[MACH_LOONGSON_UNKNOWN]         "unknown loongson machine",
 	[MACH_LEMOTE_FL2E]              "lemote-fuloong-2e-box",
@@ -34,18 +37,19 @@ const char *get_system_type(void)
 
 void __init prom_init_machtype(void)
 {
-	char *str, *p;
+	char *p, str[MACHTYPE_LEN];
 	int machtype = MACH_LEMOTE_FL2E;
 
 	mips_machtype = LOONGSON_MACHTYPE;
 
-	str = strstr(arcs_cmdline, "machtype=");
-	if (!str)
+	p = strstr(arcs_cmdline, "machtype=");
+	if (!p)
 		return;
-	str += strlen("machtype=");
+	p += strlen("machtype=");
+	strncpy(str, p, MACHTYPE_LEN);
 	p = strstr(str, " ");
 	if (p)
-		*p++ = '\0';
+		*p = '\0';
 
 	for (; system_types[machtype]; machtype++)
 		if (strstr(system_types[machtype], str)) {
