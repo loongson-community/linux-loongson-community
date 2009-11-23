@@ -62,6 +62,11 @@ void __init prom_init_cmdline(void)
 		if ((strstr(arcs_cmdline, "ide_core.ignore_cable=")) == NULL)
 			strcat(arcs_cmdline, " ide_core.ignore_cable=0");
 		break;
+	case MACH_LEMOTE_ML2F7:
+		/* Mengloong-2F has a 800x480 screen */
+		if ((strstr(arcs_cmdline, "vga=")) == NULL)
+			strcat(arcs_cmdline, " vga=0x313");
+		break;
 	default:
 		break;
 	}
