@@ -29,9 +29,12 @@ static void loongson_restart(char *command)
 	 * really wrong for 0xbfc00000:
 	 */
 
-	__asm__ __volatile__(".set noat\n");
-	((void (*)(void))ioremap_nocache(LOONGSON_BOOT_BASE, 4)) ();
-	__asm__ __volatile__(".set at\n");
+	__asm__ __volatile__(".set noat\n"
+			".long 0x3c02bfc0\n"
+			".long 0x00400008\n"
+			".set at\n"
+			:::"v0");
+
 }
 
 static void loongson_halt(void)
