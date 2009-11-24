@@ -1,4 +1,7 @@
 
+(The following modules will be complied into kernel before finding out a
+ solution to load them automatically!)
+
 Please edit /etc/modules, and add the relative modules for your machine
 
 $ vim /etc/modules
