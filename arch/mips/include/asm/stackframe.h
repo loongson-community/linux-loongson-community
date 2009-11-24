@@ -126,7 +126,7 @@
 		 * strobe) to make cpu execute predictively via
 		 * loongson2-specific 64bit diagnostic register
 		 */
-#ifdef CONFIG_CPU_LOONGSON2
+#ifdef CONFIG_CPU_LOONGSON2F
 		move k0, ra
 		jal	1f
 		nop
