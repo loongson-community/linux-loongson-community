@@ -824,8 +824,8 @@ config DMA_NEED_PCI_MAP_STATE
 	bool
 
 config EARLY_PRINTK
-	bool "Early printk" if EMBEDDED && DEBUG_KERNEL
-	depends on SYS_HAS_EARLY_PRINTK
+	bool "Early printk" if EMBEDDED
+	depends on SYS_HAS_EARLY_PRINTK && DEBUG_KERNEL
 	default y
 	help
 	  This option enables special console drivers which allow the kernel
