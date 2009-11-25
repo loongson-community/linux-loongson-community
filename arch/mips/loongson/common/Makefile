@@ -3,14 +3,14 @@
 #
 
 obj-y += setup.o init.o cmdline.o env.o time.o reset.o irq.o \
-    pci.o bonito-irq.o mem.o machtype.o uart_base.o
+    pci.o bonito-irq.o mem.o machtype.o
 
 #
-# Early printk support
+# Serial port support
 #
 obj-$(CONFIG_EARLY_PRINTK) += early_printk.o dbg.o
 obj-$(CONFIG_SERIAL_8250) += serial.o
-obj-$(CONFIG_EARLY_PRINTK) += early_printk.o
+obj-$(CONFIG_LOONGSON_UART_BASE) += uart_base.o
 
 #
 # Enable CS5536 Virtual Support Module(VSM) to virtulize the PCI configure
