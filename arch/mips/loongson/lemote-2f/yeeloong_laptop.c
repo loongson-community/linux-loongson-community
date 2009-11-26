@@ -626,15 +626,9 @@ enum { KE_KEY, KE_SW, KE_END };
 
 static struct key_entry yeeloong_keymap[] = {
 	{KE_SW, EVENT_LID, SW_LID},
-	/* SW_VIDEOOUT_INSERT? not included in hald-addon-input! */
-	{KE_KEY, EVENT_CRT_DETECT, KEY_PROG1},
-	/* Seems battery subdriver should report it */
-	{KE_KEY, EVENT_OVERTEMP, KEY_PROG2},
 	/*{KE_KEY, EVENT_AC_BAT, KEY_BATTERY},*/
 	{KE_KEY, EVENT_CAMERA, KEY_CAMERA},	/* Fn + ESC */
 	{KE_KEY, EVENT_SLEEP, KEY_SLEEP},	/* Fn + F1 */
-	/* Seems not clear? not included in hald-addon-input! */
-	{KE_KEY, EVENT_BLACK_SCREEN, KEY_PROG3},	/* Fn + F2 */
 	{KE_KEY, EVENT_DISPLAY_TOGGLE, KEY_SWITCHVIDEOMODE},	/* Fn + F3 */
 	{KE_KEY, EVENT_AUDIO_MUTE, KEY_MUTE},	/* Fn + F4 */
 	{KE_KEY, EVENT_WLAN, KEY_WLAN},	/* Fn + F5 */
@@ -917,30 +911,6 @@ static int setup_sci(void)
 	return 0;
 }
 
-static ssize_t
-ignore_store(struct device *dev,
-	     struct device_attribute *attr, const char *buf, size_t count)
-{
-	return count;
-}
-
-static ssize_t
-show_hotkeystate(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%d %d\n", event, status);
-}
-
-static DEVICE_ATTR(state, 0444, show_hotkeystate, ignore_store);
-
-static struct attribute *hotkey_attributes[] = {
-	&dev_attr_state.attr,
-	NULL
-};
-
-static struct attribute_group hotkey_attribute_group = {
-	.attrs = hotkey_attributes
-};
-
 static int camera_set(int status)
 {
 	int value;
@@ -962,22 +932,21 @@ static int camera_set(int status)
 	return ec_read(REG_CAMERA_STATUS);
 }
 
-#define I8042_STATUS_REG	0x64
-#define I8042_DATA_REG		0x60
-#define i8042_read_status() inb(I8042_STATUS_REG)
-#define i8042_read_data() inb(I8042_DATA_REG)
-#define I8042_STR_OBF		0x01
-#define I8042_BUFFER_SIZE	16
-
-static void i8042_flush(void)
+static void yeeloong_hotkey_exit(void)
 {
-	int i;
+	/* free irq */
+	remove_irq(SCI_IRQ_NUM, &sci_irqaction);
 
-	while ((i8042_read_status() & I8042_STR_OBF)
-		&& (i < I8042_BUFFER_SIZE)) {
-		udelay(50);
-		i8042_read_data();
-		i++;
+#ifdef CONFIG_SUSPEND
+	/* uninstall the real yeeloong_report_lid_status for pm.c */
+	yeeloong_report_lid_status = NULL;
+#endif
+	/* uninstall event handler */
+	yeeloong_uninstall_sci_handler(EVENT_CAMERA, camera_set);
+
+	if (yeeloong_hotkey_dev) {
+		input_unregister_device(yeeloong_hotkey_dev);
+		yeeloong_hotkey_dev = NULL;
 	}
 }
 
@@ -986,16 +955,17 @@ static int yeeloong_hotkey_init(struct device *dev)
 	int ret;
 	struct key_entry *key;
 
-	/* flush the buffer of keyboard */
-	i8042_flush();
-
 	/* setup the system control interface */
-	setup_sci();
+	ret = setup_sci();
+	if (ret)
+		return -EFAULT;
 
 	yeeloong_hotkey_dev = input_allocate_device();
 
-	if (!yeeloong_hotkey_dev)
+	if (!yeeloong_hotkey_dev) {
+		yeeloong_hotkey_exit();
 		return -ENOMEM;
+	}
 
 	yeeloong_hotkey_dev->name = "HotKeys";
 	yeeloong_hotkey_dev->phys = "button/input0";
@@ -1021,11 +991,7 @@ static int yeeloong_hotkey_init(struct device *dev)
 		return ret;
 	}
 
-	ret = sysfs_create_group(&yeeloong_hotkey_dev->dev.kobj,
-				 &hotkey_attribute_group);
 	if (ret) {
-		sysfs_remove_group(&yeeloong_hotkey_dev->dev.kobj,
-				   &hotkey_attribute_group);
 		input_unregister_device(yeeloong_hotkey_dev);
 		yeeloong_hotkey_dev = NULL;
 	}
@@ -1040,26 +1006,6 @@ static int yeeloong_hotkey_init(struct device *dev)
 	yeeloong_install_sci_handler(EVENT_CAMERA, camera_set);
 
 	return 0;
-}
-
-static void yeeloong_hotkey_exit(void)
-{
-	/* free irq */
-	remove_irq(SCI_IRQ_NUM, &sci_irqaction);
-
-#ifdef CONFIG_SUSPEND
-	/* uninstall the real yeeloong_report_lid_status for pm.c */
-	yeeloong_report_lid_status = NULL;
-#endif
-	/* uninstall event handler */
-	yeeloong_uninstall_sci_handler(EVENT_CAMERA, camera_set);
-
-	if (yeeloong_hotkey_dev) {
-		sysfs_remove_group(&yeeloong_hotkey_dev->dev.kobj,
-				   &hotkey_attribute_group);
-		input_unregister_device(yeeloong_hotkey_dev);
-		yeeloong_hotkey_dev = NULL;
-	}
 }
 
 /* battery subdriver: APM emulated support */
