@@ -602,7 +602,7 @@ static struct key_entry yeeloong_keymap[] = {
 	{KE_KEY, EVENT_DISPLAY_BRIGHTNESS, KEY_BRIGHTNESSDOWN},	/* Fn + down */
 	{KE_KEY, EVENT_AUDIO_VOLUME, KEY_VOLUMEUP},	/* Fn + right */
 	{KE_KEY, EVENT_AUDIO_VOLUME, KEY_VOLUMEDOWN},	/* Fn + left */
-	{KE_END, 0}
+	{KE_END, 0, KEY_UNKNOWN}
 };
 
 static int yeeloong_lid_update_status(int status)
@@ -649,12 +649,8 @@ static int get_event_keycode(void)
 	return key->keycode;
 }
 
-void yeeloong_report_key(void)
+void yeeloong_report_key(int keycode)
 {
-	int keycode;
-
-	keycode = get_event_keycode();
-
 	if (keycode == SW_LID)
 		yeeloong_lid_update_status(status);
 	else
@@ -766,6 +762,7 @@ static void yeeloong_event_action(void)
 static irqreturn_t sci_irq_handler(int irq, void *dev_id)
 {
 	int ret;
+	int keycode;
 
 	if (SCI_IRQ_NUM != irq) {
 		printk(KERN_ERR "%s: spurious irq.\n", __func__);
@@ -797,7 +794,9 @@ static irqreturn_t sci_irq_handler(int irq, void *dev_id)
 		/* execute relative actions */
 		yeeloong_event_action();
 		/* report current key */
-		yeeloong_report_key();
+		keycode = get_event_keycode();
+		if (keycode != KEY_UNKNOWN)
+			yeeloong_report_key(keycode);
 	}
 	return IRQ_HANDLED;
 }
