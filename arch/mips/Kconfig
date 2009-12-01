@@ -1461,6 +1461,7 @@ choice
 
 config PAGE_SIZE_4KB
 	bool "4kB"
+	depends on !MACH_LOONGSON
 	help
 	 This option select the standard 4kB Linux page size.  On some
 	 R3000-family processors this is the only available page size.  Using
@@ -1788,7 +1789,7 @@ config SYS_SUPPORTS_SMARTMIPS
 
 config ARCH_FLATMEM_ENABLE
 	def_bool y
-	depends on !NUMA
+	depends on !NUMA && !MACH_LOONGSON
 
 config ARCH_DISCONTIGMEM_ENABLE
 	bool
