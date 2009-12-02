@@ -15,6 +15,7 @@
 #include <linux/err.h>
 #include <linux/sched.h>	/* set_cpus_allowed() */
 #include <linux/delay.h>
+#include <linux/platform_device.h>
 
 #include <asm/clock.h>
 
@@ -163,23 +164,45 @@ static struct cpufreq_driver loongson2_cpufreq_driver = {
 	.attr = loongson2_table_attr,
 };
 
+static struct platform_device_id platform_device_ids[] = {
+	{
+		.name = "loongson2_cpufreq",
+	},
+	{}
+};
+
+MODULE_DEVICE_TABLE(platform, platform_device_ids);
+
+static struct platform_driver platform_driver = {
+	.driver = {
+		.name = "loongson2_cpufreq",
+		.owner = THIS_MODULE,
+	},
+	.id_table = platform_device_ids,
+};
+
 static int __init cpufreq_init(void)
 {
-	int result;
+	int ret;
 
-	printk(KERN_INFO "cpufreq: Loongson-2F CPU frequency driver.\n");
+	/* Register platform stuff */
+	ret = platform_driver_register(&platform_driver);
+	if (ret)
+		return ret;
+
+	pr_info("cpufreq: Loongson-2F CPU frequency driver.\n");
 
 	cpufreq_register_notifier(&loongson2_cpufreq_notifier_block,
 				  CPUFREQ_TRANSITION_NOTIFIER);
 
-	result = cpufreq_register_driver(&loongson2_cpufreq_driver);
+	ret = cpufreq_register_driver(&loongson2_cpufreq_driver);
 
-	if (!result && !nowait) {
+	if (!ret && !nowait) {
 		saved_cpu_wait = cpu_wait;
 		cpu_wait = loongson2_cpu_wait;
 	}
 
-	return result;
+	return ret;
 }
 
 static void __exit cpufreq_exit(void)
@@ -189,6 +212,8 @@ static void __exit cpufreq_exit(void)
 	cpufreq_unregister_driver(&loongson2_cpufreq_driver);
 	cpufreq_unregister_notifier(&loongson2_cpufreq_notifier_block,
 				    CPUFREQ_TRANSITION_NOTIFIER);
+
+	platform_driver_unregister(&platform_driver);
 }
 
 module_init(cpufreq_init);
