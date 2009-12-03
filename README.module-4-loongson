@@ -1,0 +1,21 @@
+
+(The following modules will be complied into kernel before finding out a
+ solution to load them automatically!)
+
+Please edit /etc/modules, and add the relative modules for your machine
+
+$ vim /etc/modules
+
+1. YeeLoong-2F
+
+yeeloong_laptop		# backlight,lm-sensors,hotkey,battery,suspend... support
+loongson2_cpufreq	# CPUFreq support
+
+2. FuLoong-2F
+
+loongson2_cpufreq	# CPUFreq support
+
+3. LynLoong-2F
+
+lynloong_pc		# backlight, suspend support
+loongson2_cpufreq	# CPUFreq support

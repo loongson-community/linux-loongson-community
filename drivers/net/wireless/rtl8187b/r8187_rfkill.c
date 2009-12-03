@@ -1,0 +1,202 @@
+/*
+ * rtl8187b specific rfkill support
+ *
+ * NOTE: we only concern about two states
+ *   eRfOff: RFKILL_STATE_SOFT_BLOCKED
+ *   eRfOn: RFKILL_STATE_UNBLOCKED
+ * TODO: move led controlling source code to rfkill framework
+ *
+ *  Copyright (C) 2009 Lemote Inc. & Insititute of Computing Technology
+ *  Author: Wu Zhangjin <wuzj@lemote.com>
+ */
+
+#include <linux/module.h>
+#include <linux/rfkill.h>
+#include <linux/device.h>
+
+/* LED macros are defined in r8187.h and rfkill.h, we not use any of them here
+ * just avoid compiling erros here.
+ */
+#undef LED
+
+#include "r8187.h"
+#include "ieee80211/ieee80211.h"
+#include "linux/netdevice.h"
+
+/* This driver currently is very stupid!!!! */
+/* copied from arch/mips/loongson/lemote-2f/ec_kb3310b.h */
+typedef int (*sci_handler) (int status);
+extern int yeeloong_install_sci_handler(int event, sci_handler handler);
+extern int yeeloong_uninstall_sci_handler(int event, sci_handler handler);
+/* SCI Event Number from EC */
+enum {
+	EVENT_LID = 0x23,	/*  LID open/close */
+	EVENT_DISPLAY_TOGGLE,	/*  Fn+F3 for display switch */
+	EVENT_SLEEP,		/*  Fn+F1 for entering sleep mode */
+	EVENT_OVERTEMP,		/*  Over-temperature happened */
+	EVENT_CRT_DETECT,	/*  CRT is connected */
+	EVENT_CAMERA,		/*  Camera on/off */
+	EVENT_USB_OC2,		/*  USB2 Over Current occurred */
+	EVENT_USB_OC0,		/*  USB0 Over Current occurred */
+	EVENT_BLACK_SCREEN,	/*  Black screen on/off */
+	EVENT_AUDIO_MUTE,	/*  Mute is on or off */
+	EVENT_DISPLAY_BRIGHTNESS,/* LCD backlight brightness adjust */
+	EVENT_AC_BAT,		/*  AC & Battery relative issue */
+	EVENT_AUDIO_VOLUME,	/*  Volume adjust */
+	EVENT_WLAN,		/*  Wlan on/off */
+	EVENT_END
+};
+
+static struct rfkill *r8187b_rfkill;
+static struct work_struct r8187b_rfkill_task;
+static int initialized;
+/* turn off by default */
+int r8187b_rfkill_state = RFKILL_USER_STATE_SOFT_BLOCKED;
+struct net_device *r8187b_dev = NULL;
+RT_RF_POWER_STATE eRfPowerStateToSet;
+
+/* These two mutexes are used to ensure the relative rfkill status are accessed
+ * by different tasks exclusively */
+DEFINE_MUTEX(statetoset_lock);
+DEFINE_MUTEX(state_lock);
+
+static void r8187b_wifi_rfkill_task(struct work_struct *work)
+{
+	if (r8187b_dev) {
+		mutex_lock(&statetoset_lock);
+		r8187b_wifi_change_rfkill_state(r8187b_dev, eRfPowerStateToSet);
+		mutex_unlock(&statetoset_lock);
+	}
+}
+
+static int r8187b_wifi_update_rfkill_state(int status)
+{
+
+	/* ensure r8187b_rfkill is initialized if dev is not initialized, means
+	 * wifi driver is not start, the status is eRfOff be default.
+	 */
+	if (!r8187b_dev)
+		return eRfOff;
+
+	if (initialized == 0) {
+		/* init the rfkill work task */
+		INIT_WORK(&r8187b_rfkill_task, r8187b_wifi_rfkill_task);
+		initialized = 1;
+	}
+
+	mutex_lock(&statetoset_lock);
+	if (status == 1)
+		eRfPowerStateToSet = eRfOn;
+	else if (status == 0)
+		eRfPowerStateToSet = eRfOff;
+	else if (status == 2) {
+		/* if the KEY_WLAN is pressed, just switch it! */
+		mutex_lock(&state_lock);
+		if (r8187b_rfkill_state == RFKILL_USER_STATE_UNBLOCKED)
+			eRfPowerStateToSet = eRfOff;
+		else if (r8187b_rfkill_state == RFKILL_USER_STATE_SOFT_BLOCKED)
+			eRfPowerStateToSet = eRfOn;
+		mutex_unlock(&state_lock);
+	}
+	mutex_unlock(&statetoset_lock);
+
+	/* ignore the first interrupt to ensure the wifi is powered off when starting */
+//	if (initialized == 2)
+	schedule_work(&r8187b_rfkill_task);
+
+	//if (initialized == 1)
+	//	initialized = 2;
+
+	return eRfPowerStateToSet;
+}
+
+static int r8187b_rfkill_set(void *data, bool blocked)
+{
+	r8187b_wifi_update_rfkill_state(!blocked);
+
+	return 0;
+}
+
+static void r8187b_rfkill_query(struct rfkill *rfkill, void *data)
+{
+	static bool blocked;
+
+	mutex_lock(&state_lock);
+	if (r8187b_rfkill_state == RFKILL_USER_STATE_UNBLOCKED)
+		blocked = 0;
+	else if (r8187b_rfkill_state == RFKILL_USER_STATE_SOFT_BLOCKED)
+		blocked = 1;
+	mutex_unlock(&state_lock);
+
+	rfkill_set_hw_state(rfkill, blocked);
+}
+
+int r8187b_wifi_report_state(r8180_priv *priv)
+{
+	mutex_lock(&state_lock);
+	r8187b_rfkill_state = RFKILL_USER_STATE_UNBLOCKED;
+	if (priv->ieee80211->bHwRadioOff && priv->eRFPowerState == eRfOff)
+		r8187b_rfkill_state = RFKILL_USER_STATE_SOFT_BLOCKED;
+	mutex_unlock(&state_lock);
+
+	r8187b_rfkill_query(r8187b_rfkill, NULL);
+
+	return 0;
+}
+
+static const struct rfkill_ops r8187b_rfkill_ops = {
+	.set_block = r8187b_rfkill_set,
+	.query = r8187b_rfkill_query,
+};
+
+int r8187b_rfkill_init(struct net_device *dev)
+{
+	int ret;
+
+	/* init the r8187b device */
+	r8187b_dev = dev;
+
+	/* init the rfkill struct */
+	r8187b_rfkill = rfkill_alloc("r8187b-wifi", &dev->dev,
+				     RFKILL_TYPE_WLAN, &r8187b_rfkill_ops,
+				     (void *)1);
+
+	if (!r8187b_rfkill) {
+		rfkill_destroy(r8187b_rfkill);
+		printk(KERN_WARNING "r8187b: Unable to allocate rfkill\n");
+		return -ENOMEM;
+	}
+	ret = rfkill_register(r8187b_rfkill);
+	if (ret) {
+		rfkill_destroy(r8187b_rfkill);
+		return ret;
+	}
+
+	/* install the event handler */
+	yeeloong_install_sci_handler(EVENT_WLAN,
+			r8187b_wifi_update_rfkill_state);
+
+	/* poweroff wifi by default, if you want to enable it when booting the
+	 * kernel, just need to add this line in /etc/rc.local or the other
+	 * relative scripts which will be excuted on booting:
+	 *
+	 *   echo 1 > /sys/class/rfkill/rfkill0/state
+	 */
+
+	eRfPowerStateToSet = eRfOff;
+	r8187b_wifi_change_rfkill_state(r8187b_dev, eRfPowerStateToSet);
+
+	return 0;
+}
+
+void r8187b_rfkill_exit(void)
+{
+	/* uninstall the event handler */
+	yeeloong_uninstall_sci_handler(EVENT_WLAN,
+			r8187b_wifi_update_rfkill_state);
+	if (r8187b_rfkill) {
+		rfkill_unregister(r8187b_rfkill);
+		rfkill_destroy(r8187b_rfkill);
+	}
+	r8187b_rfkill = NULL;
+}

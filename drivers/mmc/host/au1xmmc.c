@@ -650,11 +650,11 @@ static int au1xmmc_prepare_data(struct au1xmmc_host *host,
 				flags = DDMA_FLAGS_IE;
 
 			if (host->flags & HOST_F_XMIT) {
-				ret = au1xxx_dbdma_put_source_flags(channel,
-					(void *)sg_virt(sg), len, flags);
+				ret = au1xxx_dbdma_put_source(channel,
+					sg_phys(sg), len, flags);
 			} else {
-				ret = au1xxx_dbdma_put_dest_flags(channel,
-					(void *)sg_virt(sg), len, flags);
+				ret = au1xxx_dbdma_put_dest(channel,
+					sg_phys(sg), len, flags);
 			}
 
 			if (!ret)
