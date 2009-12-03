@@ -1113,8 +1113,6 @@ static void yeeloong_apm_exit(void)
 }
 
 /* platform subdriver */
-static struct platform_device *yeeloong_pdev;
-
 static void __maybe_unused usb_ports_set(int status)
 {
 	status = !!status;
@@ -1164,25 +1162,36 @@ static int __maybe_unused yeeloong_resume(struct platform_device *pdev)
 	return 0;
 }
 
+static struct platform_device *yeeloong_pdev;
+
+static int __devinit yeeloong_probe(struct platform_device *dev)
+{
+	yeeloong_pdev = dev;
+
+	return 0;
+}
+
+static struct platform_device_id platform_device_ids[] = {
+	{
+		.name = "yeeloong_laptop",
+	},
+	{}
+};
+
+MODULE_DEVICE_TABLE(platform, platform_device_ids);
+
 static struct platform_driver platform_driver = {
+	.probe = yeeloong_probe,
 	.driver = {
-		   .name = "yeeloong-laptop",
+		   .name = "yeeloong_laptop",
 		   .owner = THIS_MODULE,
 		   },
+	.id_table = platform_device_ids,
 #ifdef CONFIG_PM
 	.suspend = yeeloong_suspend,
 	.resume = yeeloong_resume,
 #endif
 };
-
-static ssize_t yeeloong_pdev_name_show(struct device *dev,
-				       struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "yeeloong laptop\n");
-}
-
-static struct device_attribute dev_attr_yeeloong_pdev_name =
-__ATTR(name, S_IRUGO, yeeloong_pdev_name_show, NULL);
 
 static int yeeloong_pdev_init(void)
 {
@@ -1193,43 +1202,12 @@ static int yeeloong_pdev_init(void)
 	if (ret)
 		return ret;
 
-	yeeloong_pdev = platform_device_alloc("yeeloong-laptop", -1);
-	if (!yeeloong_pdev) {
-		ret = -ENOMEM;
-		platform_driver_unregister(&platform_driver);
-		return ret;
-	}
-
-	ret = platform_device_add(yeeloong_pdev);
-	if (ret) {
-		platform_device_put(yeeloong_pdev);
-		return ret;
-	}
-
-	if (IS_ERR(yeeloong_pdev)) {
-		ret = PTR_ERR(yeeloong_pdev);
-		yeeloong_pdev = NULL;
-		printk(KERN_INFO "unable to register platform device\n");
-		return ret;
-	}
-
-	ret = device_create_file(&yeeloong_pdev->dev,
-				 &dev_attr_yeeloong_pdev_name);
-	if (ret) {
-		printk(KERN_INFO "unable to create sysfs device attributes\n");
-		return ret;
-	}
-
 	return 0;
 }
 
 static void yeeloong_pdev_exit(void)
 {
-	if (yeeloong_pdev) {
-		platform_device_unregister(yeeloong_pdev);
-		yeeloong_pdev = NULL;
-		platform_driver_unregister(&platform_driver);
-	}
+	platform_driver_unregister(&platform_driver);
 }
 
 static int __init yeeloong_init(void)

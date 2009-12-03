@@ -483,25 +483,35 @@ static int __maybe_unused lynloong_resume(struct platform_device *pdev)
 	return 0;
 }
 
+static struct platform_device *lynloong_pdev;
+
+static int __devinit lynloong_probe(struct platform_device *dev)
+{
+	lynloong_pdev = dev;
+
+	return 0;
+}
+
+static struct platform_device_id platform_device_ids[] = {
+	{
+		.name = "lynloong_pc",
+	},
+	{}
+};
+
+MODULE_DEVICE_TABLE(platform, platform_device_ids);
+
 static struct platform_driver platform_driver = {
 	.driver = {
-		   .name = "lynloong-pc",
+		   .name = "lynloong_pc",
 		   .owner = THIS_MODULE,
 		   },
+	.id_table = platform_device_ids,
 #ifdef CONFIG_PM
 	.suspend = lynloong_suspend,
 	.resume = lynloong_resume,
 #endif
 };
-
-static ssize_t lynloong_pdev_name_show(struct device *dev,
-				       struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "lynloong pc\n");
-}
-
-static struct device_attribute dev_attr_lynloong_pdev_name =
-__ATTR(name, S_IRUGO, lynloong_pdev_name_show, NULL);
 
 static int lynloong_pdev_init(void)
 {
@@ -512,43 +522,12 @@ static int lynloong_pdev_init(void)
 	if (ret)
 		return ret;
 
-	lynloong_pdev = platform_device_alloc("lynloong-laptop", -1);
-	if (!lynloong_pdev) {
-		ret = -ENOMEM;
-		platform_driver_unregister(&platform_driver);
-		return ret;
-	}
-
-	ret = platform_device_add(lynloong_pdev);
-	if (ret) {
-		platform_device_put(lynloong_pdev);
-		return ret;
-	}
-
-	if (IS_ERR(lynloong_pdev)) {
-		ret = PTR_ERR(lynloong_pdev);
-		lynloong_pdev = NULL;
-		printk(KERN_INFO "unable to register platform device\n");
-		return ret;
-	}
-
-	ret = device_create_file(&lynloong_pdev->dev,
-				 &dev_attr_lynloong_pdev_name);
-	if (ret) {
-		printk(KERN_INFO "unable to create sysfs device attributes\n");
-		return ret;
-	}
-
 	return 0;
 }
 
 static void lynloong_pdev_exit(void)
 {
-	if (lynloong_pdev) {
-		platform_device_unregister(lynloong_pdev);
-		lynloong_pdev = NULL;
-		platform_driver_unregister(&platform_driver);
-	}
+	platform_driver_unregister(&platform_driver);
 }
 
 static int __init lynloong_init(void)
