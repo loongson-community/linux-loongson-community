@@ -636,7 +636,7 @@ static struct key_entry yeeloong_keymap[] = {
 	{KE_KEY, EVENT_DISPLAY_BRIGHTNESS, KEY_BRIGHTNESSDOWN},	/* Fn + down */
 	{KE_KEY, EVENT_AUDIO_VOLUME, KEY_VOLUMEUP},	/* Fn + right */
 	{KE_KEY, EVENT_AUDIO_VOLUME, KEY_VOLUMEDOWN},	/* Fn + left */
-	{KE_END, 0}
+	{KE_END, 0, KEY_UNKNOWN}
 };
 
 static int yeeloong_lid_update_status(int status)
@@ -688,6 +688,8 @@ void yeeloong_report_key(void)
 	int keycode;
 
 	keycode = get_event_keycode();
+	if (keycode == KEY_UNKNOWN)
+		return;
 
 	if (keycode == SW_LID)
 		yeeloong_lid_update_status(status);
