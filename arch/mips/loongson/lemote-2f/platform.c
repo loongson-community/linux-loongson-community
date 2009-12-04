@@ -25,7 +25,7 @@ static struct platform_device lynloong_dev = {
 
 static int __init lemote2f_init(void)
 {
-	struct platform_devie *pdev;
+	struct platform_device *pdev;
 
 	pdev = NULL;
 
