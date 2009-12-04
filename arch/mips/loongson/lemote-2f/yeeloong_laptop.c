@@ -1110,6 +1110,10 @@ static int yeeloong_apm_init(void)
 
 static void yeeloong_apm_exit(void)
 {
+#ifdef CONFIG_APM_EMULATION
+	if (apm_get_power_status == yeeloong_apm_get_power_status)
+		apm_get_power_status = NULL;
+#endif
 }
 
 /* platform subdriver */
