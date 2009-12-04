@@ -14,5 +14,13 @@ menuconfig MIPS_PLATFORM_DEVICES
 
 if MIPS_PLATFORM_DEVICES
 
+config LEMOTE_YEELOONG2F
+	tristate "Lemote YeeLoong Laptop"
+	depends on LEMOTE_MACH2F
+	help
+	  YeeLoong netbook is a mini laptop made by Lemote, which is basically
+	  compatible to FuLoong2F mini PC, but it has an extra Embedded
+	  Controller(kb3310b) for battery, hotkey, backlight, temperature and
+	  fan management.
 
 endif # MIPS_PLATFORM_DEVICES
