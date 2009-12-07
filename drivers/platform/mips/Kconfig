@@ -30,4 +30,13 @@ config LEMOTE_YEELOONG2F
 	  Controller(kb3310b) for battery, hotkey, backlight, temperature and
 	  fan management.
 
+config LEMOTE_LYNLOONG2F
+	tristate "Lemote LynLoong PC"
+	depends on LEMOTE_MACH2F
+	help
+	  LynLoong PC is an AllINONE machine made by Lemote, which is basically
+	  compatible to FuLoong2F Mini PC, the only difference is that it has a
+	  size-fixed screen: 1360x768 with sisfb video driver. and also, it has
+	  its own specific suspend support.
+
 endif # MIPS_PLATFORM_DEVICES
