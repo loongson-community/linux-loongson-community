@@ -14,6 +14,7 @@
 #include <linux/backlight.h>	/* for backlight subdriver */
 #include <linux/fb.h>
 #include <linux/video_output.h>	/* for video output subdriver */
+#include <linux/delay.h>	/* for suspend support */
 
 #include <cs5536/cs5536.h>
 #include <cs5536/cs5536_mfgpt.h>
@@ -223,6 +224,220 @@ static void lynloong_vo_exit(void)
 	}
 }
 
+/* suspend support */
+
+#ifdef CONFIG_PM
+
+static u32 smb_base;
+
+/* I2C operations */
+
+static int i2c_wait(void)
+{
+	char c;
+	int i;
+
+	udelay(1000);
+	for (i = 0; i < 20; i++) {
+		c = inb(smb_base | SMB_STS);
+		if (c & (SMB_STS_BER | SMB_STS_NEGACK))
+			return -1;
+		if (c & SMB_STS_SDAST)
+			return 0;
+		udelay(100);
+	}
+	return -2;
+}
+
+static void i2c_read_single(int addr, int regNo, char *value)
+{
+	unsigned char c;
+
+	/* Start condition */
+	c = inb(smb_base | SMB_CTRL1);
+	outb(c | SMB_CTRL1_START, smb_base | SMB_CTRL1);
+	i2c_wait();
+
+	/* Send slave address */
+	outb(addr & 0xfe, smb_base | SMB_SDA);
+	i2c_wait();
+
+	/* Acknowledge smbus */
+	c = inb(smb_base | SMB_CTRL1);
+	outb(c | SMB_CTRL1_ACK, smb_base | SMB_CTRL1);
+
+	/* Send register index */
+	outb(regNo, smb_base | SMB_SDA);
+	i2c_wait();
+
+	/* Acknowledge smbus */
+	c = inb(smb_base | SMB_CTRL1);
+	outb(c | SMB_CTRL1_ACK, smb_base | SMB_CTRL1);
+
+	/* Start condition again */
+	c = inb(smb_base | SMB_CTRL1);
+	outb(c | SMB_CTRL1_START, smb_base | SMB_CTRL1);
+	i2c_wait();
+
+	/* Send salve address again */
+	outb(1 | addr, smb_base | SMB_SDA);
+	i2c_wait();
+
+	/* Acknowledge smbus */
+	c = inb(smb_base | SMB_CTRL1);
+	outb(c | SMB_CTRL1_ACK, smb_base | SMB_CTRL1);
+
+	/* Read data */
+	*value = inb(smb_base | SMB_SDA);
+
+	/* Stop condition */
+	outb(SMB_CTRL1_STOP, smb_base | SMB_CTRL1);
+	i2c_wait();
+}
+
+static void i2c_write_single(int addr, int regNo, char value)
+{
+	unsigned char c;
+
+	/* Start condition */
+	c = inb(smb_base | SMB_CTRL1);
+	outb(c | SMB_CTRL1_START, smb_base | SMB_CTRL1);
+	i2c_wait();
+	/* Send slave address */
+	outb(addr & 0xfe, smb_base | SMB_SDA);
+	i2c_wait();;
+
+	/* Send register index */
+	outb(regNo, smb_base | SMB_SDA);
+	i2c_wait();
+
+	/* Write data */
+	outb(value, smb_base | SMB_SDA);
+	i2c_wait();
+	/* Stop condition */
+	outb(SMB_CTRL1_STOP, smb_base | SMB_CTRL1);
+	i2c_wait();
+}
+
+static void stop_clock(int clk_reg, int clk_sel)
+{
+	u8 value;
+
+	i2c_read_single(0xd3, clk_reg, &value);
+	value &= ~(1 << clk_sel);
+	i2c_write_single(0xd2, clk_reg, value);
+}
+
+static void enable_clock(int clk_reg, int clk_sel)
+{
+	u8 value;
+
+	i2c_read_single(0xd3, clk_reg, &value);
+	value |= (1 << clk_sel);
+	i2c_write_single(0xd2, clk_reg, value);
+}
+
+static char cached_clk_freq;
+static char cached_pci_fixed_freq;
+
+static void decrease_clk_freq(void)
+{
+	char value;
+
+	i2c_read_single(0xd3, 1, &value);
+	cached_clk_freq = value;
+
+	/* Select frequency by software */
+	value |= (1 << 1);
+	/* CPU, 3V66, PCI : 100, 66, 33(1) */
+	value |= (1 << 2);
+	i2c_write_single(0xd2, 1, value);
+
+	/* Cache the pci frequency */
+	i2c_read_single(0xd3, 14, &value);
+	cached_pci_fixed_freq = value;
+
+	/* Enable PCI fix mode */
+	value |= (1 << 5);
+	/* 3V66, PCI : 64MHz, 32MHz */
+	value |= (1 << 3);
+	i2c_write_single(0xd2, 14, value);
+
+}
+
+static void resume_clk_freq(void)
+{
+	i2c_write_single(0xd2, 1, cached_clk_freq);
+	i2c_write_single(0xd2, 14, cached_pci_fixed_freq);
+}
+
+static void stop_clocks(void)
+{
+	/* CPU Clock Register */
+	stop_clock(2, 5);	/* not used */
+	stop_clock(2, 6);	/* not used */
+	stop_clock(2, 7);	/* not used */
+
+	/* PCI Clock Register */
+	stop_clock(3, 1);	/* 8100 */
+	stop_clock(3, 5);	/* SIS */
+	stop_clock(3, 0);	/* not used */
+	stop_clock(3, 6);	/* not used */
+
+	/* PCI 48M Clock Register */
+	stop_clock(4, 6);	/* USB grounding */
+	stop_clock(4, 5);	/* REF(5536_14M) */
+
+	/* 3V66 Control Register */
+	stop_clock(5, 0);	/* VCH_CLK..., grounding */
+}
+
+static void enable_clocks(void)
+{
+	enable_clock(3, 1);	/* 8100 */
+	enable_clock(3, 5);	/* SIS */
+
+	enable_clock(4, 6);
+	enable_clock(4, 5);	/* REF(5536_14M) */
+
+	enable_clock(5, 0);	/* VCH_CLOCK, grounding */
+}
+
+static int lynloong_suspend(struct device *dev)
+{
+	/* Disable AMP */
+	set_gpio_output_high(6);
+	/* Turn off LCD */
+	lynloong_lcd_vo_set(0);
+
+	/* Stop the clocks of some devices */
+	stop_clocks();
+
+	/* Decrease the external clock frequency */
+	decrease_clk_freq();
+
+	return 0;
+}
+
+static int lynloong_resume(struct device *dev)
+{
+	/* Turn on the LCD */
+	lynloong_lcd_vo_set(1);
+
+	/* Resume clock frequency, enable the relative clocks */
+	resume_clk_freq();
+	enable_clocks();
+
+	/* Enable AMP */
+	set_gpio_output_low(6);
+
+	return 0;
+}
+
+static const SIMPLE_DEV_PM_OPS(lynloong_pm_ops, lynloong_suspend,
+	lynloong_resume);
+#endif	/* !CONFIG_PM */
+
 static struct platform_device_id platform_device_ids[] = {
 	{
 		.name = "lynloong_pc",
@@ -236,6 +451,9 @@ static struct platform_driver platform_driver = {
 	.driver = {
 		.name = "lynloong_pc",
 		.owner = THIS_MODULE,
+#ifdef CONFIG_PM
+		.pm = &lynloong_pm_ops,
+#endif
 	},
 	.id_table = platform_device_ids,
 };
