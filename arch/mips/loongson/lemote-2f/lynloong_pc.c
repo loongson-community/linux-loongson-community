@@ -485,13 +485,6 @@ static int __maybe_unused lynloong_resume(struct platform_device *pdev)
 
 static struct platform_device *lynloong_pdev;
 
-static int __devinit lynloong_probe(struct platform_device *dev)
-{
-	lynloong_pdev = dev;
-
-	return 0;
-}
-
 static struct platform_device_id platform_device_ids[] = {
 	{
 		.name = "lynloong_pc",
