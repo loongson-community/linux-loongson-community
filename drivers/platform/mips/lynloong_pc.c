@@ -13,6 +13,7 @@
 #include <linux/platform_device.h>
 #include <linux/backlight.h>	/* for backlight subdriver */
 #include <linux/fb.h>
+#include <linux/video_output.h>	/* for video output subdriver */
 
 #include <cs5536/cs5536.h>
 #include <cs5536/cs5536_mfgpt.h>
@@ -144,6 +145,84 @@ static void lynloong_backlight_exit(void)
 	set_gpio_output_low(7);
 }
 
+/* video output driver */
+static int vo_status = 1;
+
+static int lcd_video_output_get(struct output_device *od)
+{
+	return vo_status;
+}
+
+static int lcd_video_output_set(struct output_device *od)
+{
+	int i;
+	unsigned long status;
+
+	status = !!od->request_state;
+
+	if (status == 0) {
+		/* Set the current status as off */
+		vo_status = 0;
+		/* Turn off the backlight */
+		set_gpio_output_low(11);
+		for (i = 0; i < 0x500; i++)
+			delay();
+		/* Turn off the LCD */
+		set_gpio_output_high(8);
+	} else {
+		/* Turn on the LCD */
+		set_gpio_output_low(8);
+		for (i = 0; i < 0x500; i++)
+			delay();
+		/* Turn on the backlight */
+		set_gpio_output_high(11);
+		/* Set the current status as on */
+		vo_status = 1;
+	}
+
+	return 0;
+}
+
+static struct output_properties lcd_output_properties = {
+	.set_state = lcd_video_output_set,
+	.get_status = lcd_video_output_get,
+};
+
+static struct output_device *lcd_output_dev;
+
+static void lynloong_lcd_vo_set(int status)
+{
+	lcd_output_dev->request_state = status;
+	lcd_video_output_set(lcd_output_dev);
+}
+
+static int lynloong_vo_init(void)
+{
+	int ret;
+
+	/* Register video output device: lcd */
+	lcd_output_dev = video_output_register("LCD", NULL, NULL,
+			&lcd_output_properties);
+
+	if (IS_ERR(lcd_output_dev)) {
+		ret = PTR_ERR(lcd_output_dev);
+		lcd_output_dev = NULL;
+		return ret;
+	}
+	/* Ensure LCD is on by default */
+	lynloong_lcd_vo_set(1);
+
+	return 0;
+}
+
+static void lynloong_vo_exit(void)
+{
+	if (lcd_output_dev) {
+		video_output_unregister(lcd_output_dev);
+		lcd_output_dev = NULL;
+	}
+}
+
 static struct platform_device_id platform_device_ids[] = {
 	{
 		.name = "lynloong_pc",
@@ -180,11 +259,19 @@ static int __init lynloong_init(void)
 		return ret;
 	}
 
+	ret = lynloong_vo_init();
+	if (ret) {
+		pr_err("Fail to register lynloong backlight driver.\n");
+		lynloong_vo_exit();
+		return ret;
+	}
+
 	return 0;
 }
 
 static void __exit lynloong_exit(void)
 {
+	lynloong_vo_exit();
 	lynloong_backlight_exit();
 	platform_driver_unregister(&platform_driver);
 

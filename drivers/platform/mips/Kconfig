@@ -34,6 +34,7 @@ config LEMOTE_LYNLOONG2F
 	tristate "Lemote LynLoong PC"
 	depends on LEMOTE_MACH2F
 	select BACKLIGHT_CLASS_DEVICE
+	select VIDEO_OUTPUT_CONTROL
 	help
 	  LynLoong PC is an AllINONE machine made by Lemote, which is basically
 	  compatible to FuLoong2F Mini PC, the only difference is that it has a
