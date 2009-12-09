@@ -121,6 +121,10 @@ SECTIONS
   /* Sections to be discarded */
   /DISCARD/ :
   {
+        *(.MIPS.options)
+        *(.options)
+        *(.pdr)
+        *(.reginfo)
         *(.text.exit)
         *(.data.exit)
         *(.exitcall.exit)
