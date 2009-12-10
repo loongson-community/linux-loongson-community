@@ -41,7 +41,10 @@ static int __init lemote2f_init(void)
 
 	}
 
-	return platform_device_register(pdev);
+	if (pdev != NULL)
+		return platform_device_register(pdev);
+
+	return -ENODEV;
 }
 
 arch_initcall(lemote2f_init);
