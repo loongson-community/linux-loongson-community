@@ -83,6 +83,8 @@ void *memset(void *s, int c, size_t n)
 #include "../../../../lib/decompress_unlzo.c"
 #endif
 
+extern void flush_cache_all(void);
+
 void decompress_kernel(unsigned long boot_heap_start)
 {
 	int zimage_size;
@@ -125,6 +127,7 @@ void decompress_kernel(unsigned long boot_heap_start)
 	/* Decompress the kernel with according algorithm */
 	decompress(zimage_start, zimage_size, 0, 0,
 		   (void *)VMLINUX_LOAD_ADDRESS_ULL, 0, error);
+	flush_cache_all();
 	/* FIXME: is there a need to flush cache here? */
 	puts("Now, booting the kernel...\n");
 }

@@ -30,7 +30,7 @@ KBUILD_AFLAGS := $(LINUXINCLUDE) $(KBUILD_AFLAGS) -D__ASSEMBLY__ \
 	-DKERNEL_ENTRY=0x$(shell $(NM) $(objtree)/$(KBUILD_IMAGE) 2>/dev/null | grep " kernel_entry" | cut -f1 -d \ ) \
 	-DBOOT_HEAP_SIZE=$(BOOT_HEAP_SIZE)
 
-obj-y := $(obj)/head.o $(obj)/decompress.o $(obj)/dbg.o
+obj-y := $(obj)/head.o $(obj)/decompress.o $(obj)/dbg.o $(obj)/cache.o
 
 obj-$(CONFIG_SYS_SUPPORTS_ZBOOT_UART16550) += $(obj)/uart-16550.o
 
