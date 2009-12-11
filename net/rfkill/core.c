@@ -111,7 +111,7 @@ static LIST_HEAD(rfkill_list);	/* list of registered rf switches */
 static DEFINE_MUTEX(rfkill_global_mutex);
 static LIST_HEAD(rfkill_fds);	/* list of open fds of /dev/rfkill */
 
-static unsigned int rfkill_default_state = 1;
+static unsigned int rfkill_default_state;	/* default: 0 = radio off */
 module_param_named(default_state, rfkill_default_state, uint, 0444);
 MODULE_PARM_DESC(default_state,
 		 "Default initial state for all radio types, 0 = radio off");
