@@ -23,8 +23,6 @@
 #include "ieee80211/ieee80211.h"
 #include "linux/netdevice.h"
 
-#include <ec/kb3310b.h>
-
 static struct rfkill *r8187b_rfkill;
 static struct work_struct r8187b_rfkill_task;
 static int initialized;
@@ -78,12 +76,7 @@ static int r8187b_wifi_update_rfkill_state(int status)
 	}
 	mutex_unlock(&statetoset_lock);
 
-	/* ignore the first interrupt to ensure the wifi is powered off when starting */
-	if (initialized == 2)
-		schedule_work(&r8187b_rfkill_task);
-
-	if (initialized == 1)
-		initialized = 2;
+	schedule_work(&r8187b_rfkill_task);
 
 	return eRfPowerStateToSet;
 }
@@ -150,28 +143,11 @@ int r8187b_rfkill_init(struct net_device *dev)
 		return ret;
 	}
 
-	/* install the event handler */
-	yeeloong_install_sci_event_handler(EVENT_WLAN,
-					   r8187b_wifi_update_rfkill_state);
-
-	/* poweroff wifi by default, if you want to enable it when booting the
-	 * kernel, just need to add this line in /etc/rc.local or the other
-	 * relative scripts which will be excuted on booting:
-	 *
-	 *   echo 1 > /sys/class/rfkill/rfkill0/state
-	 */
-
-	eRfPowerStateToSet = eRfOff;
-	r8187b_wifi_change_rfkill_state(r8187b_dev, eRfPowerStateToSet);
-
 	return 0;
 }
 
 void r8187b_rfkill_exit(void)
 {
-	/* uninstall the event handler */
-	yeeloong_uninstall_sci_event_handler(EVENT_WLAN,
-					   r8187b_wifi_update_rfkill_state);
 	if (r8187b_rfkill) {
 		rfkill_unregister(r8187b_rfkill);
 		rfkill_destroy(r8187b_rfkill);

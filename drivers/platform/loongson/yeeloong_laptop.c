@@ -737,17 +737,7 @@ static void yeeloong_event_action(void)
 	if (handler == NULL)
 		return;
 
-	if (event == EVENT_WLAN)
-		/* notify the wifi driver to update it's status FIXME: we user
-		 * set the rfkill status from user-space, we need to sync the
-		 * status to the EC register, but this is not suitable to do in
-		 * the rfkill subdriver. to avoid this problem, we not use the
-		 * EC wifi register, just use the event as a switch. the
-		 * argument 2 means we just swith the status. the return value
-		 * is the real status we set.
-		 */
-		status = handler(2);
-	else if (event == EVENT_CAMERA)
+	if (event == EVENT_CAMERA)
 		status = handler(3);
 	else
 		status = handler(status);
