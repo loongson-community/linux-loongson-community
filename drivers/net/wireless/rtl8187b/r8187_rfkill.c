@@ -23,30 +23,6 @@
 #include "ieee80211/ieee80211.h"
 #include "linux/netdevice.h"
 
-/* This driver currently is very stupid!!!! */
-/* copied from arch/mips/loongson/lemote-2f/ec_kb3310b.h */
-typedef int (*sci_handler) (int status);
-extern int yeeloong_install_sci_handler(int event, sci_handler handler);
-extern int yeeloong_uninstall_sci_handler(int event, sci_handler handler);
-/* SCI Event Number from EC */
-enum {
-	EVENT_LID = 0x23,	/*  LID open/close */
-	EVENT_DISPLAY_TOGGLE,	/*  Fn+F3 for display switch */
-	EVENT_SLEEP,		/*  Fn+F1 for entering sleep mode */
-	EVENT_OVERTEMP,		/*  Over-temperature happened */
-	EVENT_CRT_DETECT,	/*  CRT is connected */
-	EVENT_CAMERA,		/*  Camera on/off */
-	EVENT_USB_OC2,		/*  USB2 Over Current occurred */
-	EVENT_USB_OC0,		/*  USB0 Over Current occurred */
-	EVENT_BLACK_SCREEN,	/*  Black screen on/off */
-	EVENT_AUDIO_MUTE,	/*  Mute is on or off */
-	EVENT_DISPLAY_BRIGHTNESS,/* LCD backlight brightness adjust */
-	EVENT_AC_BAT,		/*  AC & Battery relative issue */
-	EVENT_AUDIO_VOLUME,	/*  Volume adjust */
-	EVENT_WLAN,		/*  Wlan on/off */
-	EVENT_END
-};
-
 static struct rfkill *r8187b_rfkill;
 static struct work_struct r8187b_rfkill_task;
 static int initialized;
@@ -71,7 +47,6 @@ static void r8187b_wifi_rfkill_task(struct work_struct *work)
 
 static int r8187b_wifi_update_rfkill_state(int status)
 {
-
 	/* ensure r8187b_rfkill is initialized if dev is not initialized, means
 	 * wifi driver is not start, the status is eRfOff be default.
 	 */
@@ -172,28 +147,13 @@ int r8187b_rfkill_init(struct net_device *dev)
 		return ret;
 	}
 
-	/* install the event handler */
-	yeeloong_install_sci_handler(EVENT_WLAN,
-			r8187b_wifi_update_rfkill_state);
-
-	/* poweroff wifi by default, if you want to enable it when booting the
-	 * kernel, just need to add this line in /etc/rc.local or the other
-	 * relative scripts which will be excuted on booting:
-	 *
-	 *   echo 1 > /sys/class/rfkill/rfkill0/state
-	 */
-
-	eRfPowerStateToSet = eRfOff;
-	r8187b_wifi_change_rfkill_state(r8187b_dev, eRfPowerStateToSet);
+	/* The default status is passed to the rfkill module */
 
 	return 0;
 }
 
 void r8187b_rfkill_exit(void)
 {
-	/* uninstall the event handler */
-	yeeloong_uninstall_sci_handler(EVENT_WLAN,
-			r8187b_wifi_update_rfkill_state);
 	if (r8187b_rfkill) {
 		rfkill_unregister(r8187b_rfkill);
 		rfkill_destroy(r8187b_rfkill);
