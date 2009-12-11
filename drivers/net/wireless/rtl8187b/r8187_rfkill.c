@@ -75,12 +75,7 @@ static int r8187b_wifi_update_rfkill_state(int status)
 	}
 	mutex_unlock(&statetoset_lock);
 
-	/* ignore the first interrupt to ensure the wifi is powered off when starting */
-//	if (initialized == 2)
 	schedule_work(&r8187b_rfkill_task);
-
-	//if (initialized == 1)
-	//	initialized = 2;
 
 	return eRfPowerStateToSet;
 }
