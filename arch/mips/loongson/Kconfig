@@ -127,6 +127,7 @@ config LEMOTE_YEELOONG2F_PDEV
 	select THERMAL
 	select BACKLIGHT_CLASS_DEVICE
 	select SYS_SUPPORTS_APM_EMULATION
+	select APM_EMULATION
 	help
 	  YeeLoong netbook is a mini laptop made by Lemote, which is basically
 	  compatible to FuLoong2F mini PC, but It has an extra Embedded
