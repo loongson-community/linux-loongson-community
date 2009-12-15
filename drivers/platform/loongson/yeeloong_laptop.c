@@ -99,16 +99,45 @@ static void yeeloong_backlight_exit(void)
 
 /********************* hwmon sub driver **************************/
 
-/* pwm(auto/manual) enable or not */
+#define MIN_FAN_SPEED 0
+#define MAX_FAN_SPEED 3
+#define BIT_FAN_MANUAL 1
+#define BIT_FAN_AUTO 0
+
 static int yeeloong_get_fan_pwm_enable(void)
 {
-	/* This get the fan control method: auto or manual */
-	return ec_read(REG_FAN_AUTO_MAN_SWITCH);
+	int level, mode;
+
+	level = ec_read(REG_FAN_SPEED_LEVEL);
+	mode = ec_read(REG_FAN_AUTO_MAN_SWITCH);
+
+	if (level == MAX_FAN_SPEED && mode == BIT_FAN_MANUAL)
+		mode = 0;
+	else if (mode == BIT_FAN_MANUAL)
+		mode = 1;
+	else
+		mode = 2;
+
+	return mode;
 }
 
-static void yeeloong_set_fan_pwm_enable(int manual)
+static void yeeloong_set_fan_pwm_enable(int mode)
 {
-	ec_write(REG_FAN_AUTO_MAN_SWITCH, !!manual);
+	switch (mode) {
+	case 0:
+		/* fullspeed */
+		ec_write(REG_FAN_AUTO_MAN_SWITCH, BIT_FAN_MANUAL);
+		ec_write(REG_FAN_SPEED_LEVEL, MAX_FAN_SPEED);
+		break;
+	case 1:
+		ec_write(REG_FAN_AUTO_MAN_SWITCH, BIT_FAN_MANUAL);
+		break;
+	case 2:
+		ec_write(REG_FAN_AUTO_MAN_SWITCH, BIT_FAN_AUTO);
+		break;
+	default:
+		break;
+	}
 }
 
 static int yeeloong_get_fan_pwm(void)
@@ -119,7 +148,11 @@ static int yeeloong_get_fan_pwm(void)
 
 static void yeeloong_set_fan_pwm(int value)
 {
-	int status;
+	int status, mode;
+
+	mode = ec_read(REG_FAN_AUTO_MAN_SWITCH);
+	if (mode != BIT_FAN_MANUAL)
+		return;
 
 	value = SENSORS_LIMIT(value, 0, 3);
 
@@ -156,6 +189,12 @@ static int yeeloong_get_cpu_temp(void)
 		value = value & 0xff;
 
 	return value * 1000;
+}
+
+static int yeeloong_get_cpu_temp_max(void)
+{
+	/* 60℃  is the max temp for loongson work normally. */
+	return 60 * 1000;
 }
 
 static int parse_arg(const char *buf, unsigned long count, int *val)
@@ -203,6 +242,7 @@ CREATE_SENSOR_ATTR(pwm1, S_IRUGO | S_IWUSR,
 CREATE_SENSOR_ATTR(pwm1_enable, S_IRUGO | S_IWUSR,
 		   yeeloong_get_fan_pwm_enable, yeeloong_set_fan_pwm_enable);
 CREATE_SENSOR_ATTR(temp1_input, S_IRUGO, yeeloong_get_cpu_temp, NULL);
+CREATE_SENSOR_ATTR(temp1_max, S_IRUGO, yeeloong_get_cpu_temp_max, NULL);
 
 static ssize_t
 show_name(struct device *dev, struct device_attribute *attr, char *buf)
@@ -217,6 +257,7 @@ static struct attribute *hwmon_attributes[] = {
 	&sensor_dev_attr_pwm1_enable.dev_attr.attr,
 	&sensor_dev_attr_fan1_input.dev_attr.attr,
 	&sensor_dev_attr_temp1_input.dev_attr.attr,
+	&sensor_dev_attr_temp1_max.dev_attr.attr,
 	&sensor_dev_attr_name.dev_attr.attr,
 	NULL
 };
