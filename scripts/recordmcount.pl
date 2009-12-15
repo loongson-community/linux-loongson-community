@@ -295,7 +295,6 @@ if ($arch eq "x86_64") {
     $ld .= " -m elf64_sparc";
     $cc .= " -m64";
     $objcopy .= " -O elf64-sparc";
-
 } elsif ($arch eq "mips") {
     # To enable module support, we need to enable the -mlong-calls option
     # of gcc for module, after using this option, we can not get the real
@@ -348,7 +347,9 @@ if ($arch eq "x86_64") {
 		"^([0-9a-fA-F]+)\\s+<(.|[^\$]L.*?|\$[^L].*?|[^\$][^L].*?)>:";
 	    $type = ".dword";
     }
-
+} elsif ($arch eq "microblaze") {
+    # Microblaze calls '_mcount' instead of plain 'mcount'.
+    $mcount_regex = "^\\s*([0-9a-fA-F]+):.*\\s_mcount\$";
 } else {
     die "Arch $arch is not supported with CONFIG_FTRACE_MCOUNT_RECORD";
 }
