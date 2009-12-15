@@ -101,16 +101,43 @@ static void yeeloong_backlight_exit(void)
 
 /* hwmon subdriver */
 
-/* pwm(auto/manual) enable or not */
+#define MIN_FAN_SPEED 0
+#define MAX_FAN_SPEED 3
+
 static int get_fan_pwm_enable(void)
 {
-	/* get the fan control method: auto or manual */
-	return ec_read(REG_FAN_AUTO_MAN_SWITCH);
+	int level, mode;
+
+	level = ec_read(REG_FAN_SPEED_LEVEL);
+	mode = ec_read(REG_FAN_AUTO_MAN_SWITCH);
+
+	if (level == MAX_FAN_SPEED && mode == BIT_FAN_MANUAL)
+		mode = 0;
+	else if (mode == BIT_FAN_MANUAL)
+		mode = 1;
+	else
+		mode = 2;
+
+	return mode;
 }
 
-static void set_fan_pwm_enable(int manual)
+static void set_fan_pwm_enable(int mode)
 {
-	ec_write(REG_FAN_AUTO_MAN_SWITCH, !!manual);
+	switch (mode) {
+	case 0:
+		/* fullspeed */
+		ec_write(REG_FAN_AUTO_MAN_SWITCH, BIT_FAN_MANUAL);
+		ec_write(REG_FAN_SPEED_LEVEL, MAX_FAN_SPEED);
+		break;
+	case 1:
+		ec_write(REG_FAN_AUTO_MAN_SWITCH, BIT_FAN_MANUAL);
+		break;
+	case 2:
+		ec_write(REG_FAN_AUTO_MAN_SWITCH, BIT_FAN_AUTO);
+		break;
+	default:
+		break;
+	}
 }
 
 static int get_fan_pwm(void)
@@ -120,9 +147,13 @@ static int get_fan_pwm(void)
 
 static void set_fan_pwm(int value)
 {
-	int status;
+	int status, mode;
 
-	value = SENSORS_LIMIT(value, 0, 3);
+	mode = ec_read(REG_FAN_AUTO_MAN_SWITCH);
+	if (mode != BIT_FAN_MANUAL)
+		return;
+
+	value = SENSORS_LIMIT(value, MIN_FAN_SPEED, MAX_FAN_SPEED);
 
 	/* If value is not ZERO, We should ensure it is on */
 	if (value != 0) {
@@ -156,6 +187,12 @@ static int get_cpu_temp(void)
 		value = value & 0xff;
 
 	return value * 1000;
+}
+
+static int get_cpu_temp_max(void)
+{
+	/* 60℃  is the max temp for loongson work normally. */
+	return 60 * 1000;
 }
 
 static int get_battery_temp(void)
@@ -236,6 +273,7 @@ CREATE_SENSOR_ATTR(pwm1, S_IRUGO | S_IWUSR, get_fan_pwm, set_fan_pwm);
 CREATE_SENSOR_ATTR(pwm1_enable, S_IRUGO | S_IWUSR, get_fan_pwm_enable,
 		set_fan_pwm_enable);
 CREATE_SENSOR_ATTR(temp1_input, S_IRUGO, get_cpu_temp, NULL);
+CREATE_SENSOR_ATTR(temp1_max, S_IRUGO, get_cpu_temp_max, NULL);
 CREATE_SENSOR_ATTR(temp2_input, S_IRUGO, get_battery_temp, NULL);
 CREATE_SENSOR_ATTR(curr1_input, S_IRUGO, get_battery_current, NULL);
 CREATE_SENSOR_ATTR(in1_input, S_IRUGO, get_battery_voltage, NULL);
@@ -253,6 +291,7 @@ static struct attribute *hwmon_attributes[] = {
 	&sensor_dev_attr_pwm1_enable.dev_attr.attr,
 	&sensor_dev_attr_fan1_input.dev_attr.attr,
 	&sensor_dev_attr_temp1_input.dev_attr.attr,
+	&sensor_dev_attr_temp1_max.dev_attr.attr,
 	&sensor_dev_attr_temp2_input.dev_attr.attr,
 	&sensor_dev_attr_curr1_input.dev_attr.attr,
 	&sensor_dev_attr_in1_input.dev_attr.attr,
