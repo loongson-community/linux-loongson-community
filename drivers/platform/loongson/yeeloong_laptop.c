@@ -287,7 +287,7 @@ static int yeeloong_hwmon_init(struct device *dev)
 		yeeloong_hwmon_dev = NULL;
 	}
 	/* ensure fan is set to auto mode */
-	yeeloong_set_fan_pwm_enable(0);
+	yeeloong_set_fan_pwm_enable(2);
 
 	return 0;
 }
@@ -1078,7 +1078,7 @@ static int yeeloong_resume(struct platform_device *pdev)
 	camera_set(2);
 
 	/* resume fan to auto mode */
-	yeeloong_set_fan_pwm_enable(0);
+	yeeloong_set_fan_pwm_enable(2);
 
 	return 0;
 }
