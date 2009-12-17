@@ -324,7 +324,7 @@ static int yeeloong_hwmon_init(struct device *dev)
 		yeeloong_hwmon_dev = NULL;
 	}
 	/* ensure fan is set to auto mode */
-	set_fan_pwm_enable(BIT_FAN_AUTO);
+	set_fan_pwm_enable(2);
 
 	return 0;
 }
@@ -1169,7 +1169,7 @@ static int __maybe_unused yeeloong_suspend(struct platform_device *pdev,
 	/* poweroff three usb ports */
 	usb_ports_set(BIT_USB_FLAG_OFF);
 	/* minimize the speed of FAN */
-	set_fan_pwm_enable(BIT_FAN_MANUAL);
+	set_fan_pwm_enable(1);
 	set_fan_pwm(1);
 
 	return 0;
@@ -1190,7 +1190,7 @@ static int __maybe_unused yeeloong_resume(struct platform_device *pdev)
 	camera_set(2);
 
 	/* resume fan to auto mode */
-	set_fan_pwm_enable(BIT_FAN_AUTO);
+	set_fan_pwm_enable(2);
 
 	return 0;
 }
