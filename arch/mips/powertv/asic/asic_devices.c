@@ -187,7 +187,7 @@ static void __init fs_update(int pe, int md, int sdiv, int disable_div_by_3)
 /*
  * Allow override of bootloader-specified model
  */
-static char __initdata cmdline[CL_SIZE];
+static char __initdata cmdline[COMMAND_LINE_SIZE];
 
 #define	FORCEFAMILY_PARAM	"forcefamily"
 
@@ -199,7 +199,7 @@ static __init int check_forcefamily(unsigned char forced_family[2])
 	forced_family[1] = '\0';
 
 	/* Check the command line for a forcefamily directive */
-	strncpy(cmdline, arcs_cmdline, CL_SIZE - 1);
+	strncpy(cmdline, arcs_cmdline, COMMAND_LINE_SIZE - 1);
 	p = strstr(cmdline, FORCEFAMILY_PARAM);
 	if (p && (p != cmdline) && (*(p - 1) != ' '))
 		p = strstr(p, " " FORCEFAMILY_PARAM "=");

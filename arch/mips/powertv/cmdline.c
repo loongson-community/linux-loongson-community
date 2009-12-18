@@ -48,5 +48,5 @@ void  __init prom_init_cmdline(void)
 	arcs_cmdline[len] = ' ';
 
 	strlcpy(arcs_cmdline + len + 1, (char *)_prom_argv,
-		CL_SIZE - len - 1);
+		COMMAND_LINE_SIZE - len - 1);
 }

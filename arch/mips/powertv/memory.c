@@ -44,7 +44,7 @@
 
 unsigned long ptv_memsize;
 
-char __initdata cmdline[CL_SIZE];
+char __initdata cmdline[COMMAND_LINE_SIZE];
 
 void __init prom_meminit(void)
 {

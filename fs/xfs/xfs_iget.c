@@ -91,7 +91,7 @@ xfs_inode_alloc(
 	ip->i_new_size = 0;
 
 	/* prevent anyone from using this yet */
-	VFS_I(ip)->i_state = I_NEW|I_LOCK;
+	VFS_I(ip)->i_state = I_NEW;
 
 	return ip;
 }
@@ -217,7 +217,7 @@ xfs_iget_cache_hit(
 			trace_xfs_iget_reclaim(ip);
 			goto out_error;
 		}
-		inode->i_state = I_LOCK|I_NEW;
+		inode->i_state = I_NEW;
 	} else {
 		/* If the VFS inode is being torn down, pause and try again. */
 		if (!igrab(inode)) {
@@ -478,17 +478,21 @@ xfs_ireclaim(
 {
 	struct xfs_mount	*mp = ip->i_mount;
 	struct xfs_perag	*pag;
+	xfs_agino_t		agino = XFS_INO_TO_AGINO(mp, ip->i_ino);
 
 	XFS_STATS_INC(xs_ig_reclaims);
 
 	/*
-	 * Remove the inode from the per-AG radix tree.  It doesn't matter
-	 * if it was never added to it because radix_tree_delete can deal
-	 * with that case just fine.
+	 * Remove the inode from the per-AG radix tree.
+	 *
+	 * Because radix_tree_delete won't complain even if the item was never
+	 * added to the tree assert that it's been there before to catch
+	 * problems with the inode life time early on.
 	 */
 	pag = xfs_get_perag(mp, ip->i_ino);
 	write_lock(&pag->pag_ici_lock);
-	radix_tree_delete(&pag->pag_ici_root, XFS_INO_TO_AGINO(mp, ip->i_ino));
+	if (!radix_tree_delete(&pag->pag_ici_root, agino))
+		ASSERT(0);
 	write_unlock(&pag->pag_ici_lock);
 	xfs_put_perag(mp, pag);
 

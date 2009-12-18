@@ -2377,6 +2377,15 @@ W:	http://www.kernel.org/pub/linux/kernel/people/fseidel/hdaps/
 S:	Maintained
 F:	drivers/hwmon/hdaps.c
 
+HWPOISON MEMORY FAILURE HANDLING
+M:	Andi Kleen <andi@firstfloor.org>
+L:	linux-mm@kvack.org
+L:	linux-kernel@vger.kernel.org
+T:	git git://git.kernel.org/pub/scm/linux/kernel/git/ak/linux-mce-2.6.git hwpoison
+S:	Maintained
+F:	mm/memory-failure.c
+F:	mm/hwpoison-inject.c
+
 HYPERVISOR VIRTUAL CONSOLE DRIVER
 L:	linuxppc-dev@ozlabs.org
 S:	Odd Fixes
@@ -5425,6 +5434,12 @@ F:	drivers/uwb/*
 F:	include/linux/uwb.h
 F:	include/linux/uwb/
 
+UNIFDEF
+M:	Tony Finch <dot@dotat.at>
+W:	http://dotat.at/prog/unifdef
+S:	Maintained
+F:	scripts/unifdef.c
+
 UNIFORM CDROM DRIVER
 M:	Jens Axboe <axboe@kernel.dk>
 W:	http://www.kernel.dk
@@ -5991,9 +6006,9 @@ F:	sound/soc/codecs/wm8350.*
 F:	sound/soc/codecs/wm8400.*
 
 X.25 NETWORK LAYER
-M:	Henner Eisen <eis@baty.hanse.de>
+M:	Andrew Hendry <andrew.hendry@gmail.com>
 L:	linux-x25@vger.kernel.org
-S:	Maintained
+S:	Odd Fixes
 F:	Documentation/networking/x25*
 F:	include/net/x25*
 F:	net/x25/
