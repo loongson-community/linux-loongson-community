@@ -17,6 +17,7 @@
  * Free Software Foundation;  either version 2 of the  License, or (at your
  * option) any later version.
  */
+#include <linux/module.h>
 #include <asm/bootinfo.h>
 
 #include <loongson.h>
@@ -24,6 +25,10 @@
 int prom_argc;
 /* pmon passes arguments in 32bit pointers */
 int *_prom_argv;
+
+/* the kernel command line copied from arcs_cmdline */
+char loongson_cmdline[COMMAND_LINE_SIZE];
+EXPORT_SYMBOL(loongson_cmdline);
 
 void __init prom_init_cmdline(void)
 {
@@ -70,4 +75,7 @@ void __init prom_init_cmdline(void)
 	default:
 		break;
 	}
+
+	/* copy arcs_cmdline into loongson_cmdline */
+	strncpy(loongson_cmdline, arcs_cmdline, COMMAND_LINE_SIZE);
 }
