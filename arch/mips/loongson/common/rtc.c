@@ -2,7 +2,7 @@
  *  Registration of Loongson RTC platform device.
  *
  *  Copyright (C) 2007  Yoichi Yuasa <yoichi_yuasa@tripeaks.co.jp>
- *  Copyright (C) 2009  Wu Zhangjin <wuzj@lemote.com>
+ *  Copyright (C) 2009  Wu Zhangjin <wuzhangjin@gmail.com>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by

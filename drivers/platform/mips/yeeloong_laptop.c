@@ -2,7 +2,7 @@
  * Driver for YeeLoong laptop extras
  *
  *  Copyright (C) 2009 Lemote Inc.
- *  Author: Wu Zhangjin <wuzj@lemote.com>, Liu Junliang <liujl@lemote.com>
+ *  Author: Wu Zhangjin <wuzhangjin@gmail.com>, Liu Junliang <liujl@lemote.com>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2 as
@@ -1061,6 +1061,6 @@ static void __exit yeeloong_exit(void)
 module_init(yeeloong_init);
 module_exit(yeeloong_exit);
 
-MODULE_AUTHOR("Wu Zhangjin <wuzj@lemote.com>; Liu Junliang <liujl@lemote.com>");
+MODULE_AUTHOR("Wu Zhangjin <wuzhangjin@gmail.com>; Liu Junliang <liujl@lemote.com>");
 MODULE_DESCRIPTION("YeeLoong laptop driver");
 MODULE_LICENSE("GPL");

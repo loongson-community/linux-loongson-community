@@ -6,8 +6,8 @@
  *   eRfOn: RFKILL_STATE_UNBLOCKED
  * TODO: move led controlling source code to rfkill framework
  *
- *  Copyright (C) 2009 Lemote Inc. & Insititute of Computing Technology
- *  Author: Wu Zhangjin <wuzj@lemote.com>
+ *  Copyright (C) 2009 Lemote Inc.
+ *  Author: Wu Zhangjin <wuzhangjin@gmail.com>
  */
 
 #include <linux/module.h>

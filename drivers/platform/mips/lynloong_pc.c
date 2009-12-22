@@ -2,7 +2,7 @@
  * Driver for LynLoong PC extras
  *
  *  Copyright (C) 2009 Lemote Inc.
- *  Author: Wu Zhangjin <wuzj@lemote.com>, Xiang Yu <xiangy@lemote.com>
+ *  Author: Wu Zhangjin <wuzhangjin@gmail.com>, Xiang Yu <xiangy@lemote.com>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2 as
@@ -499,6 +499,6 @@ static void __exit lynloong_exit(void)
 module_init(lynloong_init);
 module_exit(lynloong_exit);
 
-MODULE_AUTHOR("Wu Zhangjin <wuzj@lemote.com>; Xiang Yu <xiangy@lemote.com>");
+MODULE_AUTHOR("Wu Zhangjin <wuzhangjin@gmail.com>; Xiang Yu <xiangy@lemote.com>");
 MODULE_DESCRIPTION("LynLoong PC driver");
 MODULE_LICENSE("GPL");
