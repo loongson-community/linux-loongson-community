@@ -13,7 +13,7 @@
 #include <linux/init.h>
 #include <linux/delay.h>
 
-#include <ec/kb3310b.h>
+#include "ec_kb3310b.h"
 
 #define	EC_MISC_DEV		"ec_misc"
 #define EC_IOC_MAGIC		'E'
