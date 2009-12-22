@@ -22,16 +22,15 @@
 
 #include <loongson.h>
 
-int prom_argc;
-/* pmon passes arguments in 32bit pointers */
-int *_prom_argv;
-
 /* the kernel command line copied from arcs_cmdline */
 char loongson_cmdline[COMMAND_LINE_SIZE];
 EXPORT_SYMBOL(loongson_cmdline);
 
 void __init prom_init_cmdline(void)
 {
+	int prom_argc;
+	/* pmon passes arguments in 32bit pointers */
+	int *_prom_argv;
 	int i;
 	long l;
 
