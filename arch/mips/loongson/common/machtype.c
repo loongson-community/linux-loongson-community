@@ -35,7 +35,7 @@ const char *get_system_type(void)
 	return system_types[mips_machtype];
 }
 
-void __weak mach_prom_init_machtype(void)
+void __weak __init mach_prom_init_machtype(void)
 {
 }
 
