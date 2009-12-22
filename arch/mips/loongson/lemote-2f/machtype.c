@@ -11,7 +11,7 @@
 
 #include <loongson.h>
 
-void mach_prom_init_machtype(void)
+void __init mach_prom_init_machtype(void)
 {
 	/* We share the same kernel image file among Lemote 2F family
 	 * of machines, and provide the machtype= kernel command line
