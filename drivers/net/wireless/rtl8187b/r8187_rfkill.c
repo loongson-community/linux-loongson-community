@@ -139,6 +139,7 @@ int r8187b_rfkill_init(struct net_device *dev)
 	ret = rfkill_register(r8187b_rfkill);
 	if (ret) {
 		rfkill_destroy(r8187b_rfkill);
+		r8187b_rfkill = NULL;
 		return ret;
 	}
 
