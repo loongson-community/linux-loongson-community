@@ -40,7 +40,7 @@ int rtl8187_suspend (struct usb_interface *intf, pm_message_t state)
 		/* save the old rfkill state and then power off it */
 		priv->eInactivePowerState = priv->eRFPowerState;
 		/* power off the wifi by default */
-		r8187b_wifi_change_rfkill_state(dev, eRfOff);
+		r8187b_wifi_change_rfkill_state(dev, eRfOff, 0);
 
 		if (!netif_running(dev)) {
 			//printk(KERN_WARNING "UI or other close dev before suspend, go out suspend function\n");
@@ -68,7 +68,7 @@ int rtl8187_resume (struct usb_interface *intf)
 
 	if(dev) {
 		/* resume the old rfkill state */
-		r8187b_wifi_change_rfkill_state(dev, priv->eInactivePowerState);
+		r8187b_wifi_change_rfkill_state(dev, priv->eInactivePowerState, 1);
 
 		if (!netif_running(dev)){
 			//printk(KERN_WARNING "UI or other close dev before suspend, go out resume function\n");

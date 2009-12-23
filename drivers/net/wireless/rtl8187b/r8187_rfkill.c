@@ -40,7 +40,7 @@ static void r8187b_wifi_rfkill_task(struct work_struct *work)
 {
 	if (r8187b_dev) {
 		mutex_lock(&statetoset_lock);
-		r8187b_wifi_change_rfkill_state(r8187b_dev, eRfPowerStateToSet);
+		r8187b_wifi_change_rfkill_state(r8187b_dev, eRfPowerStateToSet, 1);
 		mutex_unlock(&statetoset_lock);
 	}
 }

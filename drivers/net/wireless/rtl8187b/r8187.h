@@ -796,7 +796,7 @@ void IPSLeave(struct net_device *dev);
 int r8187b_rfkill_init(struct net_device *dev);
 void r8187b_rfkill_exit(void);
 int r8187b_wifi_report_state(r8180_priv *priv);
-void r8187b_wifi_change_rfkill_state(struct net_device *dev, RT_RF_POWER_STATE eRfPowerStateToSet);
+void r8187b_wifi_change_rfkill_state(struct net_device *dev, RT_RF_POWER_STATE eRfPowerStateToSet, bool report_rfkill);
 bool SetRFPowerState(struct net_device *dev,RT_RF_POWER_STATE eRFPowerState);
 void rtl8180_patch_ieee80211_wx_sync_scan_wq(struct ieee80211_device *ieee);
 #ifdef _RTL8187_EXT_PATCH_

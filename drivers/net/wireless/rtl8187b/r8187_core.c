@@ -7010,7 +7010,7 @@ void setKey(struct net_device *dev,
  * called when suspend/resume.
  */
 
-void r8187b_wifi_change_rfkill_state(struct net_device *dev, RT_RF_POWER_STATE eRfPowerStateToSet)
+void r8187b_wifi_change_rfkill_state(struct net_device *dev, RT_RF_POWER_STATE eRfPowerStateToSet, bool report_rfkill)
 {
 	struct r8180_priv *priv = ieee80211_priv(dev);
 
@@ -7032,7 +7032,8 @@ void r8187b_wifi_change_rfkill_state(struct net_device *dev, RT_RF_POWER_STATE e
 	MgntActSet_RF_State(dev, eRfPowerStateToSet, RF_CHANGE_BY_HW);
 
 	/* report the rfkill state to the user-space via uevent interface */
-	r8187b_wifi_report_state(priv);
+	if (report_rfkill)
+		r8187b_wifi_report_state(priv);
 }
 
 /***************************************************************************
