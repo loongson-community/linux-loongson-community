@@ -3521,6 +3521,16 @@ sisfb_pre_setmode(struct sis_video_info *ivideo)
 
 	outSISIDXREG(SISSR, 0x05, 0x86);
 
+	/* Fix 1360x768 for the Lemote LynLoong Machine
+	 *
+	 * FIXME: part1 register setting for Lemote LynLoong Machine's lvds output,
+	 * Not sure whether it should be added here
+	 */
+	outSISIDXREG(SISPART1, 0x16, 0xc7);
+	outSISIDXREG(SISPART1, 0x1a, 0x18);
+	outSISIDXREG(SISPART1, 0x1b, 0x25);
+	outSISIDXREG(SISPART1, 0x1d, 0x13);
+
 	inSISIDXREG(SISCR, 0x31, cr31);
 	cr31 &= ~0x60;
 	cr31 |= 0x04;
