@@ -4,7 +4,6 @@ TODO:
 - checkpatch.pl clean
 - refine the code and remove unused code
 - use kernel framebuffer mode setting instead of hard code
-- make sure it work on all exisiting archs
 - move it to drivers/video/sm7xx/ or make it be drivers/video/sm7xxfb.c
 
 Please send any patches to Greg Kroah-Hartman <greg@kroah.com> and
