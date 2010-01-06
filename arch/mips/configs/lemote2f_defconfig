@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.33-rc1
-# Fri Dec 18 10:52:49 2009
+# Linux kernel version: 2.6.33-rc2
+# Wed Jan  6 16:49:30 2010
 #
 CONFIG_MIPS=y
 
@@ -109,7 +109,6 @@ CONFIG_CPU_LOONGSON2F=y
 # CONFIG_CPU_SB1 is not set
 # CONFIG_CPU_CAVIUM_OCTEON is not set
 CONFIG_SYS_SUPPORTS_ZBOOT=y
-CONFIG_SYS_SUPPORTS_ZBOOT_UART16550=y
 CONFIG_CPU_LOONGSON2=y
 CONFIG_SYS_HAS_CPU_LOONGSON2F=y
 CONFIG_SYS_SUPPORTS_32BIT_KERNEL=y
@@ -219,8 +218,7 @@ CONFIG_IKCONFIG_PROC=y
 CONFIG_LOG_BUF_SHIFT=15
 # CONFIG_GROUP_SCHED is not set
 # CONFIG_CGROUPS is not set
-CONFIG_SYSFS_DEPRECATED=y
-CONFIG_SYSFS_DEPRECATED_V2=y
+# CONFIG_SYSFS_DEPRECATED_V2 is not set
 # CONFIG_RELAY is not set
 # CONFIG_NAMESPACES is not set
 CONFIG_BLK_DEV_INITRD=y
@@ -835,7 +833,7 @@ CONFIG_DM_UEVENT=y
 #
 
 #
-# See the help texts for more information.
+# The newer stack is recommended.
 #
 # CONFIG_FIREWIRE is not set
 # CONFIG_IEEE1394 is not set
@@ -1842,7 +1840,6 @@ CONFIG_STAGING=y
 # Camera Sensor Selection
 #
 # CONFIG_INPUT_GPIO is not set
-# CONFIG_DST is not set
 # CONFIG_POHMELFS is not set
 # CONFIG_B3DFG is not set
 # CONFIG_PLAN9AUTH is not set
@@ -1864,7 +1861,6 @@ CONFIG_STAGING=y
 # CONFIG_STRIP is not set
 # CONFIG_WAVELAN is not set
 CONFIG_FB_SM7XX=y
-# CONFIG_FB_SM7XX_ACCEL is not set
 CONFIG_MIPS_PLATFORM_DEVICES=y
 CONFIG_LEMOTE_YEELOONG2F=m
 CONFIG_LEMOTE_LYNLOONG2F=m
