@@ -1022,49 +1022,49 @@ UpdateInitialGain(
 			switch(priv->InitialGain)
 			{
 				case 1: //m861dBm
-					DMESG("RTL8187 + 8225 Initial Gain State 1: -82 dBm ");
+//					DMESG("RTL8187 + 8225 Initial Gain State 1: -82 dBm ");
 					write_phy_ofdm(dev, 0x97, 0x26);	mdelay(1);
 					write_phy_ofdm(dev, 0xa4, 0x86);	mdelay(1);
 					write_phy_ofdm(dev, 0x85, 0xfa);	mdelay(1);
 					break;
 					
 				case 2: //m862dBm
-					DMESG("RTL8187 + 8225 Initial Gain State 2: -78 dBm ");
+//					DMESG("RTL8187 + 8225 Initial Gain State 2: -78 dBm ");
 					write_phy_ofdm(dev, 0x97, 0x36);	mdelay(1);// Revise 0x26 to 0x36, by Roger, 2007.05.03.
 					write_phy_ofdm(dev, 0xa4, 0x86);	mdelay(1);
 					write_phy_ofdm(dev, 0x85, 0xfa);	mdelay(1);
 					break;
 
 				case 3: //m863dBm
-					DMESG("RTL8187 + 8225 Initial Gain State 3: -78 dBm ");
+//					DMESG("RTL8187 + 8225 Initial Gain State 3: -78 dBm ");
 					write_phy_ofdm(dev, 0x97, 0x36);	mdelay(1);// Revise 0x26 to 0x36, by Roger, 2007.05.03.
 					write_phy_ofdm(dev, 0xa4, 0x86);	mdelay(1);
 					write_phy_ofdm(dev, 0x85, 0xfb);	mdelay(1);
 					break;
 
 				case 4: //m864dBm
-					DMESG("RTL8187 + 8225 Initial Gain State 4: -74 dBm ");
+//					DMESG("RTL8187 + 8225 Initial Gain State 4: -74 dBm ");
 					write_phy_ofdm(dev, 0x97, 0x46);	mdelay(1);// Revise 0x26 to 0x36, by Roger, 2007.05.03.
 					write_phy_ofdm(dev, 0xa4, 0x86);	mdelay(1);
 					write_phy_ofdm(dev, 0x85, 0xfb);	mdelay(1);
 					break;
 
 				case 5: //m82dBm
-					DMESG("RTL8187 + 8225 Initial Gain State 5: -74 dBm ");
+//					DMESG("RTL8187 + 8225 Initial Gain State 5: -74 dBm ");
 					write_phy_ofdm(dev, 0x97, 0x46);	mdelay(1);
 					write_phy_ofdm(dev, 0xa4, 0x96);	mdelay(1);
 					write_phy_ofdm(dev, 0x85, 0xfb);	mdelay(1);
 					break;
 
 				case 6: //m78dBm
-					DMESG("RTL8187 + 8225 Initial Gain State 6: -70 dBm ");
+//					DMESG("RTL8187 + 8225 Initial Gain State 6: -70 dBm ");
 					write_phy_ofdm(dev, 0x97, 0x56);	mdelay(1);					
 					write_phy_ofdm(dev, 0xa4, 0x96);	mdelay(1);
 					write_phy_ofdm(dev, 0x85, 0xfc);	mdelay(1);
 					break;
 
 				case 7: //m74dBm
-					DMESG("RTL8187 + 8225 Initial Gain State 7: -70 dBm ");
+//					DMESG("RTL8187 + 8225 Initial Gain State 7: -70 dBm ");
 					write_phy_ofdm(dev, 0x97, 0x56);	mdelay(1);
 					write_phy_ofdm(dev, 0xa4, 0xa6);	mdelay(1);
 					write_phy_ofdm(dev, 0x85, 0xfc);	mdelay(1);
@@ -1078,7 +1078,7 @@ UpdateInitialGain(
 					break;
 
 				default:	//MP
-					DMESG("RTL8187 + 8225 Initial Gain State: -82 dBm (default), InitialGain(%d)", priv->InitialGain);
+//					DMESG("RTL8187 + 8225 Initial Gain State: -82 dBm (default), InitialGain(%d)", priv->InitialGain);
 					write_phy_ofdm(dev, 0x97, 0x26);	mdelay(1);
 					write_phy_ofdm(dev, 0xa4, 0x86);	mdelay(1);
 					write_phy_ofdm(dev, 0x85, 0xfa);	mdelay(1);
@@ -1111,7 +1111,7 @@ void PhyConfig8187(struct net_device *dev)
 	{
 		if(priv->InitialGain == 0)
 			priv->InitialGain = 4;
-		DMESG("DIG is enabled, set default initial gain index to %d", priv->InitialGain);
+		//DMESG("DIG is enabled, set default initial gain index to %d", priv->InitialGain);
 	}
 
 	// By Bruce, 2007-03-29.
@@ -1470,6 +1470,7 @@ void ActSetWirelessMode8187(struct net_device* dev, u8	btWirelessMode)
 	}
 
 	// 4. Change related setting.
+#if 0
 	if( ieee->mode == WIRELESS_MODE_A ){
 		DMESG("WIRELESS_MODE_A"); 
 	}
@@ -1479,6 +1480,7 @@ void ActSetWirelessMode8187(struct net_device* dev, u8	btWirelessMode)
 	else if( ieee->mode == WIRELESS_MODE_G ){
 		DMESG("WIRELESS_MODE_G"); 
 	}
+#endif
 	ActUpdateChannelAccessSetting(dev, ieee->mode, &priv->ChannelAccessSetting );
 //by amy 0305
 #ifdef TODO	
