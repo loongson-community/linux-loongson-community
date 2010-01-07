@@ -853,8 +853,6 @@ static irqreturn_t sci_irq_handler(int irq, void *dev_id)
 	if ((event != 0x00) && (event != 0xff)) {
 		/* get status of current event */
 		status = ec_get_event_status();
-		printk(KERN_INFO "%s: event: %d, status: %d\n", __func__,
-				event, status);
 		if (status == -1)
 			return IRQ_NONE;
 		/* execute corresponding actions */
