@@ -1802,8 +1802,6 @@ void rtl8180_reset(struct net_device *dev)
 	
 	if(read_nic_byte(dev,CMD) & (1<<CMD_RST_SHIFT)) 
 		DMESGW("Card reset timeout!");
-	else 
-		DMESG("Card successfully reset");
 	
 	if(NIC_8187 == priv->card_8187) {
 
@@ -5181,9 +5179,9 @@ bool SetZebraRFPowerState8187B(struct net_device *dev,RT_RF_POWER_STATE	eRFPower
 	switch(eRFPowerState)
 	{
 	case eRfOn:
-//#ifdef CONFIG_RADIO_DEBUG
+#ifdef CONFIG_RADIO_DEBUG
 		DMESG("Now Radio ON!");
-//#endif
+#endif
 		write_nic_dword(dev, ANAPARAM, ANAPARM_ON);
 		write_nic_dword(dev, ANAPARAM2, ANAPARM2_ON);
 		//write_nic_byte(dev, CONFIG4, (priv->RFProgType));
@@ -5215,16 +5213,16 @@ bool SetZebraRFPowerState8187B(struct net_device *dev,RT_RF_POWER_STATE	eRFPower
 		{ // Make sure TX FIFO is empty befor turn off RFE pwoer.
 			u2bTFPC = read_nic_word(dev, TFPC);
 			if(u2bTFPC == 0){
-				printk("%d times TFPC: %d == 0 before doze...\n", (i+1), u2bTFPC);
+				//printk("%d times TFPC: %d == 0 before doze...\n", (i+1), u2bTFPC);
 				break;
 			}else{
-				printk("%d times TFPC: %d != 0 before doze!\n", (i+1), u2bTFPC);
+				//printk("%d times TFPC: %d != 0 before doze!\n", (i+1), u2bTFPC);
 				udelay(10);
 			}
 		}
 		
 		if( i == MAX_DOZE_WAITING_TIMES_87B_MOD ){
-			printk("\n\n\n SetZebraRFPowerState8187B(): %d times TFPC: %d != 0 !!!\n\n\n", MAX_DOZE_WAITING_TIMES_87B_MOD, u2bTFPC);
+			//printk("\n\n\n SetZebraRFPowerState8187B(): %d times TFPC: %d != 0 !!!\n\n\n", MAX_DOZE_WAITING_TIMES_87B_MOD, u2bTFPC);
 		}
 
 		u1bTmp = read_nic_byte(dev, 0x24E);
@@ -5240,9 +5238,9 @@ bool SetZebraRFPowerState8187B(struct net_device *dev,RT_RF_POWER_STATE	eRFPower
 		break;
 
 	case eRfOff:
-//#ifdef CONFIG_RADIO_DEBUG
+#ifdef CONFIG_RADIO_DEBUG
 		DMESG("Now Radio OFF!");
-//#endif
+#endif
 		for(i = 0; i < MAX_DOZE_WAITING_TIMES_87B_MOD; i++)
 		{ // Make sure TX FIFO is empty befor turn off RFE pwoer.
 			u2bTFPC = read_nic_word(dev, TFPC);
@@ -5256,7 +5254,7 @@ bool SetZebraRFPowerState8187B(struct net_device *dev,RT_RF_POWER_STATE	eRFPower
 		}
 
 		if( i == MAX_DOZE_WAITING_TIMES_87B_MOD){
-			printk("\n\n\nSetZebraRFPowerState8187B(): %d times TFPC: 0x%x != 0 !!!\n\n\n", MAX_DOZE_WAITING_TIMES_87B_MOD, u2bTFPC);
+			//printk("\n\n\nSetZebraRFPowerState8187B(): %d times TFPC: 0x%x != 0 !!!\n\n\n", MAX_DOZE_WAITING_TIMES_87B_MOD, u2bTFPC);
 		}
 
 		u1bTmp = read_nic_byte(dev, 0x24E);
@@ -5273,7 +5271,7 @@ bool SetZebraRFPowerState8187B(struct net_device *dev,RT_RF_POWER_STATE	eRFPower
 
 	default:
 		bResult = false;
-		printk("SetZebraRFPowerState8187B(): unknow state to set: 0x%X!!!\n", eRFPowerState);
+		//printk("SetZebraRFPowerState8187B(): unknow state to set: 0x%X!!!\n", eRFPowerState);
 		break;
 	}
 
@@ -5359,7 +5357,7 @@ MgntActSet_RF_State(struct net_device *dev,RT_RF_POWER_STATE StateToSet,u32 Chan
 				// Wait too long, return FALSE to avoid to be stuck here.
 				if(RFWaitCounter > 1000) // 1sec
 				{
-					DMESG("MgntActSet_RF_State(): Wait too long to set RF");
+			//		DMESG("MgntActSet_RF_State(): Wait too long to set RF");
 					// TODO: Reset RF state?
 					return false;
 				}
@@ -5793,7 +5791,7 @@ int _rtl8180_up(struct net_device *dev)
 
 
         priv->driver_upping = 0;
-	DMESG("rtl8187_open process complete");
+	//DMESG("rtl8187_open process complete");
 	return 0;
 }
 
@@ -5804,7 +5802,7 @@ int rtl8180_open(struct net_device *dev)
 	int ret;
 //changed by lizhaoming for power on/off
 	if(priv->ieee80211->bHwRadioOff == false){
-		DMESG("rtl8187_open process ");
+		//DMESG("rtl8187_open process ");
 		down(&priv->wx_sem);
 		ret = rtl8180_up(dev);
 		up(&priv->wx_sem);
@@ -5859,7 +5857,7 @@ int rtl8180_down(struct net_device *dev)
 	if (!netif_queue_stopped(dev))
 		netif_stop_queue(dev);
 	
-	DMESG("rtl8180_down process");
+	//DMESG("rtl8180_down process");
 	rtl8180_rtx_disable(dev);
 	rtl8180_irq_disable(dev);
 //by amy for rate adaptive
@@ -7019,8 +7017,10 @@ void r8187b_wifi_change_rfkill_state(struct net_device *dev, RT_RF_POWER_STATE e
 	else
 		priv->ieee80211->bHwRadioOff = true;
 
+#ifdef CONFIG_RADIO_DEBUG 
 	DMESG("SCI interrupt Methord Will Turn Radio %s",
 		(priv->ieee80211->bHwRadioOff == true) ? "Off" : "On");
+#endif
 
 #ifdef LED //by lizhaoming
 	if (priv->ieee80211->bHwRadioOff)
