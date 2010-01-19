@@ -16,10 +16,12 @@
 VMLINUX_SIZE := $(shell wc -c $(objtree)/$(KBUILD_IMAGE) 2>/dev/null | cut -d' ' -f1)
 VMLINUX_SIZE := $(shell [ -n "$(VMLINUX_SIZE)" ] && echo $$(($(VMLINUX_SIZE) + (65536 - $(VMLINUX_SIZE) % 65536))))
 # VMLINUZ_LOAD_ADDRESS = concat "high32 of VMLINUX_LOAD_ADDRESS" and "(low32 of VMLINUX_LOAD_ADDRESS) + VMLINUX_SIZE"
-VMLINUZ_LOAD_ADDRESS := 0x$(shell [ -n "$(VMLINUX_SIZE)" ] && ( \
-				A=$(VMLINUX_LOAD_ADDRESS); \
-				[ "$${A:0:10}" != "$${A}" ] && echo -n $${A:2:8}; \
-				printf "%08x" $$(($(VMLINUX_SIZE) + 0x$${A:(-8)})) ))
+HIGH32 := $(shell expr substr "$(VMLINUX_LOAD_ADDRESS)" 3 8 | tr -d '\n')
+LOW32 := $(shell expr substr "$(VMLINUX_LOAD_ADDRESS)" 11 8 | tr -d '\n')
+LOW32 := $(shell [ -n "$(LOW32)" ] && echo -n "0x$(LOW32)" || echo -n "$(VMLINUX_LOAD_ADDRESS)")
+VMLINUZ_LOAD_ADDRESS := 0x$(shell [ -n "$(VMLINUX_SIZE)" -a -n "$(LOW32)" ] && ( \
+				[ "$(LOW32)" != "$(VMLINUX_LOAD_ADDRESS)" ] && echo -n $(HIGH32); \
+				printf "%08x" $$(($(VMLINUX_SIZE) + $(LOW32))) ))
 
 # set the default size of the mallocing area for decompressing
 BOOT_HEAP_SIZE := 0x400000
