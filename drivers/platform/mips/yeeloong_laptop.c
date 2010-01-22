@@ -20,6 +20,7 @@
 #include <linux/input/sparse-keymap.h>
 #include <linux/interrupt.h>
 #include <linux/delay.h>
+#include <linux/power_supply.h>	/* for AC & Battery subdriver */
 
 #include <cs5536/cs5536.h>
 
@@ -92,6 +93,252 @@ static void yeeloong_backlight_exit(void)
 	}
 }
 
+/* AC & Battery subdriver */
+
+static struct power_supply yeeloong_ac, yeeloong_bat;
+
+#define AC_OFFLINE          0
+#define AC_ONLINE           1
+
+static int yeeloong_get_ac_props(struct power_supply *psy,
+				enum power_supply_property psp,
+				union power_supply_propval *val)
+{
+	switch (psp) {
+	case POWER_SUPPLY_PROP_ONLINE:
+		val->intval = ((ec_read(REG_BAT_POWER)) & BIT_BAT_POWER_ACIN) ?
+			AC_ONLINE : AC_OFFLINE;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static enum power_supply_property yeeloong_ac_props[] = {
+	POWER_SUPPLY_PROP_ONLINE,
+};
+
+static struct power_supply yeeloong_ac = {
+	.name = "yeeloong-ac",
+	.type = POWER_SUPPLY_TYPE_MAINS,
+	.properties = yeeloong_ac_props,
+	.num_properties = ARRAY_SIZE(yeeloong_ac_props),
+	.get_property = yeeloong_get_ac_props,
+};
+
+#define BAT_CAP_CRITICAL 5
+#define BAT_CAP_HIGH     99
+
+#define get_bat_info(type) \
+	((ec_read(REG_BAT_##type##_HIGH) << 8) | \
+	 (ec_read(REG_BAT_##type##_LOW)))
+
+static int yeeloong_bat_get_ex_property(enum power_supply_property psp,
+				     union power_supply_propval *val)
+{
+	int bat_in, curr_cap, cap_level, status, charge, health;
+
+	status = ec_read(REG_BAT_STATUS);
+	bat_in = status & BIT_BAT_STATUS_IN;
+	curr_cap = get_bat_info(RELATIVE_CAP);
+	if (status & BIT_BAT_STATUS_FULL)
+		curr_cap = 100;
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_PRESENT:
+		val->intval = bat_in;
+		break;
+	case POWER_SUPPLY_PROP_CAPACITY:
+		val->intval = curr_cap;
+		break;
+	case POWER_SUPPLY_PROP_CAPACITY_LEVEL:
+		cap_level = POWER_SUPPLY_CAPACITY_LEVEL_NORMAL;
+		if (status & BIT_BAT_STATUS_LOW) {
+			cap_level = POWER_SUPPLY_CAPACITY_LEVEL_LOW;
+			if (curr_cap <= BAT_CAP_CRITICAL)
+				cap_level =
+					POWER_SUPPLY_CAPACITY_LEVEL_CRITICAL;
+		} else if (status & BIT_BAT_STATUS_FULL) {
+			cap_level = POWER_SUPPLY_CAPACITY_LEVEL_FULL;
+			if (curr_cap >= BAT_CAP_HIGH)
+				cap_level = POWER_SUPPLY_CAPACITY_LEVEL_HIGH;
+		} else if (status & BIT_BAT_STATUS_DESTROY)
+			cap_level = POWER_SUPPLY_CAPACITY_LEVEL_UNKNOWN;
+		val->intval = cap_level;
+		break;
+	case POWER_SUPPLY_PROP_TIME_TO_EMPTY_NOW:
+		if (bat_in)
+			val->intval = ((curr_cap - 3) * 54 + 142); /* seconds */
+		else
+			val->intval = 0x00;
+		break;
+	case POWER_SUPPLY_PROP_STATUS:
+		if (!bat_in)
+			charge = POWER_SUPPLY_STATUS_UNKNOWN;
+		else {
+			if (status & BIT_BAT_STATUS_FULL) {
+				val->intval = POWER_SUPPLY_STATUS_FULL;
+				break;
+			}
+
+			charge = ec_read(REG_BAT_CHARGE);
+			if (charge & FLAG_BAT_CHARGE_DISCHARGE)
+				charge = POWER_SUPPLY_STATUS_DISCHARGING;
+			else if (charge & FLAG_BAT_CHARGE_CHARGE)
+				charge = POWER_SUPPLY_STATUS_CHARGING;
+			else
+				charge = POWER_SUPPLY_STATUS_NOT_CHARGING;
+		}
+		val->intval = charge;
+		break;
+	case POWER_SUPPLY_PROP_HEALTH:
+		if (!bat_in) /* no battery present */
+			health = POWER_SUPPLY_HEALTH_UNKNOWN;
+		else { /* Assume it is good */
+			health = POWER_SUPPLY_HEALTH_GOOD;
+			if (status & \
+				(BIT_BAT_STATUS_DESTROY | BIT_BAT_STATUS_LOW))
+				health = POWER_SUPPLY_HEALTH_DEAD;
+			if (ec_read(REG_BAT_CHARGE_STATUS) &
+				BIT_BAT_CHARGE_STATUS_OVERTEMP)
+				health = POWER_SUPPLY_HEALTH_OVERHEAT;
+		}
+		val->intval = health;
+		break;
+	default:
+		return -EINVAL;
+	}
+	return 0;
+}
+
+static int get_battery_temp(void)
+{
+	int value;
+
+	value = get_bat_info(TEMPERATURE);
+
+	return value * 1000;
+}
+
+static int get_battery_current(void)
+{
+	s16 value;
+
+	value = get_bat_info(CURRENT);
+
+	return -value;
+}
+
+static int get_battery_voltage(void)
+{
+	int value;
+
+	value = get_bat_info(VOLTAGE);
+
+	return value;
+}
+
+static int yeeloong_get_bat_props(struct power_supply *psy,
+				     enum power_supply_property psp,
+				     union power_supply_propval *val)
+{
+	switch (psp) {
+	/* Fixed information */
+	case POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN:
+		val->intval = get_bat_info(DESIGN_CAP) * 1000;	/* mV -> µV */
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
+		val->intval = get_bat_info(DESIGN_VOL) * 1000;	/* mA -> µA */
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_FULL:
+		val->intval = get_bat_info(FULLCHG_CAP) * 1000;	/* µA */
+		break;
+	case POWER_SUPPLY_PROP_MANUFACTURER:
+		val->strval = (ec_read(REG_BAT_VENDOR) ==
+				FLAG_BAT_VENDOR_SANYO) ? "SANYO" : "SIMPLO";
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_COUNTER:
+		val->intval = ec_read(REG_BAT_CELL_COUNT);
+		break;
+	/* Dynamic information */
+	case POWER_SUPPLY_PROP_CURRENT_NOW:
+		val->intval = get_battery_current() * 1000;	/* mA -> µA */
+		break;
+	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
+		val->intval = get_battery_voltage() * 1000;	/* mV -> µV */
+		break;
+	case POWER_SUPPLY_PROP_TEMP:
+		val->intval = get_battery_temp();	/* Celcius */
+		break;
+	/* Dynamic but related information */
+	default:
+		return yeeloong_bat_get_ex_property(psp, val);
+	}
+
+	return 0;
+}
+
+static enum power_supply_property yeeloong_bat_props[] = {
+	POWER_SUPPLY_PROP_STATUS,
+	POWER_SUPPLY_PROP_PRESENT,
+	POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN,
+	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
+	POWER_SUPPLY_PROP_CURRENT_NOW,
+	POWER_SUPPLY_PROP_VOLTAGE_NOW,
+	POWER_SUPPLY_PROP_HEALTH,
+	POWER_SUPPLY_PROP_TIME_TO_EMPTY_NOW,
+	POWER_SUPPLY_PROP_CAPACITY,
+	POWER_SUPPLY_PROP_CAPACITY_LEVEL,
+	POWER_SUPPLY_PROP_TEMP,
+	POWER_SUPPLY_PROP_MANUFACTURER,
+	POWER_SUPPLY_PROP_CHARGE_COUNTER,
+};
+
+static struct power_supply yeeloong_bat = {
+	.name = "yeeloong-bat",
+	.type = POWER_SUPPLY_TYPE_BATTERY,
+	.properties = yeeloong_bat_props,
+	.num_properties = ARRAY_SIZE(yeeloong_bat_props),
+	.get_property = yeeloong_get_bat_props,
+};
+
+static struct timer_list bat_status_timer;
+
+static void yeeloong_bat_status_keepwarm(unsigned long data)
+{
+	mod_timer(&bat_status_timer, round_jiffies(jiffies + data));
+
+	power_supply_changed(&yeeloong_ac);
+	power_supply_changed(&yeeloong_bat);
+}
+
+static int yeeloong_bat_init(void)
+{
+	int ret;
+
+	ret = power_supply_register(NULL, &yeeloong_ac);
+	if (ret) {
+		power_supply_unregister(&yeeloong_ac);
+		return ret;
+	}
+	ret = power_supply_register(NULL, &yeeloong_bat);
+	if (ret) {
+		power_supply_unregister(&yeeloong_bat);
+		return ret;
+	}
+
+	setup_timer(&bat_status_timer, yeeloong_bat_status_keepwarm, HZ * 10);
+	mod_timer(&bat_status_timer, round_jiffies(jiffies + HZ * 10));
+	return 0;
+}
+
+static void yeeloong_bat_exit(void)
+{
+	power_supply_unregister(&yeeloong_bat);
+	power_supply_unregister(&yeeloong_ac);
+}
 /* hwmon subdriver */
 
 #define MIN_FAN_SPEED 0
@@ -180,16 +427,6 @@ static int get_cpu_temp_max(void)
 	return 60 * 1000;
 }
 
-static int get_battery_temp(void)
-{
-	int value;
-
-	value = (ec_read(REG_BAT_TEMPERATURE_HIGH) << 8) |
-		(ec_read(REG_BAT_TEMPERATURE_LOW));
-
-	return value * 1000;
-}
-
 static int get_battery_temp_alarm(void)
 {
 	int status;
@@ -198,26 +435,6 @@ static int get_battery_temp_alarm(void)
 			BIT_BAT_CHARGE_STATUS_OVERTEMP);
 
 	return !!status;
-}
-
-static int get_battery_current(void)
-{
-	s16 value;
-
-	value = (ec_read(REG_BAT_CURRENT_HIGH) << 8) |
-		(ec_read(REG_BAT_CURRENT_LOW));
-
-	return -value;
-}
-
-static int get_battery_voltage(void)
-{
-	int value;
-
-	value = (ec_read(REG_BAT_VOLTAGE_HIGH) << 8) |
-		(ec_read(REG_BAT_VOLTAGE_LOW));
-
-	return value;
 }
 
 static ssize_t store_sys_hwmon(void (*set) (int), const char *buf, size_t count)
@@ -617,6 +834,14 @@ static int usb0_handler(int status)
 	return status;
 }
 
+static int ac_bat_handler(int status)
+{
+	power_supply_changed(&yeeloong_ac);
+	power_supply_changed(&yeeloong_bat);
+
+	return status;
+}
+
 static void do_event_action(int event)
 {
 	sci_handler handler;
@@ -661,6 +886,9 @@ static void do_event_action(int event)
 		break;
 	case EVENT_AUDIO_VOLUME:
 		reg = REG_AUDIO_VOLUME;
+		break;
+	case EVENT_AC_BAT:
+		handler = ac_bat_handler;
 		break;
 	default:
 		break;
@@ -919,6 +1147,13 @@ static int __init yeeloong_init(void)
 		return ret;
 	}
 
+	ret = yeeloong_bat_init();
+	if (ret) {
+		pr_err("Fail to register yeeloong battery driver.\n");
+		yeeloong_bat_exit();
+		return ret;
+	}
+
 	ret = yeeloong_hwmon_init();
 	if (ret) {
 		pr_err("Fail to register yeeloong hwmon driver.\n");
@@ -948,6 +1183,7 @@ static void __exit yeeloong_exit(void)
 	yeeloong_hotkey_exit();
 	yeeloong_vo_exit();
 	yeeloong_hwmon_exit();
+	yeeloong_bat_exit();
 	yeeloong_backlight_exit();
 	platform_driver_unregister(&platform_driver);
 
