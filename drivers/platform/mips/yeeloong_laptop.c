@@ -13,7 +13,6 @@
 #include <linux/platform_device.h>
 #include <linux/backlight.h>	/* for backlight subdriver */
 #include <linux/fb.h>
-#include <linux/apm-emulation.h>/* for battery subdriver */
 #include <linux/hwmon.h>	/* for hwmon subdriver */
 #include <linux/hwmon-sysfs.h>
 #include <linux/video_output.h>	/* for video output subdriver */
@@ -91,106 +90,6 @@ static void yeeloong_backlight_exit(void)
 		backlight_device_unregister(yeeloong_backlight_dev);
 		yeeloong_backlight_dev = NULL;
 	}
-}
-
-/* battery subdriver */
-
-static void get_fixed_battery_info(void)
-{
-	int design_cap, full_charged_cap, design_vol, vendor, cell_count;
-
-	design_cap = (ec_read(REG_BAT_DESIGN_CAP_HIGH) << 8)
-	    | ec_read(REG_BAT_DESIGN_CAP_LOW);
-	full_charged_cap = (ec_read(REG_BAT_FULLCHG_CAP_HIGH) << 8)
-	    | ec_read(REG_BAT_FULLCHG_CAP_LOW);
-	design_vol = (ec_read(REG_BAT_DESIGN_VOL_HIGH) << 8)
-	    | ec_read(REG_BAT_DESIGN_VOL_LOW);
-	vendor = ec_read(REG_BAT_VENDOR);
-	cell_count = ec_read(REG_BAT_CELL_COUNT);
-
-	if (vendor != 0) {
-		pr_info("battery vendor(%s), cells count(%d), "
-		       "with designed capacity(%d),designed voltage(%d),"
-		       " full charged capacity(%d)\n",
-		       (vendor ==
-			FLAG_BAT_VENDOR_SANYO) ? "SANYO" : "SIMPLO",
-		       (cell_count == FLAG_BAT_CELL_3S1P) ? 3 : 6,
-		       design_cap, design_vol,
-		       full_charged_cap);
-	}
-}
-
-#define APM_CRITICAL		5
-
-static void get_power_status(struct apm_power_info *info)
-{
-	unsigned char bat_status;
-
-	info->battery_status = APM_BATTERY_STATUS_UNKNOWN;
-	info->battery_flag = APM_BATTERY_FLAG_UNKNOWN;
-	info->units = APM_UNITS_MINS;
-
-	info->battery_life = (ec_read(REG_BAT_RELATIVE_CAP_HIGH) << 8) |
-		(ec_read(REG_BAT_RELATIVE_CAP_LOW));
-
-	info->ac_line_status = (ec_read(REG_BAT_POWER) & BIT_BAT_POWER_ACIN) ?
-		APM_AC_ONLINE : APM_AC_OFFLINE;
-
-	bat_status = ec_read(REG_BAT_STATUS);
-
-	if (!(bat_status & BIT_BAT_STATUS_IN)) {
-		/* no battery inserted */
-		info->battery_status = APM_BATTERY_STATUS_NOT_PRESENT;
-		info->battery_flag = APM_BATTERY_FLAG_NOT_PRESENT;
-		info->time = 0x00;
-		return;
-	}
-
-	/* adapter inserted */
-	if (info->ac_line_status == APM_AC_ONLINE) {
-		if (!(bat_status & BIT_BAT_STATUS_FULL)) {
-			/* battery is not fully charged */
-			info->battery_status = APM_BATTERY_STATUS_CHARGING;
-			info->battery_flag = APM_BATTERY_FLAG_CHARGING;
-		} else {
-			/* battery is fully charged */
-			info->battery_status = APM_BATTERY_STATUS_HIGH;
-			info->battery_flag = APM_BATTERY_FLAG_HIGH;
-			info->battery_life = 100;
-		}
-	} else {
-		/* battery is too low */
-		if (bat_status & BIT_BAT_STATUS_LOW) {
-			info->battery_status = APM_BATTERY_STATUS_LOW;
-			info->battery_flag = APM_BATTERY_FLAG_LOW;
-			if (info->battery_life <= APM_CRITICAL) {
-				/* we should power off the system now */
-				info->battery_status =
-					APM_BATTERY_STATUS_CRITICAL;
-				info->battery_flag = APM_BATTERY_FLAG_CRITICAL;
-			}
-		} else {
-			/* assume the battery is high enough. */
-			info->battery_status = APM_BATTERY_STATUS_HIGH;
-			info->battery_flag = APM_BATTERY_FLAG_HIGH;
-		}
-	}
-	info->time = ((info->battery_life - 3) * 54 + 142) / 60;
-}
-
-static int yeeloong_battery_init(void)
-{
-	get_fixed_battery_info();
-
-	apm_get_power_status = get_power_status;
-
-	return 0;
-}
-
-static void yeeloong_battery_exit(void)
-{
-	if (apm_get_power_status == get_power_status)
-		apm_get_power_status = NULL;
 }
 
 /* hwmon subdriver */
@@ -1020,8 +919,6 @@ static int __init yeeloong_init(void)
 		return ret;
 	}
 
-	yeeloong_battery_init();
-
 	ret = yeeloong_hwmon_init();
 	if (ret) {
 		pr_err("Fail to register yeeloong hwmon driver.\n");
@@ -1051,7 +948,6 @@ static void __exit yeeloong_exit(void)
 	yeeloong_hotkey_exit();
 	yeeloong_vo_exit();
 	yeeloong_hwmon_exit();
-	yeeloong_battery_exit();
 	yeeloong_backlight_exit();
 	platform_driver_unregister(&platform_driver);
 

@@ -18,8 +18,6 @@ config LEMOTE_YEELOONG2F
 	tristate "Lemote YeeLoong Laptop"
 	depends on LEMOTE_MACH2F
 	select BACKLIGHT_CLASS_DEVICE
-	select SYS_SUPPORTS_APM_EMULATION
-	select APM_EMULATION
 	select HWMON
 	select VIDEO_OUTPUT_CONTROL
 	select INPUT_SPARSEKMAP
