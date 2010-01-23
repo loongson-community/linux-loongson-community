@@ -27,6 +27,30 @@
 #include <loongson.h>		/* for loongson_cmdline */
 #include <ec_kb3310b.h>
 
+/* common function */
+#define EC_VER_LEN 64
+
+static int ec_ver_small_than(char *version)
+{
+	char *p, ec_ver[EC_VER_LEN];
+
+	p = strstr(loongson_cmdline, "EC_VER=");
+	if (!p)
+		memset(ec_ver, 0, EC_VER_LEN);
+	else {
+		strncpy(ec_ver, p, EC_VER_LEN);
+		p = strstr(ec_ver, " ");
+		if (p)
+			*p = '\0';
+	}
+
+	/* Seems EC(>=PQ1D26) does this job for us, we can not do it again,
+	 * otherwise, the brightness will not resume to the normal level! */
+	if (strncasecmp(ec_ver, version, 64) < 0)
+		return 1;
+	return 0;
+}
+
 /* backlight subdriver */
 #define MAX_BRIGHTNESS	8
 
@@ -622,8 +646,10 @@ static struct output_device *lcd_output_dev, *crt_output_dev;
 
 static void yeeloong_lcd_vo_set(int status)
 {
-	lcd_output_dev->request_state = status;
-	lcd_video_output_set(lcd_output_dev);
+	if (ec_ver_small_than("EC_VER=PQ1D27")) {
+		lcd_output_dev->request_state = status;
+		lcd_video_output_set(lcd_output_dev);
+	}
 }
 
 static void yeeloong_crt_vo_set(int status)
@@ -743,25 +769,9 @@ static int crt_detect_handler(int status)
 	return status;
 }
 
-#define EC_VER_LEN 64
-
 static int black_screen_handler(int status)
 {
-	char *p, ec_ver[EC_VER_LEN];
-
-	p = strstr(loongson_cmdline, "EC_VER=");
-	if (!p)
-		memset(ec_ver, 0, EC_VER_LEN);
-	else {
-		strncpy(ec_ver, p, EC_VER_LEN);
-		p = strstr(ec_ver, " ");
-		if (p)
-			*p = '\0';
-	}
-
-	/* Seems EC(>=PQ1D26) does this job for us, we can not do it again,
-	 * otherwise, the brightness will not resume to the normal level! */
-	if (strncasecmp(ec_ver, "EC_VER=PQ1D26", 64) < 0)
+	if (ec_ver_small_than("EC_VER=PQ1D26"))
 		yeeloong_lcd_vo_set(status);
 
 	return status;
