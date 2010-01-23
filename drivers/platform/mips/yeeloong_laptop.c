@@ -193,10 +193,8 @@ static int yeeloong_bat_get_ex_property(enum power_supply_property psp,
 		val->intval = cap_level;
 		break;
 	case POWER_SUPPLY_PROP_TIME_TO_EMPTY_NOW:
-		if (bat_in)
-			val->intval = ((curr_cap - 3) * 54 + 142); /* seconds */
-		else
-			val->intval = 0x00;
+		/* seconds */
+		val->intval = bat_in ? (curr_cap - 3) * 54 + 142 : 00;
 		break;
 	case POWER_SUPPLY_PROP_STATUS:
 		if (!bat_in)
@@ -222,7 +220,7 @@ static int yeeloong_bat_get_ex_property(enum power_supply_property psp,
 			health = POWER_SUPPLY_HEALTH_UNKNOWN;
 		else { /* Assume it is good */
 			health = POWER_SUPPLY_HEALTH_GOOD;
-			if (status & \
+			if (status &
 				(BIT_BAT_STATUS_DESTROY | BIT_BAT_STATUS_LOW))
 				health = POWER_SUPPLY_HEALTH_DEAD;
 			if (ec_read(REG_BAT_CHARGE_STATUS) &
@@ -283,9 +281,6 @@ static int yeeloong_get_bat_props(struct power_supply *psy,
 		val->strval = (ec_read(REG_BAT_VENDOR) ==
 				FLAG_BAT_VENDOR_SANYO) ? "SANYO" : "SIMPLO";
 		break;
-	case POWER_SUPPLY_PROP_CHARGE_COUNTER:
-		val->intval = ec_read(REG_BAT_CELL_COUNT);
-		break;
 	/* Dynamic information */
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
 		val->intval = get_battery_current() * 1000;	/* mA -> µA */
@@ -317,7 +312,6 @@ static enum power_supply_property yeeloong_bat_props[] = {
 	POWER_SUPPLY_PROP_CAPACITY_LEVEL,
 	POWER_SUPPLY_PROP_TEMP,
 	POWER_SUPPLY_PROP_MANUFACTURER,
-	POWER_SUPPLY_PROP_CHARGE_COUNTER,
 };
 
 static struct power_supply yeeloong_bat = {
@@ -328,40 +322,31 @@ static struct power_supply yeeloong_bat = {
 	.get_property = yeeloong_get_bat_props,
 };
 
-static struct timer_list bat_status_timer;
-
-static void yeeloong_bat_status_keepwarm(unsigned long data)
-{
-	mod_timer(&bat_status_timer, round_jiffies(jiffies + data));
-
-	power_supply_changed(&yeeloong_ac);
-	power_supply_changed(&yeeloong_bat);
-}
+static int ac_bat_initialized;
 
 static int yeeloong_bat_init(void)
 {
 	int ret;
 
 	ret = power_supply_register(NULL, &yeeloong_ac);
+	if (ret)
+		return ret;
+	ret = power_supply_register(NULL, &yeeloong_bat);
 	if (ret) {
 		power_supply_unregister(&yeeloong_ac);
 		return ret;
 	}
-	ret = power_supply_register(NULL, &yeeloong_bat);
-	if (ret) {
-		power_supply_unregister(&yeeloong_bat);
-		return ret;
-	}
+	ac_bat_initialized = 1;
 
-	setup_timer(&bat_status_timer, yeeloong_bat_status_keepwarm, HZ * 10);
-	mod_timer(&bat_status_timer, round_jiffies(jiffies + HZ * 10));
 	return 0;
 }
 
 static void yeeloong_bat_exit(void)
 {
-	power_supply_unregister(&yeeloong_bat);
+	ac_bat_initialized = 0;
+
 	power_supply_unregister(&yeeloong_ac);
+	power_supply_unregister(&yeeloong_bat);
 }
 /* hwmon subdriver */
 
@@ -846,9 +831,10 @@ static int usb0_handler(int status)
 
 static int ac_bat_handler(int status)
 {
-	power_supply_changed(&yeeloong_ac);
-	power_supply_changed(&yeeloong_bat);
-
+	if (ac_bat_initialized) {
+		power_supply_changed(&yeeloong_ac);
+		power_supply_changed(&yeeloong_bat);
+	}
 	return status;
 }
 
