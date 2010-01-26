@@ -12,6 +12,7 @@
 
 #include <asm/time.h>
 
+#ifdef CONFIG_CPU_SUPPORTS_HR_SCHED_CLOCK
 /*
  * MIPS sched_clock implementation.
  *
@@ -23,7 +24,7 @@
  */
 #define CLOCK2NS_SCALE_FACTOR 8
 
-static unsigned long clock2ns_scale;
+static unsigned long clock2ns_scale __read_mostly;
 
 unsigned long long notrace sched_clock(void)
 {
@@ -38,9 +39,11 @@ static void cnt32_to_63_keepwarm(unsigned long data)
 	mod_timer(&cnt32_to_63_keepwarm_timer, round_jiffies(jiffies + data));
 	sched_clock();
 }
+#endif
 
-static void __init setup_hres_sched_clock(unsigned long clock)
+static inline void setup_hres_sched_clock(unsigned long clock)
 {
+#ifdef CONFIG_CPU_SUPPORTS_HR_SCHED_CLOCK
 	unsigned long long v;
 	unsigned long data;
 
@@ -60,6 +63,7 @@ static void __init setup_hres_sched_clock(unsigned long clock)
 	data = 0x80000000UL / clock * HZ;
 	setup_timer(&cnt32_to_63_keepwarm_timer, cnt32_to_63_keepwarm, data);
 	mod_timer(&cnt32_to_63_keepwarm_timer, round_jiffies(jiffies + data));
+#endif
 }
 
 static cycle_t c0_hpt_read(struct clocksource *cs)
