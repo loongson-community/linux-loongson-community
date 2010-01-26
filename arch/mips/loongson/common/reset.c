@@ -34,17 +34,26 @@ static void loongson_restart(char *command)
 	__asm__ __volatile__(".set at\n");
 }
 
-static void loongson_halt(void)
+static void loongson_poweroff(void)
 {
 	mach_prepare_shutdown();
 	unreachable();
+}
+
+static void loongson_halt(void)
+{
+	pr_notice("** You can safely turn off the power ** !\n");
+	while (1) {
+		if (cpu_wait)
+			cpu_wait();
+	}
 }
 
 static int __init mips_reboot_setup(void)
 {
 	_machine_restart = loongson_restart;
 	_machine_halt = loongson_halt;
-	pm_power_off = loongson_halt;
+	pm_power_off = loongson_poweroff;
 
 	return 0;
 }
