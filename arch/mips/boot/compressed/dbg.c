@@ -9,7 +9,7 @@
 #include <linux/init.h>
 #include <linux/types.h>
 
-void __attribute__ ((weak)) putc(char c)
+void __weak putc(char c)
 {
 }
 
