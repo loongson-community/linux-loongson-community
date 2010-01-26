@@ -15,13 +15,14 @@
 #include <linux/init.h>
 #include <linux/timer.h>
 
+#define CLOCK2NS_SCALE_FACTOR 8
+
 static unsigned long __read_mostly cycle2ns_scale;
-static unsigned long __read_mostly cycle2ns_scale_factor;
 
 unsigned long long notrace sched_clock(void)
 {
 	unsigned long long v = cnt32_to_63(read_c0_count());
-	return (v * cycle2ns_scale) >> cycle2ns_scale_factor;
+	return (v * cycle2ns_scale) >> CLOCK2NS_SCALE_FACTOR;
 }
 
 static struct timer_list cnt32_to_63_keepwarm_timer;
@@ -37,7 +38,10 @@ void setup_r4k_sched_clock(struct clocksource cs, unsigned int clock)
 	unsigned long long v;
 	unsigned long data;
 
-	v = cs.mult;
+	v = NSEC_PER_SEC;
+	v <<= CLOCK2NS_SCALE_FACTOR;
+	v += clock/2;
+	do_div(v, clock);
 	/*
 	 * We want an even value to automatically clear the top bit
 	 * returned by cnt32_to_63() without an additional run time
@@ -45,10 +49,9 @@ void setup_r4k_sched_clock(struct clocksource cs, unsigned int clock)
 	 */
 	if (v & 1)
 		v++;
-	cycle2ns_scale = v;
-	cycle2ns_scale_factor = cs.shift;
+	clock2ns_scale = v;
 
-	data = 0x80000000 / clock * HZ;
+	data = 0x80000000UL / clock * HZ;
 	setup_timer(&cnt32_to_63_keepwarm_timer, cnt32_to_63_keepwarm, data);
 	mod_timer(&cnt32_to_63_keepwarm_timer, round_jiffies(jiffies + data));
 }
