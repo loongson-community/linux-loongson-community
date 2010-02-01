@@ -64,9 +64,14 @@ static void set_gpio_output_high(int gpio)
 #define MIN_BRIGHTNESS 0
 static unsigned int level;
 
+DEFINE_SPINLOCK(backlight_lock);
 /* Tune the brightness */
 static void setup_mfgpt2(void)
 {
+	unsigned long flags;
+
+	spin_lock_irqsave(&backlight_lock, flags);
+
 	/* Set MFGPT2 comparator 1,2 */
 	outw(MAX_BRIGHTNESS-level, MFGPT2_CMP1);
 	outw(MAX_BRIGHTNESS, MFGPT2_CMP2);
@@ -74,6 +79,8 @@ static void setup_mfgpt2(void)
 	outw(0, MFGPT2_CNT);
 	/* Enable counter, compare mode, 32k */
 	outw(0x8280, MFGPT2_SETUP);
+
+	spin_unlock_irqrestore(&backlight_lock, flags);
 }
 
 static int lynloong_set_brightness(struct backlight_device *bd)
