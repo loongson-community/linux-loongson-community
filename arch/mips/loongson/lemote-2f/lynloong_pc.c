@@ -76,6 +76,8 @@ DEFINE_SPINLOCK(backlight_lock);
 /* tune the brightness */
 static void setup_mfgpt2(void)
 {
+	unsigned long flags;
+
 	spin_lock_irqsave(&backlight_lock, flags);
 	/* set MFGPT2 comparator 1,2 */
 	outw(MAX_BRIGHTNESS-level, MFGPT2_CMP1);
