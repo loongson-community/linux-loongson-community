@@ -27,7 +27,7 @@
 
 #define to_msp71xx_gpio_chip(c) container_of(c, struct msp71xx_gpio_chip, chip)
 
-static DEFINE_SPINLOCK(gpio_lock);
+static spinlock_t gpio_lock;
 
 /*
  * struct msp71xx_gpio_chip - container for gpio chip and registers
