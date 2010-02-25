@@ -15,7 +15,7 @@
 
 DEFINE_RWLOCK(octeon_irq_ciu0_rwlock);
 DEFINE_RWLOCK(octeon_irq_ciu1_rwlock);
-DEFINE_SPINLOCK(octeon_irq_msi_lock);
+static DEFINE_SPINLOCK(octeon_irq_msi_lock);
 
 static int octeon_coreid_for_cpu(int cpu)
 {
