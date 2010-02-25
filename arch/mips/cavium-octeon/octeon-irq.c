@@ -15,7 +15,7 @@
 
 DEFINE_RWLOCK(octeon_irq_ciu0_rwlock);
 DEFINE_RWLOCK(octeon_irq_ciu1_rwlock);
-static DEFINE_SPINLOCK(octeon_irq_msi_lock);
+static DEFINE_RAW_SPINLOCK(octeon_irq_msi_lock);
 
 static int octeon_coreid_for_cpu(int cpu)
 {
@@ -585,12 +585,12 @@ static void octeon_irq_msi_enable(unsigned int irq)
 		 */
 		uint64_t en;
 		unsigned long flags;
-		spin_lock_irqsave(&octeon_irq_msi_lock, flags);
+		raw_spin_lock_irqsave(&octeon_irq_msi_lock, flags);
 		en = cvmx_read_csr(CVMX_PEXP_NPEI_MSI_ENB0);
 		en |= 1ull << (irq - OCTEON_IRQ_MSI_BIT0);
 		cvmx_write_csr(CVMX_PEXP_NPEI_MSI_ENB0, en);
 		cvmx_read_csr(CVMX_PEXP_NPEI_MSI_ENB0);
-		spin_unlock_irqrestore(&octeon_irq_msi_lock, flags);
+		raw_spin_unlock_irqrestore(&octeon_irq_msi_lock, flags);
 	}
 }
 
@@ -607,12 +607,12 @@ static void octeon_irq_msi_disable(unsigned int irq)
 		 */
 		uint64_t en;
 		unsigned long flags;
-		spin_lock_irqsave(&octeon_irq_msi_lock, flags);
+		raw_spin_lock_irqsave(&octeon_irq_msi_lock, flags);
 		en = cvmx_read_csr(CVMX_PEXP_NPEI_MSI_ENB0);
 		en &= ~(1ull << (irq - OCTEON_IRQ_MSI_BIT0));
 		cvmx_write_csr(CVMX_PEXP_NPEI_MSI_ENB0, en);
 		cvmx_read_csr(CVMX_PEXP_NPEI_MSI_ENB0);
-		spin_unlock_irqrestore(&octeon_irq_msi_lock, flags);
+		raw_spin_unlock_irqrestore(&octeon_irq_msi_lock, flags);
 	}
 }
 
