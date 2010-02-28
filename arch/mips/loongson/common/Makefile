@@ -9,7 +9,6 @@ obj-y += setup.o init.o cmdline.o env.o time.o reset.o irq.o \
 # Serial port support
 #
 obj-$(CONFIG_EARLY_PRINTK) += early_printk.o
-<<<<<<< HEAD:arch/mips/loongson/common/Makefile
 obj-$(CONFIG_SERIAL_8250) += serial.o
 obj-$(CONFIG_LOONGSON_UART_BASE) += uart_base.o
 
