@@ -32,6 +32,7 @@ static void reset_cpu(void)
 }
 
 /* reset support for fuloong2f */
+DEFINE_SPINLOCK(msr_lock);
 
 static void fl2f_reboot(void)
 {
@@ -46,9 +47,13 @@ static void fl2f_reboot(void)
 	 */
 	{
 		u32 hi, lo;
+		unsigned long flags;
+
+		spin_lock_irqsave(&msr_lock, flags);
 		_rdmsr(DIVIL_MSR_REG(DIVIL_SOFT_RESET), &hi, &lo);
 		lo |= 0x00000001;
 		_wrmsr(DIVIL_MSR_REG(DIVIL_SOFT_RESET), hi, lo);
+		spin_unlock_irqrestore(&msr_lock, flags);
 	}
 }
 
@@ -56,9 +61,13 @@ static void fl2f_shutdown(void)
 {
 	u32 hi, lo, val;
 	int gpio_base;
+	unsigned long flags;
 
 	/* get gpio base */
+	spin_lock_irqsave(&msr_lock, flags);
 	_rdmsr(DIVIL_MSR_REG(DIVIL_LBAR_GPIO), &hi, &lo);
+	spin_unlock_irqrestore(&msr_lock, flags);
+
 	gpio_base = lo & 0xff00;
 
 	/* make cs5536 gpio13 output enable */
