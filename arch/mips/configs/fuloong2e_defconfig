@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.32.2
-# Wed Jan  6 16:45:43 2010
+# Linux kernel version: 2.6.32.9
+# Mon Mar  1 23:50:00 2010
 #
 CONFIG_MIPS=y
 
@@ -1529,8 +1529,8 @@ CONFIG_INOTIFY_USER=y
 # CONFIG_QUOTA is not set
 CONFIG_AUTOFS_FS=y
 CONFIG_AUTOFS4_FS=y
-CONFIG_FUSE_FS=y
-# CONFIG_CUSE is not set
+CONFIG_FUSE_FS=m
+CONFIG_CUSE=m
 
 #
 # Caches
