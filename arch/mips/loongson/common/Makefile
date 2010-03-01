@@ -9,6 +9,7 @@ obj-y += setup.o init.o cmdline.o env.o time.o reset.o irq.o \
 # Serial port support
 #
 obj-$(CONFIG_EARLY_PRINTK) += early_printk.o
+<<<<<<< HEAD:arch/mips/loongson/common/Makefile
 obj-$(CONFIG_SERIAL_8250) += serial.o
 obj-$(CONFIG_LOONGSON_UART_BASE) += uart_base.o
 
@@ -23,3 +24,9 @@ obj-$(CONFIG_CS5536) += cs5536/
 #
 
 obj-$(CONFIG_LOONGSON_SUSPEND) += pm.o
+
+# Enable RTC Class support
+#
+# please enable CONFIG_RTC_DRV_CMOS
+#
+obj-$(CONFIG_RTC_DRV_CMOS) += rtc.o

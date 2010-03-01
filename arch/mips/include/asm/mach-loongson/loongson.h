@@ -1,12 +1,11 @@
 /*
  * Copyright (C) 2009 Lemote, Inc.
- * Author: Wu Zhangjin <wuzj@lemote.com>
+ * Author: Wu Zhangjin <wuzhangjin@gmail.com>
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
  * Free Software Foundation;  either version 2 of the  License, or (at your
  * option) any later version.
- *
  */
 
 #ifndef __ASM_MACH_LOONGSON_LOONGSON_H
@@ -23,7 +22,7 @@ extern void mach_prepare_reboot(void);
 extern void mach_prepare_shutdown(void);
 
 /* environment arguments from bootloader */
-extern unsigned long bus_clock, cpu_clock_freq;
+extern unsigned long cpu_clock_freq;
 extern unsigned long memsize, highmemsize;
 
 /* loongson-specific command line, env and memory initialization */
@@ -42,6 +41,12 @@ static inline void prom_init_uart_base(void)
 	prom_init_loongson_uart_base();
 #endif
 }
+
+/*
+ * Copy kernel command line from arcs_cmdline
+ */
+#include <asm/setup.h>
+extern char loongson_cmdline[COMMAND_LINE_SIZE];
 
 /* irq operation functions */
 extern void bonito_irqdispatch(void);

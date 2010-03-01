@@ -135,7 +135,10 @@ cflags-$(CONFIG_CPU_LOONGSON2)	+= -Wa,--trap
 cflags-$(CONFIG_CPU_LOONGSON2E) += \
 	$(call cc-option,-march=loongson2e,-march=r4600)
 cflags-$(CONFIG_CPU_LOONGSON2F) += \
-	$(call cc-option,-march=loongson2f,-march=r4600)
+	$(call cc-option,-march=loongson2f,-march=r4600) \
+	$(call as-option,-Wa$(comma)-mfix-ls2f-kernel,) \
+	$(call as-option,-Wa$(comma)-mfix-loongson2f-nop,) \
+	$(call as-option,-Wa$(comma)-mfix-loongson2f-jump,)
 
 cflags-$(CONFIG_CPU_MIPS32_R1)	+= $(call cc-option,-march=mips32,-mips32 -U_MIPS_ISA -D_MIPS_ISA=_MIPS_ISA_MIPS32) \
 			-Wa,-mips32 -Wa,--trap
@@ -332,11 +335,11 @@ load-$(CONFIG_WR_PPMC)		+= 0xffffffff80100000
 #
 # Loongson family
 #
-core-$(CONFIG_MACH_LOONGSON) +=arch/mips/loongson/
+core-$(CONFIG_MACH_LOONGSON) += arch/mips/loongson/
 cflags-$(CONFIG_MACH_LOONGSON) += -I$(srctree)/arch/mips/include/asm/mach-loongson \
                     -mno-branch-likely
-load-$(CONFIG_LEMOTE_FULOONG2E) +=0xffffffff80100000
-load-$(CONFIG_LEMOTE_MACH2F) +=0xffffffff80200000
+load-$(CONFIG_LEMOTE_FULOONG2E) += 0xffffffff80100000
+load-$(CONFIG_LEMOTE_MACH2F) += 0xffffffff80200000
 
 #
 # MIPS Malta board

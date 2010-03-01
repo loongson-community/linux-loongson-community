@@ -2,7 +2,7 @@
  * ld.script for compressed kernel support of MIPS
  *
  * Copyright (C) 2009 Lemote Inc.
- * Author: Wu Zhangjin <wuzj@lemote.com>
+ * Author: Wu Zhangjin <wuzhangjin@gmail.com>
  */
 
 OUTPUT_ARCH(mips)
@@ -29,8 +29,8 @@ SECTIONS
 		__image_end = .;
 		CONSTRUCTORS
 	}
-	.sdata	: { *(.sdata) }
-	. = ALIGN(4);
+  	.sdata	: { *(.sdata) }
+  	. = ALIGN(4);
 	_edata  =  .;	/* End of data section */
 
 	/* BSS */

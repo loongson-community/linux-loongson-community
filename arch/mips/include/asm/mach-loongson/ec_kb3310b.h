@@ -3,6 +3,8 @@
  *
  *  Copyright (C) 2008 Lemote Inc.
  *  Author: liujl <liujl@lemote.com>, 2008-03-14
+ *  Copyright (C) 2009 Lemote Inc.
+ *  Author: Wu Zhangjin <wuzhangjin@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -53,7 +55,7 @@ extern sci_handler yeeloong_report_lid_status;
 #define	CMD_GET_EVENT_NUM	0x84
 #define	CMD_PROGRAM_PIECE	0xda
 
-/* temperature & fan registers */
+/* Temperature & Fan registers */
 #define	REG_TEMPERATURE_VALUE	0xF458
 #define	REG_FAN_AUTO_MAN_SWITCH 0xF459
 #define	BIT_FAN_AUTO		0
@@ -67,10 +69,10 @@ extern sci_handler yeeloong_report_lid_status;
 #define	REG_FAN_SPEED_HIGH	0xFE22
 #define	REG_FAN_SPEED_LOW	0xFE23
 #define	REG_FAN_SPEED_LEVEL	0xF4CC
-/* fan speed divider */
+/* Fan speed divider */
 #define	FAN_SPEED_DIVIDER	480000	/* (60*1000*1000/62.5/2)*/
 
-/* battery registers */
+/* Battery registers */
 #define	REG_BAT_DESIGN_CAP_HIGH		0xF77D
 #define	REG_BAT_DESIGN_CAP_LOW		0xF77E
 #define	REG_BAT_FULLCHG_CAP_HIGH	0xF780
@@ -111,7 +113,6 @@ extern sci_handler yeeloong_report_lid_status;
 #define	BIT_BAT_POWER_ON		(1 << 1)
 #define	BIT_BAT_POWER_ACIN		(1 << 0)
 
-/* other registers */
 /* Audio: rd/wr */
 #define	REG_AUDIO_VOLUME	0xF46C
 #define	REG_AUDIO_MUTE		0xF4E7
@@ -168,7 +169,7 @@ extern sci_handler yeeloong_report_lid_status;
 
 /* SCI Event Number from EC */
 enum {
-	EVENT_LID = 0x23,	/*  LID open/close */
+	EVENT_LID = 0x23,	/*  Turn on/off LID */
 	EVENT_DISPLAY_TOGGLE,	/*  Fn+F3 for display switch */
 	EVENT_SLEEP,		/*  Fn+F1 for entering sleep mode */
 	EVENT_OVERTEMP,		/*  Over-temperature happened */
@@ -182,7 +183,9 @@ enum {
 	EVENT_AC_BAT,		/*  AC & Battery relative issue */
 	EVENT_AUDIO_VOLUME,	/*  Volume adjust */
 	EVENT_WLAN,		/*  Wlan on/off */
-	EVENT_END
 };
+
+#define EVENT_START	EVENT_LID
+#define EVENT_END	EVENT_WLAN
 
 #endif /* !_EC_KB3310B_H */

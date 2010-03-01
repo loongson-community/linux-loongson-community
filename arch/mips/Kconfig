@@ -180,7 +180,7 @@ config LASAT
 
 config MACH_LOONGSON
 	bool "Loongson family of machines"
-	select SYS_SUPPORTS_ZBOOT_UART16550
+	select SYS_SUPPORTS_ZBOOT
 	help
 	  This enables the support of Loongson family of machines.
 
@@ -1932,6 +1932,18 @@ config NR_CPUS
 	  power of two.
 
 source "kernel/time/Kconfig"
+
+#
+# High Resolution sched_clock() Configuration
+#
+
+config CPU_HAS_FIXED_C0_COUNT
+	bool
+
+config CPU_SUPPORTS_HR_SCHED_CLOCK
+	bool
+	depends on CPU_HAS_FIXED_C0_COUNT || !CPU_FREQ
+	default y
 
 #
 # Timer Interrupt Frequency Configuration

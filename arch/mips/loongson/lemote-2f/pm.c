@@ -2,7 +2,7 @@
  *  Lemote loongson2f family machines' specific suspend support
  *
  *  Copyright (C) 2009 Lemote Inc.
- *  Author: Wu Zhangjin <wuzj@lemote.com>
+ *  Author: Wu Zhangjin <wuzhangjin@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@
 #include <loongson.h>
 
 #include <cs5536/cs5536_mfgpt.h>
-#include "ec_kb3310b.h"
+#include <ec_kb3310b.h>
 
 #define I8042_KBD_IRQ		1
 #define I8042_CTR_KBDINT	0x01
@@ -100,7 +100,7 @@ int wakeup_loongson(void)
 	if (irq < 0)
 		return 0;
 
-	printk(KERN_INFO "%s: irq = %d\n", __func__, irq);
+	pr_info("%s: irq = %d\n", __func__, irq);
 
 	if (irq == I8042_KBD_IRQ)
 		return 1;
