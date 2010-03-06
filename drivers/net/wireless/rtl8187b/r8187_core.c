@@ -1091,7 +1091,11 @@ void rtl8180_proc_init_one(struct net_device *dev)
 {
 	struct proc_dir_entry *e;
 	struct r8180_priv *priv = (struct r8180_priv *)ieee80211_priv(dev);
-	priv->dir_dev = create_proc_entry(dev->name, 
+	
+	if (rtl8180_proc)
+		priv->dir_dev = rtl8180_proc;
+	else
+		priv->dir_dev = create_proc_entry(dev->name, 
 					  S_IFDIR | S_IRUGO | S_IXUGO, 
 					  rtl8180_proc);
 	if (!priv->dir_dev) {
