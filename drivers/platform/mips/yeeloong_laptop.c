@@ -194,7 +194,7 @@ static int yeeloong_bat_get_ex_property(enum power_supply_property psp,
 		break;
 	case POWER_SUPPLY_PROP_TIME_TO_EMPTY_NOW:
 		/* seconds */
-		val->intval = bat_in ? (curr_cap - 3) * 54 + 142 : 00;
+		val->intval = bat_in ? (curr_cap - 3) * 54 + 142 : 0;
 		break;
 	case POWER_SUPPLY_PROP_STATUS:
 		if (!bat_in)
@@ -228,6 +228,9 @@ static int yeeloong_bat_get_ex_property(enum power_supply_property psp,
 				health = POWER_SUPPLY_HEALTH_OVERHEAT;
 		}
 		val->intval = health;
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_NOW:	/* 1/100(%)*1000 µAh */
+		val->intval = curr_cap * get_bat_info(FULLCHG_CAP) * 10;
 		break;
 	default:
 		return -EINVAL;
@@ -269,13 +272,13 @@ static int yeeloong_get_bat_props(struct power_supply *psy,
 	switch (psp) {
 	/* Fixed information */
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN:
-		val->intval = get_bat_info(DESIGN_CAP) * 1000;	/* mV -> µV */
+		val->intval = get_bat_info(DESIGN_VOL) * 1000;	/* mV -> µV */
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
-		val->intval = get_bat_info(DESIGN_VOL) * 1000;	/* mA -> µA */
+		val->intval = get_bat_info(DESIGN_CAP) * 1000;	/* mAh->µAh */
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
-		val->intval = get_bat_info(FULLCHG_CAP) * 1000;	/* µA */
+		val->intval = get_bat_info(FULLCHG_CAP) * 1000;	/* µAh */
 		break;
 	case POWER_SUPPLY_PROP_MANUFACTURER:
 		val->strval = (ec_read(REG_BAT_VENDOR) ==
@@ -304,6 +307,8 @@ static enum power_supply_property yeeloong_bat_props[] = {
 	POWER_SUPPLY_PROP_PRESENT,
 	POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN,
 	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
+	POWER_SUPPLY_PROP_CHARGE_FULL,
+	POWER_SUPPLY_PROP_CHARGE_NOW,
 	POWER_SUPPLY_PROP_CURRENT_NOW,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 	POWER_SUPPLY_PROP_HEALTH,
