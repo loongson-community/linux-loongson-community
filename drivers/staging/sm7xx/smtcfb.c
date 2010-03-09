@@ -12,6 +12,8 @@
  *  License. See the file COPYING in the main directory of this archive for
  *  more details.
  *
+ * - Remove the buggy 2D support for Lynx, 2010/01/06, Wu Zhangjin
+ *
  * Version 0.10.26192.21.01
  * 	- Add PowerPC/Big endian support
  * 	- Add 2D support for Lynx
@@ -106,6 +108,7 @@ static struct vesa_mode_table vesa_mode[] = {
 	{"0x307", 1280, 1024, 8},
 
 	{"0x311", 640,  480,  16},
+	{"0x313", 800,  480,  16},
 	{"0x314", 800,  600,  16},
 	{"0x317", 1024, 768,	16},
 	{"0x31A", 1280, 1024, 16},

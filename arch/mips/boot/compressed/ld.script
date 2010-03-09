@@ -2,7 +2,7 @@
  * ld.script for compressed kernel support of MIPS
  *
  * Copyright (C) 2009 Lemote Inc.
- * Author: Wu Zhangjin <wuzj@lemote.com>
+ * Author: Wu Zhangjin <wuzhangjin@gmail.com>
  */
 
 OUTPUT_ARCH(mips)

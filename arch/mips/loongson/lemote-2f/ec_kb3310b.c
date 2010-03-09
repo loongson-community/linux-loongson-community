@@ -14,7 +14,7 @@
 #include <linux/spinlock.h>
 #include <linux/delay.h>
 
-#include "ec_kb3310b.h"
+#include <ec_kb3310b.h>
 
 static DEFINE_SPINLOCK(index_access_lock);
 static DEFINE_SPINLOCK(port_access_lock);
@@ -78,12 +78,9 @@ int ec_query_seq(unsigned char cmd)
 	spin_unlock_irqrestore(&port_access_lock, flags);
 
 	if (timeout <= 0) {
-		printk(KERN_ERR "%s: deadable error : timeout...\n", __func__);
+		pr_err("%s: deadable error : timeout...\n", __func__);
 		ret = -EINVAL;
-	} else
-		printk(KERN_INFO
-			   "(%x/%d)ec issued command %d status : 0x%x\n",
-			   timeout, EC_CMD_TIMEOUT - timeout, cmd, status);
+	}
 
 	return ret;
 }
@@ -118,8 +115,7 @@ int ec_get_event_num(void)
 		udelay(EC_REG_DELAY);
 	}
 	if (timeout <= 0) {
-		pr_info("%s: get event number timeout.\n", __func__);
-
+		pr_err("%s: get event number timeout.\n", __func__);
 		return -EINVAL;
 	}
 	value = inb(EC_DAT_PORT);
