@@ -115,6 +115,7 @@ static int lynloong_backlight_init(void)
 {
 	int ret;
 	u32 hi;
+	struct backlight_properties props;
 
 	/* Get gpio_base */
 	_rdmsr(DIVIL_MSR_REG(DIVIL_LBAR_GPIO), &hi, &gpio_base);
@@ -128,15 +129,16 @@ static int lynloong_backlight_init(void)
 	/* Enable brightness controlling */
 	set_gpio_output_high(7);
 
+	memset(&props, 0, sizeof(struct backlight_properties));
+	props.max_brightness = MAX_BRIGHTNESS;
 	lynloong_backlight_dev = backlight_device_register("backlight0", NULL,
-			NULL, &backlight_ops);
+			NULL, &backlight_ops, &props);
 
 	if (IS_ERR(lynloong_backlight_dev)) {
 		ret = PTR_ERR(lynloong_backlight_dev);
 		return ret;
 	}
 
-	lynloong_backlight_dev->props.max_brightness = MAX_BRIGHTNESS;
 	lynloong_backlight_dev->props.brightness = DEFAULT_BRIGHTNESS;
 	backlight_update_status(lynloong_backlight_dev);
 

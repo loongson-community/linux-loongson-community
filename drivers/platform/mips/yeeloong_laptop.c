@@ -91,9 +91,12 @@ static struct backlight_device *yeeloong_backlight_dev;
 static int yeeloong_backlight_init(void)
 {
 	int ret;
+	struct backlight_properties props;
 
+	memset(&props, 0, sizeof(struct backlight_properties));
+	props.max_brightness = MAX_BRIGHTNESS;
 	yeeloong_backlight_dev = backlight_device_register("backlight0", NULL,
-			NULL, &backlight_ops);
+			NULL, &backlight_ops, &props);
 
 	if (IS_ERR(yeeloong_backlight_dev)) {
 		ret = PTR_ERR(yeeloong_backlight_dev);
@@ -101,7 +104,6 @@ static int yeeloong_backlight_init(void)
 		return ret;
 	}
 
-	yeeloong_backlight_dev->props.max_brightness = MAX_BRIGHTNESS;
 	yeeloong_backlight_dev->props.brightness =
 		yeeloong_get_brightness(yeeloong_backlight_dev);
 	backlight_update_status(yeeloong_backlight_dev);
