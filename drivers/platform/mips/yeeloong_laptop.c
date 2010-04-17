@@ -30,7 +30,7 @@
 /* common function */
 #define EC_VER_LEN 64
 
-static int ec_ver_small_than(char *version)
+static int ec_version_before(char *version)
 {
 	char *p, ec_ver[EC_VER_LEN];
 
@@ -44,11 +44,7 @@ static int ec_ver_small_than(char *version)
 			*p = '\0';
 	}
 
-	/* Seems EC(>=PQ1D26) does this job for us, we can not do it again,
-	 * otherwise, the brightness will not resume to the normal level! */
-	if (strncasecmp(ec_ver, version, 64) < 0)
-		return 1;
-	return 0;
+	return (strncasecmp(ec_ver, version, 64) < 0);
 }
 
 /* backlight subdriver */
@@ -638,10 +634,8 @@ static struct output_device *lcd_output_dev, *crt_output_dev;
 
 static void yeeloong_lcd_vo_set(int status)
 {
-	if (ec_ver_small_than("EC_VER=PQ1D27")) {
-		lcd_output_dev->request_state = status;
-		lcd_video_output_set(lcd_output_dev);
-	}
+	lcd_output_dev->request_state = status;
+	lcd_video_output_set(lcd_output_dev);
 }
 
 static void yeeloong_crt_vo_set(int status)
@@ -764,7 +758,9 @@ static int crt_detect_handler(int status)
 
 static int displaytoggle_handler(int status)
 {
-	if (ec_ver_small_than("EC_VER=PQ1D26"))
+	/* EC(>=PQ1D26) does this job for us, we can not do it again,
+	 * otherwise, the brightness will not resume to the normal level! */
+	if (ec_version_before("EC_VER=PQ1D26"))
 		yeeloong_lcd_vo_set(status);
 
 	return status;
@@ -1091,7 +1087,8 @@ static void usb_ports_set(int status)
 static int yeeloong_suspend(struct device *dev)
 
 {
-	yeeloong_lcd_vo_set(BIT_DISPLAY_LCD_OFF);
+	if (ec_version_before("EC_VER=PQ1D27"))
+		yeeloong_lcd_vo_set(BIT_DISPLAY_LCD_OFF);
 	yeeloong_crt_vo_set(BIT_CRT_DETECT_UNPLUG);
 	usb_ports_set(BIT_USB_FLAG_OFF);
 
@@ -1100,7 +1097,8 @@ static int yeeloong_suspend(struct device *dev)
 
 static int yeeloong_resume(struct device *dev)
 {
-	yeeloong_lcd_vo_set(BIT_DISPLAY_LCD_ON);
+	if (ec_version_before("EC_VER=PQ1D27"))
+		yeeloong_lcd_vo_set(BIT_DISPLAY_LCD_ON);
 	yeeloong_crt_vo_set(BIT_CRT_DETECT_PLUG);
 	usb_ports_set(BIT_USB_FLAG_ON);
 
