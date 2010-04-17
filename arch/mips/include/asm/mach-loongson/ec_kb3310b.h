@@ -170,18 +170,18 @@ extern sci_handler yeeloong_report_lid_status;
 /* SCI Event Number from EC */
 enum {
 	EVENT_LID = 0x23,	/*  Turn on/off LID */
-	EVENT_DISPLAY_TOGGLE,	/*  Fn+F3 for display switch */
+	EVENT_SWITCHVIDEOMODE,	/*  Fn+F3 for display switch */
 	EVENT_SLEEP,		/*  Fn+F1 for entering sleep mode */
 	EVENT_OVERTEMP,		/*  Over-temperature happened */
 	EVENT_CRT_DETECT,	/*  CRT is connected */
 	EVENT_CAMERA,		/*  Camera on/off */
 	EVENT_USB_OC2,		/*  USB2 Over Current occurred */
 	EVENT_USB_OC0,		/*  USB0 Over Current occurred */
-	EVENT_BLACK_SCREEN,	/*  Turn on/off backlight */
-	EVENT_AUDIO_MUTE,	/*  Mute on/off */
-	EVENT_DISPLAY_BRIGHTNESS,/* LCD backlight brightness adjust */
+	EVENT_DISPLAYTOGGLE,	/*  Fn+F2, Turn on/off backlight */
+	EVENT_AUDIO_MUTE,	/*  Fn+F4, Mute on/off */
+	EVENT_DISPLAY_BRIGHTNESS,/* Fn+^/V, LCD backlight brightness adjust */
 	EVENT_AC_BAT,		/*  AC & Battery relative issue */
-	EVENT_AUDIO_VOLUME,	/*  Volume adjust */
+	EVENT_AUDIO_VOLUME,	/*  Fn+<|>, Volume adjust */
 	EVENT_WLAN,		/*  Wlan on/off */
 };
 

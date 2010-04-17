@@ -702,7 +702,8 @@ static const struct key_entry yeeloong_keymap[] = {
 	{KE_SW, EVENT_LID, { SW_LID } },
 	{KE_KEY, EVENT_CAMERA, { KEY_CAMERA } }, /* Fn + ESC */
 	{KE_KEY, EVENT_SLEEP, { KEY_SLEEP } }, /* Fn + F1 */
-	{KE_KEY, EVENT_DISPLAY_TOGGLE, { KEY_SWITCHVIDEOMODE } }, /* Fn + F3 */
+	{KE_KEY, EVENT_DISPLAYTOGGLE, { KEY_DISPLAYTOGGLE } }, /* Fn + F2 */
+	{KE_KEY, EVENT_SWITCHVIDEOMODE, { KEY_SWITCHVIDEOMODE } }, /* Fn + F3 */
 	{KE_KEY, EVENT_AUDIO_MUTE, { KEY_MUTE } }, /* Fn + F4 */
 	{KE_KEY, EVENT_WLAN, { KEY_WLAN } }, /* Fn + F5 */
 	{KE_KEY, EVENT_DISPLAY_BRIGHTNESS, { KEY_BRIGHTNESSUP } }, /* Fn + up */
@@ -761,7 +762,7 @@ static int crt_detect_handler(int status)
 	return status;
 }
 
-static int black_screen_handler(int status)
+static int displaytoggle_handler(int status)
 {
 	if (ec_ver_small_than("EC_VER=PQ1D26"))
 		yeeloong_lcd_vo_set(status);
@@ -769,7 +770,7 @@ static int black_screen_handler(int status)
 	return status;
 }
 
-static int display_toggle_handler(int status)
+static int switchvideomode_handler(int status)
 {
 	static int video_output_status;
 
@@ -858,8 +859,8 @@ static void do_event_action(int event)
 	case EVENT_LID:
 		reg = REG_LID_DETECT;
 		break;
-	case EVENT_DISPLAY_TOGGLE:
-		handler = display_toggle_handler;
+	case EVENT_SWITCHVIDEOMODE:
+		handler = switchvideomode_handler;
 		break;
 	case EVENT_CRT_DETECT:
 		reg = REG_CRT_DETECT;
@@ -877,9 +878,9 @@ static void do_event_action(int event)
 		reg = REG_USB0_FLAG;
 		handler = usb0_handler;
 		break;
-	case EVENT_BLACK_SCREEN:
+	case EVENT_DISPLAYTOGGLE:
 		reg = REG_DISPLAY_LCD;
-		handler = black_screen_handler;
+		handler = displaytoggle_handler;
 		break;
 	case EVENT_AUDIO_MUTE:
 		reg = REG_AUDIO_MUTE;
