@@ -3,7 +3,7 @@
  * License.  See the file "COPYING" in the main directory of this archive for
  * more details.
  *
- * Copyright (C) 2009 DSLab, Lanzhou University, China
+ * Copyright (C) 2009, 2010 DSLab, Lanzhou University, China
  * Author: Wu Zhangjin <wuzhangjin@gmail.com>
  */
 
@@ -18,6 +18,14 @@
 #ifndef __ASSEMBLY__
 extern void _mcount(void);
 #define mcount _mcount
+
+/*
+ * If the Instruction Pointer is in module space (0xc0000000), return true;
+ * otherwise, it is in kernel space (0x80000000), return false.
+ *
+ * FIXME: This may not work in some cases.
+ */
+#define in_module(ip) (unlikely((ip) & 0x40000000))
 
 #define safe_load(load, src, dst, error)		\
 do {							\
@@ -83,8 +91,8 @@ static inline unsigned long ftrace_call_adjust(unsigned long addr)
 
 struct dyn_arch_ftrace {
 };
-
 #endif /*  CONFIG_DYNAMIC_FTRACE */
+
 #endif /* __ASSEMBLY__ */
 #endif /* CONFIG_FUNCTION_TRACER */
 #endif /* _ASM_MIPS_FTRACE_H */

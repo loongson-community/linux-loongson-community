@@ -6,6 +6,7 @@
  * more details.
  *
  * Copyright (C) 2009 Lemote Inc. & DSLab, Lanzhou University, China
+ * Copyright (C) 2010 DSLab, Lanzhou University, China
  * Author: Wu Zhangjin <wuzhangjin@gmail.com>
  */
 
@@ -45,8 +46,6 @@
 	PTR_L	a5, PT_R9(sp)
 	PTR_L	a6, PT_R10(sp)
 	PTR_L	a7, PT_R11(sp)
-#endif
-#ifdef CONFIG_64BIT
 	PTR_ADDIU	sp, PT_SIZE
 #else
 	PTR_ADDIU	sp, (PT_SIZE + 8)
@@ -71,7 +70,7 @@ _mcount:
 
 	MCOUNT_SAVE_REGS
 #ifdef KBUILD_MCOUNT_RA_ADDRESS
-	PTR_S	t0, PT_R12(sp)	/* t0 saved the location of the return address(at) by -mmcount-ra-address */
+	PTR_S	$12, PT_R12(sp)	/* $12 saved the location of the return address(at) */
 #endif
 
 	move	a0, ra		/* arg1: next ip, selfaddr */
@@ -137,25 +136,22 @@ NESTED(ftrace_graph_caller, PT_SIZE, ra)
 #ifdef CONFIG_DYNAMIC_FTRACE
 	PTR_L	a1, PT_R31(sp)	/* load the original ra from the stack */
 #ifdef KBUILD_MCOUNT_RA_ADDRESS
-	PTR_L	t0, PT_R12(sp)	/* load the original t0 from the stack */
+	PTR_L	a0, PT_R12(sp)	/* arg1: the location of the return address */
 #endif
-#else
+#else /* ! CONFIG_DYNAMIC_FTRACE */
 	MCOUNT_SAVE_REGS
 	move	a1, ra		/* arg2: next ip, selfaddr */
 #endif
 
 #ifdef KBUILD_MCOUNT_RA_ADDRESS
-	bnez	t0, 1f		/* non-leaf func: t0 saved the location of the return address */
+	bnez	a0, 1f		/* non-leaf func: get the location of the return address from saved $12 */
 	 nop
-	PTR_LA	t0, PT_R1(sp)	/* leaf func: get the location of at(old ra) from our own stack */
-1:	move	a0, t0		/* arg1: the location of the return address */
-#else
-	PTR_LA	a0, PT_R1(sp)	/* arg1: &AT -> a0 */
 #endif
-	jal	prepare_ftrace_return
+	PTR_LA	a0, PT_R1(sp)	/* leaf func: get the location of at(old ra) from our own stack */
+1:	jal	prepare_ftrace_return
 #ifdef CONFIG_FRAME_POINTER
 	 move	a2, fp		/* arg3: frame pointer */
-#else
+#else /* ! CONFIG_FRAME_POINTER */
 #ifdef CONFIG_64BIT
 	 PTR_LA	a2, PT_SIZE(sp)
 #else
