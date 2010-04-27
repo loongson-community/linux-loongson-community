@@ -69,11 +69,11 @@
 #define HIGHMEM_START		(_AC(1, UL) << _AC(59, UL))
 #endif
 
-#define TO_PHYS(x)		(             ((x) & TO_PHYS_MASK))
-#define TO_CAC(x)		(CAC_BASE   | ((x) & TO_PHYS_MASK))
-#define TO_UNCAC(x)		(UNCAC_BASE | ((x) & TO_PHYS_MASK))
-
 #endif /* CONFIG_64BIT */
+
+#define TO_PHYS(x)		kernel_physaddr(x)
+#define TO_CAC(x)		(CAC_BASE   | kernel_physaddr(x))
+#define TO_UNCAC(x)		(UNCAC_BASE | kernel_physaddr(x))
 
 /*
  * This handles the memory map.
