@@ -137,4 +137,3 @@ static int __init ls2f_gpio_setup(void)
 	return gpiochip_add(&ls2f_chip);
 }
 arch_initcall(ls2f_gpio_setup);
-
