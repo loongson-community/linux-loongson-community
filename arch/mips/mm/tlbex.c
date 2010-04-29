@@ -1000,15 +1000,6 @@ static void __cpuinit build_r4000_tlb_refill_handler(void)
 }
 
 /*
- * TLB load/store/modify handlers.
- *
- * Only the fastpath gets synthesized at runtime, the slowpath for
- * do_page_fault remains normal asm.
- */
-extern void tlb_do_page_fault_0(void);
-extern void tlb_do_page_fault_1(void);
-
-/*
  * 128 instructions for the fastpath handler is generous and should
  * never be exceeded.
  */
