@@ -169,7 +169,9 @@ static u32 tlb_handler[128] __cpuinitdata;
 static struct uasm_label labels[128] __cpuinitdata;
 static struct uasm_reloc relocs[128] __cpuinitdata;
 
+#ifdef CONFIG_64BIT
 static int check_for_high_segbits __cpuinitdata;
+#endif
 
 #ifndef CONFIG_MIPS_PGD_C0_CONTEXT
 /*
