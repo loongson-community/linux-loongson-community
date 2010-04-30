@@ -136,19 +136,6 @@
  */
 #define TO_PHYS_MASK	_CONST64_(0x07ffffffffffffff)	/* 2^^59 - 1 */
 
-#ifdef CONFIG_64BIT
-#define kernel_physaddr(x) ({ \
-	u64 a = (u64)(x); \
-	if ((a & CKSEG0) == CKSEG0) \
-		a = CPHYSADDR(a); \
-	else \
-		a &= TO_PHYS_MASK; \
-	a; \
-})
-#else
-#define kernel_physaddr	CPHYSADDR
-#endif
-
 #ifndef CONFIG_CPU_R8000
 
 /*
