@@ -16,22 +16,31 @@
 
 #include <loongson.h>
 
+static inline void loongson_reboot(void)
+{
+#ifndef CONFIG_CPU_JUMP_WORKAROUNDS
+	((void (*)(void))ioremap_nocache(LOONGSON_BOOT_BASE, 4)) ();
+#else
+	void (*func)(void);
+
+	func = (void *)ioremap_nocache(LOONGSON_BOOT_BASE, 4);
+
+	__asm__ __volatile__(
+	"       .set    noat                                            \n"
+	"       jr      %[func]                                         \n"
+	"       .set    at                                              \n"
+	: /* No outputs */
+	: [func] "r" (func));
+#endif
+}
+
 static void loongson_restart(char *command)
 {
 	/* do preparation for reboot */
 	mach_prepare_reboot();
 
-	/* reboot via jumping to boot base address
-	 *
-	 * ".set noat" and ".set at" are used to ensure the address not
-	 * polluted by the binutils patch. the patch will try to change the
-	 * jumping address to "addr & 0xcfffffff" via the at register, which is
-	 * really wrong for 0xbfc00000:
-	 */
-
-	__asm__ __volatile__(".set noat\n");
-	((void (*)(void))ioremap_nocache(LOONGSON_BOOT_BASE, 4)) ();
-	__asm__ __volatile__(".set at\n");
+	/* reboot via jumping to boot base address */
+	loongson_reboot();
 }
 
 static void loongson_poweroff(void)
