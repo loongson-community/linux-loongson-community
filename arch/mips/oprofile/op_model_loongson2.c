@@ -53,6 +53,12 @@ static char *oprofid = "LoongsonPerf";
 static irqreturn_t loongson2_perfcount_handler(int irq, void *dev_id);
 /* Compute all of the registers in preparation for enabling profiling.  */
 
+static void reset_counters(void *arg)
+{
+	write_c0_perfctrl(0);
+	write_c0_perfcnt(0);
+}
+
 static void loongson2_reg_setup(struct op_counter_config *cfg)
 {
 	unsigned int ctrl = 0;
@@ -164,7 +170,7 @@ static int __init loongson2_init(void)
 
 static void loongson2_exit(void)
 {
-	write_c0_perfctrl(0);
+	reset_counters(NULL);
 	free_irq(LOONGSON2_PERFCNT_IRQ, oprofid);
 }
 
