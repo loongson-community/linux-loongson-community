@@ -255,21 +255,12 @@ extern void _wrmsr(u32 msr, u32 hi, u32 lo);
  * IDE STANDARD
  */
 #define	IDE_CAP		0x00
-#define	IDE_CONFIG	0x01
-#define	IDE_SMI		0x02
-#define	IDE_ERROR	0x03
-#define	IDE_PM		0x04
-#define	IDE_DIAG	0x05
-
-/*
- * IDE SPEC.
- */
 #define	IDE_IO_BAR	0x08
 #define	IDE_CFG		0x10
 #define	IDE_DTC		0x12
 #define	IDE_CAST	0x13
 #define	IDE_ETC		0x14
-#define	IDE_INTERNAL_PM	0x15
+#define	IDE_PM		0x15
 
 /*
  * ACC STANDARD

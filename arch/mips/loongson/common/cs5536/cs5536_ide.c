@@ -72,26 +72,16 @@ void pci_ide_write_reg(int reg, u32 value)
 			_wrmsr(IDE_MSR_REG(IDE_CFG), hi, lo);
 		}
 		break;
-	case PCI_IDE_DTC_REG:
-		_rdmsr(IDE_MSR_REG(IDE_DTC), &hi, &lo);
-		lo = value;
-		_wrmsr(IDE_MSR_REG(IDE_DTC), hi, lo);
+#define SET_PCI_IDE_REG(r)				\
+	case PCI_IDE_##r##_REG:				\
+		_rdmsr(IDE_MSR_REG(IDE_##r), &hi, &lo); \
+		lo = value;				\
+		_wrmsr(IDE_MSR_REG(IDE_##r), hi, lo);	\
 		break;
-	case PCI_IDE_CAST_REG:
-		_rdmsr(IDE_MSR_REG(IDE_CAST), &hi, &lo);
-		lo = value;
-		_wrmsr(IDE_MSR_REG(IDE_CAST), hi, lo);
-		break;
-	case PCI_IDE_ETC_REG:
-		_rdmsr(IDE_MSR_REG(IDE_ETC), &hi, &lo);
-		lo = value;
-		_wrmsr(IDE_MSR_REG(IDE_ETC), hi, lo);
-		break;
-	case PCI_IDE_PM_REG:
-		_rdmsr(IDE_MSR_REG(IDE_INTERNAL_PM), &hi, &lo);
-		lo = value;
-		_wrmsr(IDE_MSR_REG(IDE_INTERNAL_PM), hi, lo);
-		break;
+	SET_PCI_IDE_REG(DTC)
+	SET_PCI_IDE_REG(CAST)
+	SET_PCI_IDE_REG(ETC)
+	SET_PCI_IDE_REG(PM)
 	default:
 		break;
 	}
@@ -163,21 +153,15 @@ u32 pci_ide_read_reg(int reg)
 	case PCI_INTERRUPT_LINE:
 		cfg = CFG_PCI_INTERRUPT_LINE(PCI_DEFAULT_PIN, CS5536_IDE_INTR);
 		break;
-	case PCI_IDE_CFG_REG:
-		_rdmsr(IDE_MSR_REG(IDE_CFG), &hi, &cfg);
+#define GET_PCI_IDE_REG(r)					\
+	case PCI_IDE_##r##_REG:					\
+		_rdmsr(IDE_MSR_REG(IDE_##r), &hi, &cfg);	\
 		break;
-	case PCI_IDE_DTC_REG:
-		_rdmsr(IDE_MSR_REG(IDE_DTC), &hi, &cfg);
-		break;
-	case PCI_IDE_CAST_REG:
-		_rdmsr(IDE_MSR_REG(IDE_CAST), &hi, &cfg);
-		break;
-	case PCI_IDE_ETC_REG:
-		_rdmsr(IDE_MSR_REG(IDE_ETC), &hi, &cfg);
-		break;
-	case PCI_IDE_PM_REG:
-		_rdmsr(IDE_MSR_REG(IDE_INTERNAL_PM), &hi, &cfg);
-		break;
+	GET_PCI_IDE_REG(CFG)
+	GET_PCI_IDE_REG(DTC)
+	GET_PCI_IDE_REG(CAST)
+	GET_PCI_IDE_REG(ETC)
+	GET_PCI_IDE_REG(PM)
 	default:
 		break;
 	}
