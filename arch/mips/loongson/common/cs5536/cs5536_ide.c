@@ -18,7 +18,7 @@
 
 void pci_ide_write_reg(int reg, u32 value)
 {
-	u32 hi = 0, lo = value;
+	u32 hi, lo;
 
 	switch (reg) {
 	case PCI_COMMAND:
@@ -99,94 +99,88 @@ void pci_ide_write_reg(int reg, u32 value)
 
 u32 pci_ide_read_reg(int reg)
 {
-	u32 conf_data = 0;
+	u32 cfg = 0;
 	u32 hi, lo;
 
 	switch (reg) {
 	case PCI_VENDOR_ID:
-		conf_data =
-		    CFG_PCI_VENDOR_ID(CS5536_IDE_DEVICE_ID, CS5536_VENDOR_ID);
+		cfg = CFG_PCI_VENDOR_ID(CS5536_IDE_DEVICE_ID,
+				CS5536_VENDOR_ID);
 		break;
 	case PCI_COMMAND:
 		_rdmsr(IDE_MSR_REG(IDE_IO_BAR), &hi, &lo);
 		if (lo & 0xfffffff0)
-			conf_data |= PCI_COMMAND_IO;
+			cfg |= PCI_COMMAND_IO;
 		_rdmsr(GLIU_MSR_REG(GLIU_PAE), &hi, &lo);
 		if ((lo & 0x30) == 0x30)
-			conf_data |= PCI_COMMAND_MASTER;
+			cfg |= PCI_COMMAND_MASTER;
 		break;
 	case PCI_STATUS:
-		conf_data |= PCI_STATUS_66MHZ;
-		conf_data |= PCI_STATUS_FAST_BACK;
+		cfg |= PCI_STATUS_66MHZ;
+		cfg |= PCI_STATUS_FAST_BACK;
 		_rdmsr(SB_MSR_REG(SB_ERROR), &hi, &lo);
 		if (lo & SB_PARE_ERR_FLAG)
-			conf_data |= PCI_STATUS_PARITY;
-		conf_data |= PCI_STATUS_DEVSEL_MEDIUM;
+			cfg |= PCI_STATUS_PARITY;
+		cfg |= PCI_STATUS_DEVSEL_MEDIUM;
 		break;
 	case PCI_CLASS_REVISION:
 		_rdmsr(IDE_MSR_REG(IDE_CAP), &hi, &lo);
-		conf_data = lo & 0x000000ff;
-		conf_data |= (CS5536_IDE_CLASS_CODE << 8);
+		cfg = lo & 0x000000ff;
+		cfg |= (CS5536_IDE_CLASS_CODE << 8);
 		break;
 	case PCI_CACHE_LINE_SIZE:
 		_rdmsr(SB_MSR_REG(SB_CTRL), &hi, &lo);
 		hi &= 0x000000f8;
-		conf_data = CFG_PCI_CACHE_LINE_SIZE(PCI_NORMAL_HEADER_TYPE, hi);
+		cfg = CFG_PCI_CACHE_LINE_SIZE(PCI_NORMAL_HEADER_TYPE, hi);
 		break;
 	case PCI_BAR4_REG:
 		_rdmsr(GLCP_MSR_REG(GLCP_SOFT_COM), &hi, &lo);
 		if (lo & SOFT_BAR_IDE_FLAG) {
-			conf_data = CS5536_IDE_RANGE |
+			cfg = CS5536_IDE_RANGE |
 			    PCI_BASE_ADDRESS_SPACE_IO;
 			lo &= ~SOFT_BAR_IDE_FLAG;
 			_wrmsr(GLCP_MSR_REG(GLCP_SOFT_COM), hi, lo);
 		} else {
 			_rdmsr(IDE_MSR_REG(IDE_IO_BAR), &hi, &lo);
-			conf_data = lo & 0xfffffff0;
-			conf_data |= 0x01;
-			conf_data &= ~0x02;
+			cfg = lo & 0xfffffff0;
+			cfg |= 0x01;
+			cfg &= ~0x02;
 		}
 		break;
 	case PCI_CARDBUS_CIS:
-		conf_data = PCI_CARDBUS_CIS_POINTER;
+		cfg = PCI_CARDBUS_CIS_POINTER;
 		break;
 	case PCI_SUBSYSTEM_VENDOR_ID:
-		conf_data =
-		    CFG_PCI_VENDOR_ID(CS5536_IDE_SUB_ID, CS5536_SUB_VENDOR_ID);
+		cfg = CFG_PCI_VENDOR_ID(CS5536_IDE_SUB_ID,
+				CS5536_SUB_VENDOR_ID);
 		break;
 	case PCI_ROM_ADDRESS:
-		conf_data = PCI_EXPANSION_ROM_BAR;
+		cfg = PCI_EXPANSION_ROM_BAR;
 		break;
 	case PCI_CAPABILITY_LIST:
-		conf_data = PCI_CAPLIST_POINTER;
+		cfg = PCI_CAPLIST_POINTER;
 		break;
 	case PCI_INTERRUPT_LINE:
-		conf_data =
-		    CFG_PCI_INTERRUPT_LINE(PCI_DEFAULT_PIN, CS5536_IDE_INTR);
+		cfg = CFG_PCI_INTERRUPT_LINE(PCI_DEFAULT_PIN, CS5536_IDE_INTR);
 		break;
 	case PCI_IDE_CFG_REG:
-		_rdmsr(IDE_MSR_REG(IDE_CFG), &hi, &lo);
-		conf_data = lo;
+		_rdmsr(IDE_MSR_REG(IDE_CFG), &hi, &cfg);
 		break;
 	case PCI_IDE_DTC_REG:
-		_rdmsr(IDE_MSR_REG(IDE_DTC), &hi, &lo);
-		conf_data = lo;
+		_rdmsr(IDE_MSR_REG(IDE_DTC), &hi, &cfg);
 		break;
 	case PCI_IDE_CAST_REG:
-		_rdmsr(IDE_MSR_REG(IDE_CAST), &hi, &lo);
-		conf_data = lo;
+		_rdmsr(IDE_MSR_REG(IDE_CAST), &hi, &cfg);
 		break;
 	case PCI_IDE_ETC_REG:
-		_rdmsr(IDE_MSR_REG(IDE_ETC), &hi, &lo);
-		conf_data = lo;
+		_rdmsr(IDE_MSR_REG(IDE_ETC), &hi, &cfg);
 		break;
 	case PCI_IDE_PM_REG:
-		_rdmsr(IDE_MSR_REG(IDE_INTERNAL_PM), &hi, &lo);
-		conf_data = lo;
+		_rdmsr(IDE_MSR_REG(IDE_INTERNAL_PM), &hi, &cfg);
 		break;
 	default:
 		break;
 	}
 
-	return conf_data;
+	return cfg;
 }
