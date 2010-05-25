@@ -5,6 +5,7 @@
 menuconfig WLAN
 	bool "Wireless LAN"
 	depends on !S390
+	depends on NET
 	select WIRELESS
 	default y
 	---help---
@@ -37,6 +38,12 @@ config LIBERTAS_THINFIRM
 	select FW_LOADER
 	---help---
 	  A library for Marvell Libertas 8xxx devices using thinfirm.
+
+config LIBERTAS_THINFIRM_DEBUG
+	bool "Enable full debugging output in the Libertas thin firmware module."
+	depends on LIBERTAS_THINFIRM
+	---help---
+	  Debugging support.
 
 config LIBERTAS_THINFIRM_USB
 	tristate "Marvell Libertas 8388 USB 802.11b/g cards with thin firmware"
@@ -294,6 +301,8 @@ config RTL8187_LEDS
 	bool
 	depends on RTL8187 && MAC80211_LEDS && (LEDS_CLASS = y || LEDS_CLASS = RTL8187)
 	default y
+
+source "drivers/net/wireless/rtl818x/Kconfig"
 
 config RTL8187B
 	tristate "Realtek 8187B wifi support for yeeloong2f laptop"
