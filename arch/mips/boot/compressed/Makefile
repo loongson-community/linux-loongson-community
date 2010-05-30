@@ -44,18 +44,14 @@ OBJCOPYFLAGS_vmlinux.bin := $(OBJCOPYFLAGS) -O binary -R .comment -S
 $(obj)/vmlinux.bin: $(KBUILD_IMAGE)
 	$(call if_changed,objcopy)
 
-suffix_$(CONFIG_KERNEL_GZIP)  = gz
-suffix_$(CONFIG_KERNEL_BZIP2) = bz2
-suffix_$(CONFIG_KERNEL_LZMA)  = lzma
-suffix_$(CONFIG_KERNEL_LZO)   = lzo
 tool_$(CONFIG_KERNEL_GZIP)    = gzip
 tool_$(CONFIG_KERNEL_BZIP2)   = bzip2
 tool_$(CONFIG_KERNEL_LZMA)    = lzma
 tool_$(CONFIG_KERNEL_LZO)     = lzo
-$(obj)/vmlinux.$(suffix_y): $(obj)/vmlinux.bin
+$(obj)/vmlinux.z: $(obj)/vmlinux.bin
 	$(call if_changed,$(tool_y))
 
-$(obj)/piggy.o: $(obj)/vmlinux.$(suffix_y) $(obj)/dummy.o
+$(obj)/piggy.o: $(obj)/vmlinux.z $(obj)/dummy.o
 	$(Q)$(OBJCOPY) $(OBJCOPYFLAGS) \
 		--add-section=.image=$< \
 		--set-section-flags=.image=contents,alloc,load,readonly,data \
