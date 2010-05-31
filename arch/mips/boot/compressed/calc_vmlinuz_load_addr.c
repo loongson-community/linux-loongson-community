@@ -10,11 +10,13 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 int main(int argc, char *argv[])
 {
+	int n;
 	struct stat sb;
 	unsigned long long vmlinux_size, vmlinux_load_addr, vmlinuz_load_addr;
 
@@ -30,7 +32,14 @@ int main(int argc, char *argv[])
 	}
 
 	/* Convert hex characters to dec number */
-	sscanf(argv[2], "%llx", &vmlinux_load_addr);
+	errno = 0;
+	n = sscanf(argv[2], "%llx", &vmlinux_load_addr);
+	if (n != 1) {
+		if (errno != 0)
+			perror("sscanf");
+		else
+			fprintf(stderr, "No matching characters\n");
+	}
 
 	vmlinux_size = (unsigned long long)sb.st_size;
 	vmlinuz_load_addr = vmlinux_load_addr + vmlinux_size;
