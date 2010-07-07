@@ -346,7 +346,14 @@ config SGI_IP22
 	select SWAP_IO_SPACE
 	select SYS_HAS_CPU_R4X00
 	select SYS_HAS_CPU_R5000
-	select SYS_HAS_EARLY_PRINTK
+	#
+	# Disable EARLY_PRINTK for now since it leads to overwritten prom
+	# memory during early boot on some machines.
+	#
+	# See http://www.linux-mips.org/cgi-bin/mesg.cgi?a=linux-mips&i=20091119164009.GA15038%40deprecation.cyrius.com
+	# for a more details discussion
+	#
+	# select SYS_HAS_EARLY_PRINTK
 	select SYS_SUPPORTS_32BIT_KERNEL
 	select SYS_SUPPORTS_64BIT_KERNEL
 	select SYS_SUPPORTS_BIG_ENDIAN
@@ -398,7 +405,14 @@ config SGI_IP28
 	select SGI_HAS_ZILOG
 	select SWAP_IO_SPACE
 	select SYS_HAS_CPU_R10000
-	select SYS_HAS_EARLY_PRINTK
+	#
+	# Disable EARLY_PRINTK for now since it leads to overwritten prom
+	# memory during early boot on some machines.
+	#
+	# See http://www.linux-mips.org/cgi-bin/mesg.cgi?a=linux-mips&i=20091119164009.GA15038%40deprecation.cyrius.com
+	# for a more details discussion
+	#
+	# select SYS_HAS_EARLY_PRINTK
 	select SYS_SUPPORTS_64BIT_KERNEL
 	select SYS_SUPPORTS_BIG_ENDIAN
       help
@@ -475,6 +489,7 @@ config SIBYTE_SWARM
 	bool "Sibyte BCM91250A-SWARM"
 	select BOOT_ELF32
 	select DMA_COHERENT
+	select HAVE_PATA_PLATFORM
 	select NR_CPUS_DEFAULT_2
 	select SIBYTE_SB1250
 	select SWAP_IO_SPACE
@@ -489,6 +504,7 @@ config SIBYTE_LITTLESUR
 	depends on EXPERIMENTAL
 	select BOOT_ELF32
 	select DMA_COHERENT
+	select HAVE_PATA_PLATFORM
 	select NR_CPUS_DEFAULT_2
 	select SIBYTE_SB1250
 	select SWAP_IO_SPACE
@@ -1461,7 +1477,7 @@ choice
 
 config PAGE_SIZE_4KB
 	bool "4kB"
-	depends on !MACH_LOONGSON
+	depends on !CPU_LOONGSON2
 	help
 	 This option select the standard 4kB Linux page size.  On some
 	 R3000-family processors this is the only available page size.  Using
@@ -1789,7 +1805,11 @@ config SYS_SUPPORTS_SMARTMIPS
 
 config ARCH_FLATMEM_ENABLE
 	def_bool y
+<<<<<<< HEAD
 	depends on !NUMA && !MACH_LOONGSON
+=======
+	depends on !NUMA && !CPU_LOONGSON2
+>>>>>>> cd9d51a7c1d2923573f1b4c4707707825bbdb57f
 
 config ARCH_DISCONTIGMEM_ENABLE
 	bool
