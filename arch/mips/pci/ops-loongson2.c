@@ -180,7 +180,6 @@ struct pci_ops loongson_pci_ops = {
 };
 
 #ifdef CONFIG_CS5536
-
 DEFINE_RAW_SPINLOCK(msr_lock);
 
 void _rdmsr(u32 msr, u32 *hi, u32 *lo)

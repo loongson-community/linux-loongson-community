@@ -166,5 +166,5 @@ void loongson2_cpu_wait(void)
 EXPORT_SYMBOL_GPL(loongson2_cpu_wait);
 
 MODULE_AUTHOR("Yanhua <yanh@lemote.com>");
-MODULE_DESCRIPTION("cpuclock driver of Loongson2F");
+MODULE_DESCRIPTION("cpufreq driver for Loongson 2F");
 MODULE_LICENSE("GPL");
