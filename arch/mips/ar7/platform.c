@@ -202,7 +202,7 @@ static struct resource usb_res[] = {
 		.name = "mem",
 		.flags = IORESOURCE_MEM,
 		.start = 0x03400000,
-		.end = 0x034001fff,
+		.end = 0x03401fff,
 	},
 };
 
@@ -509,7 +509,7 @@ static int __init ar7_register_devices(void)
 
 	memset(uart_port, 0, sizeof(struct uart_port) * 2);
 
-	uart_port[0].type = PORT_16550A;
+	uart_port[0].type = PORT_AR7;
 	uart_port[0].line = 0;
 	uart_port[0].irq = AR7_IRQ_UART0;
 	uart_port[0].uartclk = ar7_bus_freq() / 2;
