@@ -900,7 +900,7 @@ static void do_event_action(int event)
 	if (handler != NULL)
 		status = handler(status);
 
-	pr_info("%s: event: %d status: %d\n", __func__, event, status);
+	pr_debug("%s: event: %d status: %d\n", __func__, event, status);
 
 	/* Report current key to user-space */
 	ke = get_event_key_entry(event, status);
