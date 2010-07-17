@@ -12,33 +12,41 @@
 #include <linux/init.h>
 #include <linux/ftrace.h>
 
-#include <asm/cacheflush.h>
 #include <asm/asm.h>
 #include <asm/asm-offsets.h>
+#include <asm/cacheflush.h>
 #include <asm/uasm.h>
 
-#define INSN_S_R_SP	0xafb00000	/* s{d,w} R, offset(sp) */
+/*
+ * If the Instruction Pointer is in module space (0xc0000000), return true;
+ * otherwise, it is in kernel space (0x80000000), return false.
+ *
+ * FIXME: This will not work when the kernel space and module space are the
+ * same. If they are the same, we need to modify scripts/recordmcount.pl,
+ * ftrace_make_nop/call() and the other related parts to ensure the
+ * enabling/disabling of the calling site to _mcount is right for both kernel
+ * and module.
+ */
+
+static inline int in_module(unsigned long ip)
+{
+	return ip & 0x40000000;
+}
 
 #ifdef CONFIG_DYNAMIC_FTRACE
 
-/* Before linking, the following instructions are fixed. */
-#ifdef CONFIG_CPU_LOONGSON2F
-#define INSN_NOP 0x00200825	/* or at, at, zero */
-#else
-#define INSN_NOP 0x00000000	/* nop */
-#endif
-#define INSN_B_1F_16 0x10000004	/* b 1f; offset = (16 >> 2) */
-#define INSN_B_1F_20 0x10000005	/* b 1f; offset = (20 >> 2) */
+#define JAL 0x0c000000		/* jump & link: ip --> ra, jump to target */
+#define ADDR_MASK 0x03ffffff	/*  op_code|addr : 31...26|25 ....0 */
 
-/* After linking, the following instructions are fixed. */
+#define INSN_B_1F_4 0x10000004	/* b 1f; offset = 4 */
+#define INSN_B_1F_5 0x10000005	/* b 1f; offset = 5 */
+#define INSN_NOP 0x00000000	/* nop */
+#define INSN_JAL(addr)	\
+	((unsigned int)(JAL | (((addr) >> 2) & ADDR_MASK)))
+
 static unsigned int insn_jal_ftrace_caller __read_mostly;
 static unsigned int insn_lui_v1_hi16_mcount __read_mostly;
 static unsigned int insn_j_ftrace_graph_caller __maybe_unused __read_mostly;
-
-/* The following instructions are encoded in the run-time */
-/* insn: jal func; op_code|addr : 31...26|25 ....0 */
-#define INSN_JAL(addr) \
-	((unsigned int)(0x0c000000 | (((addr) >> 2) & 0x03ffffff)))
 
 static inline void ftrace_dyn_arch_init_insns(void)
 {
@@ -82,34 +90,38 @@ int ftrace_make_nop(struct module *mod,
 	unsigned long ip = rec->ip;
 
 	/*
-	 * We have compiled modules with -mlong-calls, but compiled kernel
-	 * without it, therefore, need to cope with them respectively.
-	 *
-	 * For module:
-	 *
-	 *	lui	v1, hi16_mcount		--> b	1f
-	 *	addiu	v1, v1, lo16_mcount
-	 *	move at, ra
-	 *	jalr v1
-	 *	 nop
-	 *					1f: (ip + 16)
-	 * For kernel:
-	 *
-	 *	move	at, ra
-	 *	jal	_mcount			--> nop
-	 *
-	 * And with the -mmcount-ra-address option, the offset may be 20 for
-	 * leaf fuction and 24 for non-leaf function.
+	 * We have compiled module with -mlong-calls, but compiled the kernel
+	 * without it, we need to cope with them respectively.
 	 */
-
-	if (!in_module(ip))
-		new = INSN_NOP;
-	else {
+	if (in_module(ip)) {
 #if defined(KBUILD_MCOUNT_RA_ADDRESS) && defined(CONFIG_32BIT)
-		new = INSN_B_1F_20;
+		/*
+		 * lui v1, hi_16bit_of_mcount        --> b 1f (0x10000005)
+		 * addiu v1, v1, low_16bit_of_mcount
+		 * move at, ra
+		 * move $12, ra_address
+		 * jalr v1
+		 *  sub sp, sp, 8
+		 *                                  1: offset = 5 instructions
+		 */
+		new = INSN_B_1F_5;
 #else
-		new = INSN_B_1F_16;
+		/*
+		 * lui v1, hi_16bit_of_mcount        --> b 1f (0x10000004)
+		 * addiu v1, v1, low_16bit_of_mcount
+		 * move at, ra
+		 * jalr v1
+		 *  nop | move $12, ra_address | sub sp, sp, 8
+		 *                                  1: offset = 4 instructions
+		 */
+		new = INSN_B_1F_4;
 #endif
+	} else {
+		/*
+		 * move at, ra
+		 * jal _mcount		--> nop
+		 */
+		new = INSN_NOP;
 	}
 
 	return ftrace_modify_code(ip, new);
@@ -120,6 +132,7 @@ int ftrace_make_call(struct dyn_ftrace *rec, unsigned long addr)
 	unsigned int new;
 	unsigned long ip = rec->ip;
 
+	/* ip, module: 0xc0000000, kernel: 0x80000000 */
 	new = in_module(ip) ? insn_lui_v1_hi16_mcount : insn_jal_ftrace_caller;
 
 	return ftrace_modify_code(ip, new);
@@ -136,19 +149,10 @@ int ftrace_update_ftrace_func(ftrace_func_t func)
 
 int __init ftrace_dyn_arch_init(void *data)
 {
+	/* Encode the instructions when booting */
 	ftrace_dyn_arch_init_insns();
 
-	/*
-	 * We are safe to remove the "b ftrace_stub" for the current
-	 * ftrace_caller() is almost empty (only the stack operations), and
-	 * most importantly, the calling to mcount will be disabled later in
-	 * ftrace_init(), then there is no 'big' overhead. And in the future,
-	 * we are hoping the function_trace_stop is initialized as 1 then we
-	 * can eventually remove that 'useless' "b ftrace_stub" and the
-	 * following nop. Currently, although we can call ftrace_stop() to set
-	 * function_trace_stop as 1, but it will change the behavior of the
-	 * Function Tracer.
-	 */
+	/* Remove "b ftrace_stub" to ensure ftrace_caller() is executed */
 	ftrace_modify_code(MCOUNT_ADDR, INSN_NOP);
 
 	/* The return code is retured via data */
@@ -156,7 +160,7 @@ int __init ftrace_dyn_arch_init(void *data)
 
 	return 0;
 }
-#endif				/* CONFIG_DYNAMIC_FTRACE */
+#endif	/* CONFIG_DYNAMIC_FTRACE */
 
 #ifdef CONFIG_FUNCTION_GRAPH_TRACER
 
@@ -174,11 +178,14 @@ int ftrace_disable_ftrace_graph_caller(void)
 {
 	return ftrace_modify_code(FTRACE_GRAPH_CALL_IP, INSN_NOP);
 }
-#endif				/* !CONFIG_DYNAMIC_FTRACE */
+
+#endif	/* CONFIG_DYNAMIC_FTRACE */
 
 #ifndef KBUILD_MCOUNT_RA_ADDRESS
-#define INSN_S_RA_SP	0xafbf0000	/* s{d,w} ra, offset(sp) */
-#define STACK_OFFSET_MASK	0xffff	/* stack offset range: 0 ~ PT_SIZE */
+
+#define S_RA_SP	(0xafbf << 16)	/* s{d,w} ra, offset(sp) */
+#define S_R_SP	(0xafb0 << 16)  /* s{d,w} R, offset(sp) */
+#define OFFSET_MASK	0xffff	/* stack offset range: 0 ~ PT_SIZE */
 
 unsigned long ftrace_get_parent_addr(unsigned long self_addr,
 				     unsigned long parent,
@@ -207,13 +214,12 @@ unsigned long ftrace_get_parent_addr(unsigned long self_addr,
 		safe_load_code(code, ip, faulted);
 		if (unlikely(faulted))
 			return 0;
-
 		/*
 		 * If we hit the non-store instruction before finding where the
 		 * ra is stored, then this is a leaf function and it does not
-		 * store the ra on the stack.
+		 * store the ra on the stack
 		 */
-		if ((code & INSN_S_R_SP) != INSN_S_R_SP)
+		if ((code & S_R_SP) != S_R_SP)
 			return parent_addr;
 	} while (((code & INSN_S_RA_SP) != INSN_S_RA_SP));
 
@@ -268,14 +274,13 @@ void prepare_ftrace_return(unsigned long *parent, unsigned long self_addr,
 	if (unlikely(faulted))
 		goto out;
 #ifndef KBUILD_MCOUNT_RA_ADDRESS
-	parent = (unsigned long *)ftrace_get_parent_addr(
-			self_addr, old, (unsigned long)parent, fp);
-
+	parent = (unsigned long *)ftrace_get_parent_addr(self_addr, old,
+			(unsigned long)parent, fp);
 	/*
-	 * If fails on getting the stack address of the non-leaf function's ra,
-	 * stop function graph tracer and return
+	 * If fails when getting the stack address of the non-leaf function's
+	 * ra, stop function graph tracer and return
 	 */
-	if (unlikely(parent == 0))
+	if (parent == 0)
 		goto out;
 #endif
 	/* *parent = return_hooker; */
@@ -301,4 +306,4 @@ out:
 	ftrace_graph_stop();
 	WARN_ON(1);
 }
-#endif				/* CONFIG_FUNCTION_GRAPH_TRACER */
+#endif	/* CONFIG_FUNCTION_GRAPH_TRACER */

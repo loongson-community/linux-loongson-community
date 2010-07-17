@@ -57,6 +57,12 @@
 	 move ra, AT
 	.endm
 
+/*
+ * The -mmcount-ra-address option of gcc 4.5 uses register $12 to pass
+ * the location of the parent's return address.
+ */
+#define MCOUNT_RA_ADDRESS_REG	$12
+
 #ifdef CONFIG_DYNAMIC_FTRACE
 
 NESTED(ftrace_caller, PT_SIZE, ra)
@@ -70,7 +76,7 @@ _mcount:
 
 	MCOUNT_SAVE_REGS
 #ifdef KBUILD_MCOUNT_RA_ADDRESS
-	PTR_S	$12, PT_R12(sp)	/* save location of parent's return address */
+	PTR_S	MCOUNT_RA_ADDRESS_REG, PT_R12(sp)
 #endif
 
 	move	a0, ra		/* arg1: self return address */
@@ -142,22 +148,20 @@ NESTED(ftrace_graph_caller, PT_SIZE, ra)
 #ifdef CONFIG_DYNAMIC_FTRACE
 	PTR_L	a0, PT_R12(sp)
 #else
-	move	a0, $12
+	move	a0, MCOUNT_RA_ADDRESS_REG
 #endif
-	bnez	a0, 1f		/* arg1: non-leaf func: stored in $12 */
+	bnez	a0, 1f	/* non-leaf func: stored in MCOUNT_RA_ADDRESS_REG */
 	 nop
 #endif
 	PTR_LA	a0, PT_R1(sp)	/* leaf func: the location in current stack */
-
 1:
+
 	/* arg2: Get self return address */
 #ifdef CONFIG_DYNAMIC_FTRACE
 	PTR_L	a1, PT_R31(sp)
 #else
 	move	a1, ra
 #endif
-
-	jal	prepare_ftrace_return
 
 	/* arg3: Get frame pointer of current stack */
 #ifdef CONFIG_FRAME_POINTER
@@ -170,6 +174,8 @@ NESTED(ftrace_graph_caller, PT_SIZE, ra)
 #endif
 #endif
 
+	jal	prepare_ftrace_return
+	 nop
 	MCOUNT_RESTORE_REGS
 	RETURN_BACK
 	END(ftrace_graph_caller)

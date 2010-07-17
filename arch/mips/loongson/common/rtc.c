@@ -1,8 +1,7 @@
 /*
- *  Registration of Loongson RTC platform device.
+ *  Lemote Fuloong platform support
  *
- *  Copyright (C) 2007  Yoichi Yuasa <yoichi_yuasa@tripeaks.co.jp>
- *  Copyright (C) 2009  Wu Zhangjin <wuzhangjin@gmail.com>
+ *  Copyright(c) 2010 Arnaud Patard <apatard@mandriva.com>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -11,33 +10,34 @@
  */
 
 #include <linux/init.h>
-#include <linux/ioport.h>
-#include <linux/mc146818rtc.h>
+#include <linux/kernel.h>
 #include <linux/platform_device.h>
+#include <linux/mc146818rtc.h>
 
-static struct resource rtc_cmos_resource[] = {
+struct resource loongson_rtc_resources[] = {
 	{
 		.start	= RTC_PORT(0),
 		.end	= RTC_PORT(1),
 		.flags	= IORESOURCE_IO,
-	},
-	{
+	}, {
 		.start	= RTC_IRQ,
 		.end	= RTC_IRQ,
 		.flags	= IORESOURCE_IRQ,
-	},
+	}
 };
 
-static struct platform_device rtc_cmos_device = {
+static struct platform_device loongson_rtc_device = {
 	.name		= "rtc_cmos",
 	.id		= -1,
-	.num_resources	= ARRAY_SIZE(rtc_cmos_resource),
-	.resource	= rtc_cmos_resource
+	.resource	= loongson_rtc_resources,
+	.num_resources	= ARRAY_SIZE(loongson_rtc_resources),
 };
 
-static __init int rtc_cmos_init(void)
+
+static int __init loongson_rtc_platform_init(void)
 {
-	return platform_device_register(&rtc_cmos_device);
+	platform_device_register(&loongson_rtc_device);
+	return 0;
 }
 
-device_initcall(rtc_cmos_init);
+device_initcall(loongson_rtc_platform_init);
