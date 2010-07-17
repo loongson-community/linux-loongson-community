@@ -1,10 +1,7 @@
 /*
- * Cpufreq driver for the loongson-2 processors
+ * Cpufreq driver for the loongson-2 (>= 2F) processors
  *
- * The 2E revision of loongson processor not support this feature.
- *
- * Copyright (C) 2006 - 2008 Lemote Inc. & Insititute of Computing Technology
- * Author: Yanhua, yanh@lemote.com
+ * Copyright (C) 2010, Wu Zhangjin <wuzhangjin@gmail.com>
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -12,216 +9,173 @@
  */
 #include <linux/cpufreq.h>
 #include <linux/module.h>
-#include <linux/err.h>
-#include <linux/sched.h>	/* set_cpus_allowed() */
-#include <linux/delay.h>
 #include <linux/platform_device.h>
-
-#include <asm/clock.h>
 
 #include <loongson.h>
 
-static uint nowait;
+/*
+ * Percentages of cpu frequency (total levels = 8)
+ *    Percentage    = index of clockmod_table[] / total levels
+ *	25%		2
+ *	50%		4
+ *	75%		6
+ *	100%		8
+ */
+#define DC_RESV	0
+#define	DC_25PT	2
+#define	DC_50PT	4
+#define DC_75PT	6
+#define DC_100PT 8
 
-static struct clk *cpuclk;
-
-static void (*saved_cpu_wait) (void);
-
-static int loongson2_cpu_freq_notifier(struct notifier_block *nb,
-					unsigned long val, void *data);
-
-static struct notifier_block loongson2_cpufreq_notifier_block = {
-	.notifier_call = loongson2_cpu_freq_notifier
+/*
+ * For Loongson's frequency is not high, we set the minimum level as 50% to
+ * avoid spending too much time on freq switching
+ */
+static struct cpufreq_frequency_table clockmod_table[] = {
+	{DC_RESV, CPUFREQ_ENTRY_INVALID},
+	{DC_25PT, 0},
+	{DC_50PT, 0},
+	{DC_75PT, 0},
+	{DC_100PT, 0},
+	{DC_RESV, CPUFREQ_TABLE_END},
 };
 
-static int loongson2_cpu_freq_notifier(struct notifier_block *nb,
-					unsigned long val, void *data)
-{
-	if (val == CPUFREQ_POSTCHANGE)
-		current_cpu_data.udelay_val = loops_per_jiffy;
+static unsigned int max_cpufreq_khz;
 
-	return 0;
-}
-
-static unsigned int loongson2_cpufreq_get(unsigned int cpu)
+static inline unsigned int idx_to_freq(unsigned int idx)
 {
-	return clk_get_rate(cpuclk);
+	/*
+	 * freq = max_cpufreq_khz * (index / total levels)
+	 *	= (max_cpufreq_khz * index) / 8
+	 *	= (max_cpufreq_khz * index) >> 3
+	 */
+	return (max_cpufreq_khz * idx) >> 3;
 }
 
 /*
- * Here we notify other drivers of the proposed change and the final change.
+ * Map from index of clockmod_table to chipcfg:
+ *	Index	lowest 3bits of Chipcfg
+ *	8	7
+ *	6	5
+ *	4	3
+ *	2	1
  */
-static int loongson2_cpufreq_target(struct cpufreq_policy *policy,
-				     unsigned int target_freq,
-				     unsigned int relation)
+static unsigned int l2_cpufreq_get(unsigned int cpu)
 {
-	unsigned int cpu = policy->cpu;
-	unsigned int newstate = 0;
-	cpumask_t cpus_allowed;
+	return idx_to_freq(LOONGSON_GET_CPUFREQ() + 1);
+}
+
+static void l2_cpufreq_set(unsigned int newstate)
+{
+	LOONGSON_SET_CPUFREQ(clockmod_table[newstate].index - 1);
+}
+
+static int l2_cpufreq_target(struct cpufreq_policy *policy, unsigned int
+		target_freq, unsigned int relation)
+{
+	unsigned int newstate;
 	struct cpufreq_freqs freqs;
-	unsigned int freq;
 
-	if (!cpu_online(cpu))
-		return -ENODEV;
-
-	cpus_allowed = current->cpus_allowed;
-	set_cpus_allowed_ptr(current, cpumask_of(cpu));
-
-	if (cpufreq_frequency_table_target
-	    (policy, &loongson2_clockmod_table[0], target_freq, relation,
-	     &newstate))
+	if (cpufreq_frequency_table_target(policy, &clockmod_table[0],
+				target_freq, relation, &newstate))
 		return -EINVAL;
 
-	freq =
-	    ((cpu_clock_freq / 1000) *
-	     loongson2_clockmod_table[newstate].index) / 8;
-	if (freq < policy->min || freq > policy->max)
-		return -EINVAL;
-
-	pr_debug("cpufreq: requested frequency %u Hz\n", target_freq * 1000);
-
-	freqs.cpu = cpu;
-	freqs.old = loongson2_cpufreq_get(cpu);
-	freqs.new = freq;
-	freqs.flags = 0;
+	freqs.old = l2_cpufreq_get(policy->cpu);
+	freqs.new = idx_to_freq(clockmod_table[newstate].index);
 
 	if (freqs.new == freqs.old)
 		return 0;
 
 	/* notifiers */
+	freqs.cpu = policy->cpu;
 	cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
 
-	set_cpus_allowed_ptr(current, &cpus_allowed);
-
 	/* setting the cpu frequency */
-	clk_set_rate(cpuclk, freq);
+	l2_cpufreq_set(newstate);
 
 	/* notifiers */
 	cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
 
-	pr_debug("cpufreq: set frequency %u kHz\n", freq);
-
 	return 0;
 }
 
-static int loongson2_cpufreq_cpu_init(struct cpufreq_policy *policy)
+static int l2_cpufreq_cpu_init(struct cpufreq_policy *policy)
 {
 	int i;
 
-	if (!cpu_online(policy->cpu))
-		return -ENODEV;
+	/* get max cpu frequency in khz */
+	max_cpufreq_khz = cpu_clock_freq / 1000;
 
-	cpuclk = clk_get(NULL, "cpu_clk");
-	if (IS_ERR(cpuclk)) {
-		printk(KERN_ERR "cpufreq: couldn't get CPU clk\n");
-		return PTR_ERR(cpuclk);
-	}
+	/* table init */
+	for (i = 1; clockmod_table[i].index != DC_RESV; i++)
+		clockmod_table[i].frequency = idx_to_freq(clockmod_table[i].index);
 
-	cpuclk->rate = cpu_clock_freq / 1000;
-	if (!cpuclk->rate)
-		return -EINVAL;
+	cpufreq_frequency_table_get_attr(clockmod_table, policy->cpu);
 
-	/* clock table init */
-	for (i = 2;
-	     (loongson2_clockmod_table[i].frequency != CPUFREQ_TABLE_END);
-	     i++)
-		loongson2_clockmod_table[i].frequency = (cpuclk->rate * i) / 8;
+	/* cpuinfo and default policy values */
 
-	policy->cur = loongson2_cpufreq_get(policy->cpu);
+	policy->cur = max_cpufreq_khz;
 
-	cpufreq_frequency_table_get_attr(&loongson2_clockmod_table[0],
-					 policy->cpu);
-
-	return cpufreq_frequency_table_cpuinfo(policy,
-					    &loongson2_clockmod_table[0]);
+	return cpufreq_frequency_table_cpuinfo(policy, &clockmod_table[0]);
 }
 
-static int loongson2_cpufreq_verify(struct cpufreq_policy *policy)
+static int l2_cpufreq_verify(struct cpufreq_policy *policy)
 {
-	return cpufreq_frequency_table_verify(policy,
-					      &loongson2_clockmod_table[0]);
+	return cpufreq_frequency_table_verify(policy, &clockmod_table[0]);
 }
 
-static int loongson2_cpufreq_exit(struct cpufreq_policy *policy)
+static int l2_cpufreq_cpu_exit(struct cpufreq_policy *policy)
 {
-	clk_put(cpuclk);
+	cpufreq_frequency_table_put_attr(policy->cpu);
 	return 0;
 }
 
-static struct freq_attr *loongson2_table_attr[] = {
+static struct freq_attr *clockmod_attr[] = {
 	&cpufreq_freq_attr_scaling_available_freqs,
 	NULL,
 };
 
-static struct cpufreq_driver loongson2_cpufreq_driver = {
+static struct cpufreq_driver l2_cpufreq_driver = {
 	.owner = THIS_MODULE,
-	.name = "loongson2",
-	.init = loongson2_cpufreq_cpu_init,
-	.verify = loongson2_cpufreq_verify,
-	.target = loongson2_cpufreq_target,
-	.get = loongson2_cpufreq_get,
-	.exit = loongson2_cpufreq_exit,
-	.attr = loongson2_table_attr,
+	.name = "l2_cpufreq",
+	.init = l2_cpufreq_cpu_init,
+	.exit = l2_cpufreq_cpu_exit,
+	.verify = l2_cpufreq_verify,
+	.target = l2_cpufreq_target,
+	.get = l2_cpufreq_get,
+	.attr = clockmod_attr,
 };
 
 static struct platform_device_id platform_device_ids[] = {
 	{
-		.name = "loongson2_cpufreq",
+		.name = "l2_cpufreq",
 	},
 	{}
 };
-
 MODULE_DEVICE_TABLE(platform, platform_device_ids);
 
-static struct platform_driver platform_driver = {
-	.driver = {
-		.name = "loongson2_cpufreq",
-		.owner = THIS_MODULE,
-	},
-	.id_table = platform_device_ids,
-};
-
-static int __init cpufreq_init(void)
+static int __init l2_cpufreq_init(void)
 {
 	int ret;
 
-	/* Register platform stuff */
-	ret = platform_driver_register(&platform_driver);
+	ret = cpufreq_register_driver(&l2_cpufreq_driver);
 	if (ret)
 		return ret;
 
-	pr_info("cpufreq: Loongson-2F CPU frequency driver.\n");
+	loongson_cpufreq_driver_loaded = 1;
 
-	cpufreq_register_notifier(&loongson2_cpufreq_notifier_block,
-				  CPUFREQ_TRANSITION_NOTIFIER);
-
-	ret = cpufreq_register_driver(&loongson2_cpufreq_driver);
-
-	if (!ret && !nowait) {
-		saved_cpu_wait = cpu_wait;
-		cpu_wait = loongson2_cpu_wait;
-	}
-
-	return ret;
+	return 0;
 }
 
-static void __exit cpufreq_exit(void)
+static void __exit l2_cpufreq_exit(void)
 {
-	if (!nowait && saved_cpu_wait)
-		cpu_wait = saved_cpu_wait;
-	cpufreq_unregister_driver(&loongson2_cpufreq_driver);
-	cpufreq_unregister_notifier(&loongson2_cpufreq_notifier_block,
-				    CPUFREQ_TRANSITION_NOTIFIER);
-
-	platform_driver_unregister(&platform_driver);
+	loongson_cpufreq_driver_loaded = 0;
+	cpufreq_unregister_driver(&l2_cpufreq_driver);
 }
 
-module_init(cpufreq_init);
-module_exit(cpufreq_exit);
+module_init(l2_cpufreq_init);
+module_exit(l2_cpufreq_exit);
 
-module_param(nowait, uint, 0644);
-MODULE_PARM_DESC(nowait, "Disable Loongson-2F specific wait");
-
-MODULE_AUTHOR("Yanhua <yanh@lemote.com>");
-MODULE_DESCRIPTION("cpufreq driver for Loongson2F");
+MODULE_AUTHOR("Wu Zhangjin <wuzhangjin@gmail.com>");
+MODULE_DESCRIPTION("cpufreq driver for Loongson-2");
 MODULE_LICENSE("GPL");

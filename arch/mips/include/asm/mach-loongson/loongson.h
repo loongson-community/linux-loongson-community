@@ -241,12 +241,21 @@ extern int mach_i8259_irq(void);
 	((((ADDR)>>26) & LOONGSON_PCIMAP_PCIMAP_LO0) << ((WIN)*6))
 
 #ifdef CONFIG_CPU_SUPPORTS_CPUFREQ
-#include <linux/cpufreq.h>
-extern void loongson2_cpu_wait(void);
-extern struct cpufreq_frequency_table loongson2_clockmod_table[];
-
 /* Chip Config */
 #define LOONGSON_CHIPCFG0		LOONGSON_REG(LOONGSON_REGBASE + 0x80)
+#define LOONGSON_GET_CPUFREQ()		(LOONGSON_CHIPCFG0 & 7)
+
+#include <linux/spinlock_types.h>
+#include <linux/spinlock.h>
+extern raw_spinlock_t loongson_cpufreq_lock;
+extern bool loongson_cpufreq_driver_loaded;
+
+#define LOONGSON_SET_CPUFREQ(level)	do {				\
+	unsigned long flags;						\
+	raw_spin_lock_irqsave(&loongson_cpufreq_lock, flags);		\
+	LOONGSON_CHIPCFG0 = (LOONGSON_CHIPCFG0 & (~7)) | (level);	\
+	raw_spin_unlock_irqrestore(&loongson_cpufreq_lock, flags);	\
+} while (0)
 #endif
 
 /*

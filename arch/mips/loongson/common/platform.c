@@ -12,7 +12,7 @@
 #include <linux/platform_device.h>
 
 static struct platform_device loongson2_cpufreq_device = {
-	.name = "loongson2_cpufreq",
+	.name = "l2_cpufreq",
 	.id = -1,
 };
 
