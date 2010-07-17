@@ -75,6 +75,7 @@ static int ftrace_modify_code(unsigned long ip, unsigned int new_code)
 
 	/* *(unsigned int *)ip = new_code; */
 	safe_store_code(new_code, ip, faulted);
+
 	if (unlikely(faulted))
 		return -EFAULT;
 
@@ -123,7 +124,6 @@ int ftrace_make_nop(struct module *mod,
 		 */
 		new = INSN_NOP;
 	}
-
 	return ftrace_modify_code(ip, new);
 }
 
@@ -138,13 +138,15 @@ int ftrace_make_call(struct dyn_ftrace *rec, unsigned long addr)
 	return ftrace_modify_code(ip, new);
 }
 
+#define FTRACE_CALL_IP ((unsigned long)(&ftrace_call))
+
 int ftrace_update_ftrace_func(ftrace_func_t func)
 {
 	unsigned int new;
 
 	new = INSN_JAL((unsigned long)func);
 
-	return ftrace_modify_code((unsigned long)(&ftrace_call), new);
+	return ftrace_modify_code(FTRACE_CALL_IP, new);
 }
 
 int __init ftrace_dyn_arch_init(void *data)
@@ -165,6 +167,7 @@ int __init ftrace_dyn_arch_init(void *data)
 #ifdef CONFIG_FUNCTION_GRAPH_TRACER
 
 #ifdef CONFIG_DYNAMIC_FTRACE
+
 extern void ftrace_graph_call(void);
 #define FTRACE_GRAPH_CALL_IP	((unsigned long)(&ftrace_graph_call))
 
@@ -212,6 +215,7 @@ unsigned long ftrace_get_parent_addr(unsigned long self_addr,
 
 		/* get the code at "ip": code = *(unsigned int *)ip; */
 		safe_load_code(code, ip, faulted);
+
 		if (unlikely(faulted))
 			return 0;
 		/*
@@ -221,9 +225,10 @@ unsigned long ftrace_get_parent_addr(unsigned long self_addr,
 		 */
 		if ((code & S_R_SP) != S_R_SP)
 			return parent_addr;
-	} while (((code & INSN_S_RA_SP) != INSN_S_RA_SP));
 
-	sp = fp + (code & STACK_OFFSET_MASK);
+	} while (((code & S_RA_SP) != S_RA_SP));
+
+	sp = fp + (code & OFFSET_MASK);
 
 	/* ra = *(unsigned long *)sp; */
 	safe_load_stack(ra, sp, faulted);
@@ -234,6 +239,7 @@ unsigned long ftrace_get_parent_addr(unsigned long self_addr,
 		return sp;
 	return 0;
 }
+
 #endif	/* !KBUILD_MCOUNT_RA_ADDRESS */
 
 /*
@@ -243,11 +249,11 @@ unsigned long ftrace_get_parent_addr(unsigned long self_addr,
 void prepare_ftrace_return(unsigned long *parent, unsigned long self_addr,
 			   unsigned long fp)
 {
-	int faulted;
 	unsigned long old;
 	struct ftrace_graph_ent trace;
 	unsigned long return_hooker = (unsigned long)
 	    &return_to_handler;
+	int faulted;
 
 	if (unlikely(atomic_read(&current->tracing_graph_pause)))
 		return;

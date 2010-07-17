@@ -19,14 +19,6 @@
 extern void _mcount(void);
 #define mcount _mcount
 
-/*
- * If the Instruction Pointer is in module space (0xc0000000), return true;
- * otherwise, it is in kernel space (0x80000000), return false.
- *
- * FIXME: This may not work in some cases.
- */
-#define in_module(ip) (unlikely((ip) & 0x40000000))
-
 #define safe_load(load, src, dst, error)		\
 do {							\
 	asm volatile (					\
