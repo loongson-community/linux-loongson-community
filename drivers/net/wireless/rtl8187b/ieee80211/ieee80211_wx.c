@@ -275,7 +275,7 @@ static inline char *rtl819x_translate_scan(struct ieee80211_device *ieee,
 	iwe.cmd = IWEVCUSTOM;
 	p = custom;
 	p += snprintf(p, MAX_CUSTOM_LEN - (p - custom),
-		      " Last beacon: %lums ago", (jiffies - network->last_scanned) / (HZ / 100));
+		      " Last beacon: %lums ago", (jiffies - network->last_scanned) * 100 / HZ );
 	iwe.u.data.length = p - custom;
 	if (iwe.u.data.length)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27) || defined (QMI_26_6))
