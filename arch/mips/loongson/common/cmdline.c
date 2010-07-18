@@ -71,6 +71,11 @@ void __init prom_init_cmdline(void)
 		if ((strstr(arcs_cmdline, "vga=")) == NULL)
 			strcat(arcs_cmdline, " vga=0x313");
 		break;
+	case MACH_DEXXON_GDIUM2F10:
+		/* gdium has a 1024x600 screen */
+		if ((strstr(arcs_cmdline, "video=")) == NULL)
+			strcat(arcs_cmdline, " video=sm501fb:1024x600@60");
+		break;
 	default:
 		break;
 	}

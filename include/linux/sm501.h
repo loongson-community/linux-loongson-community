@@ -27,6 +27,9 @@ extern unsigned long sm501_set_clock(struct device *dev,
 extern unsigned long sm501_find_clock(struct device *dev,
 				      int clksrc, unsigned long req_freq);
 
+extern int sm501_configure_gpio(struct device *dev,
+				unsigned int gpio, unsigned char mode);
+
 /* sm501_misc_control
  *
  * Modify the SM501's MISC_CONTROL register
@@ -122,6 +125,7 @@ struct sm501_reg_init {
 #define SM501_USE_AC97		(1<<7)
 #define SM501_USE_I2S		(1<<8)
 #define SM501_USE_GPIO		(1<<9)
+#define SM501_USE_PWM		(1<<10)
 
 #define SM501_USE_ALL		(0xffffffff)
 

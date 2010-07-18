@@ -43,6 +43,37 @@
 
 #define NR_PALETTE	256
 
+static char *mode_option;
+module_param_named(mode, mode_option, charp, 0);
+MODULE_PARM_DESC(mode, "Initial mode");
+
+/*
+ * SM501 Mode
+ *    1024X600 is not defined in default mode(modedb.c).
+ */
+static const struct fb_videomode sm501_modedb[] __initdata = {
+ {
+	/* 1024x600-60 */
+	NULL,  60, 1024, 600, 20423, 144,  40, 18, 1, 104, 3,
+  FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED
+ },
+ {
+	 /* 1024x600-70 */
+	 NULL,  70, 1024, 600, 17211, 152,  48, 21, 1, 104, 3,
+  FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED
+ },
+ {
+	 /* 1024x600-75 */
+	 NULL,  75, 1024, 600, 15822, 160,  56, 23, 1, 104, 3,
+  FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED
+ },
+ {
+	 /* 1024x600-85 */
+	 NULL,  85, 1024, 600, 13730, 168,  56, 26, 1, 112, 3,
+  FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT, FB_VMODE_NONINTERLACED
+ }
+};
+
 enum sm501_controller {
 	HEAD_CRT	= 0,
 	HEAD_PANEL	= 1,
@@ -1729,8 +1760,16 @@ static int sm501fb_init_fb(struct fb_info *fb,
 			fb->var.xres_virtual = fb->var.xres;
 			fb->var.yres_virtual = fb->var.yres;
 		} else {
-			ret = fb_find_mode(&fb->var, fb,
-					   NULL, NULL, 0, NULL, 8);
+			if (mode_option) {
+				dev_info(info->dev, "using user defined mode:"
+						" %s\n", mode_option);
+				ret = fb_find_mode(&fb->var, fb,
+						mode_option, sm501_modedb,
+						ARRAY_SIZE(sm501_modedb),
+						NULL, fb->var.bits_per_pixel);
+			} else
+				ret = fb_find_mode(&fb->var, fb,
+						NULL, NULL, 0, NULL, 8);
 
 			if (ret == 0 || ret == 4) {
 				dev_err(info->dev,
@@ -1856,7 +1895,11 @@ static int __devinit sm501fb_probe(struct platform_device *pdev)
 {
 	struct sm501fb_info *info;
 	struct device *dev = &pdev->dev;
+	unsigned int panel_enabled, head[2];
+	char *driver_name[2];
+	unsigned long ctrl;
 	int ret;
+	int i;
 
 	/* allocate our framebuffers */
 
@@ -1907,23 +1950,37 @@ static int __devinit sm501fb_probe(struct platform_device *pdev)
 		goto err_probed_panel;
 	}
 
-	ret = sm501fb_start_one(info, HEAD_CRT, driver_name_crt);
-	if (ret) {
-		dev_err(dev, "failed to start CRT\n");
-		goto err_started;
+	ctrl = readl(info->regs + SM501_DC_PANEL_CONTROL);
+	panel_enabled = (ctrl & SM501_DC_PANEL_CONTROL_EN) ? 1 : 0;
+	if (panel_enabled) {
+		head[0] = HEAD_PANEL;
+		driver_name[0] = driver_name_pnl;
+		head[1] = HEAD_CRT;
+		driver_name[1] = driver_name_crt;
+	} else {
+		head[0] = HEAD_CRT;
+		driver_name[0] = driver_name_crt;
+		head[1] = HEAD_PANEL;
+		driver_name[1] = driver_name_pnl;
 	}
 
-	ret = sm501fb_start_one(info, HEAD_PANEL, driver_name_pnl);
-	if (ret) {
-		dev_err(dev, "failed to start Panel\n");
-		goto err_started_crt;
+	for (i = 0; i < ARRAY_SIZE(head); i++) {
+		ret = sm501fb_start_one(info, head[i], driver_name[i]);
+		if (ret) {
+			dev_err(dev, "failed to start %s\n", driver_name[i]);
+			if (i == 1) {
+				unregister_framebuffer(info->fb[head[0]]);
+				sm501_free_init_fb(info, head[0]);
+			}
+			goto err_start_one;
+		}
 	}
 
 	/* create device files */
 
 	ret = device_create_file(dev, &dev_attr_crt_src);
 	if (ret)
-		goto err_started_panel;
+		goto err_started;
 
 	ret = device_create_file(dev, &dev_attr_fbregs_pnl);
 	if (ret)
@@ -1942,15 +1999,13 @@ err_attached_pnlregs_file:
 err_attached_crtsrc_file:
 	device_remove_file(dev, &dev_attr_crt_src);
 
-err_started_panel:
+err_started:
 	unregister_framebuffer(info->fb[HEAD_PANEL]);
 	sm501_free_init_fb(info, HEAD_PANEL);
-
-err_started_crt:
 	unregister_framebuffer(info->fb[HEAD_CRT]);
 	sm501_free_init_fb(info, HEAD_CRT);
 
-err_started:
+err_start_one:
 	sm501fb_stop(info);
 
 err_probed_panel:
@@ -2136,8 +2191,32 @@ static struct platform_driver sm501fb_driver = {
 	},
 };
 
+#ifndef MODULE
+static int  __devinit sm501fb_setup(char *options)
+{
+	char *this_opt;
+
+	if (!options || !*options)
+		return 0;
+
+	while ((this_opt = strsep(&options, ",")) != NULL) {
+		if (!*this_opt)
+			continue;
+		mode_option = this_opt;
+	}
+	return 0;
+}
+#endif
+
 static int __devinit sm501fb_init(void)
 {
+#ifndef MODULE
+	char *option = NULL;
+
+	if (fb_get_options("sm501fb", &option))
+		return -ENODEV;
+	sm501fb_setup(option);
+#endif
 	return platform_driver_register(&sm501fb_driver);
 }
 
