@@ -35,7 +35,7 @@
 void (*cpu_wait)(void);
 EXPORT_SYMBOL(cpu_wait);
 
-#if defined(CONFIG_CPU_LOONGSON2) && defined(CONFIG_CPU_SUPPORTS_CPUFREQ)
+#if defined(CONFIG_CPU_LOONGSON2) && defined(CONFIG_MIPS_CPUFREQ)
 
 #include <loongson.h>
 DEFINE_RAW_SPINLOCK(loongson_cpufreq_lock);
