@@ -47,10 +47,13 @@ static void loongson2_wait(void)
 	/*
 	 * Currently, there is no wait instruction in Loongson platform,
 	 * herein, we emulate the wait mode via setting the cpu frequency to
-	 * the lowest level to put it into the standby mode, which can be waked
-	 * up by external interrupts
+	 * the 2nd lowest level, which can be waked up by the cpufreq module or
+	 * by ourself.
+	 *
+	 * Herein, we can not put it into the lowest level for that level can
+	 * only be waked up the external interrupts.
 	 */
-	LOONGSON_SET_CPUFREQ(0);
+	LOONGSON_SET_CPUFREQ(1);
 
 	/*
 	 * While waked up from standby mode, the cpu frequency is set to the
