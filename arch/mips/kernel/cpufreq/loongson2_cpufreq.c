@@ -67,7 +67,9 @@ static unsigned int l2_cpufreq_get(unsigned int cpu)
 
 static void l2_cpufreq_set(unsigned int newstate)
 {
+	raw_spin_lock(&loongson_cpufreq_lock);
 	LOONGSON_SET_CPUFREQ(clockmod_table[newstate].index - 1);
+	raw_spin_unlock(&loongson_cpufreq_lock);
 }
 
 static int l2_cpufreq_target(struct cpufreq_policy *policy, unsigned int
