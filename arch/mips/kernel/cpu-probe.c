@@ -44,25 +44,34 @@ EXPORT_SYMBOL(loongson_cpufreq_driver_loaded);
 
 static void loongson2_wait(void)
 {
+	u32 cpufreq;
+
+	raw_spin_lock(&loongson_cpufreq_lock);
+
+	/* Record the cpu frequency */
+	cpufreq = LOONGSON_GET_CPUFREQ();
+
 	/*
 	 * Currently, there is no wait instruction in Loongson platform,
 	 * herein, we emulate the wait mode via setting the cpu frequency to
-	 * the 2nd lowest level, which can be waked up by the cpufreq module or
-	 * by ourself.
-	 *
-	 * Herein, we can not put it into the lowest level for that level can
-	 * only be waked up the external interrupts.
+	 * the lowest level to put it into the standby mode, which can be waked
+	 * up by external interrupts
 	 */
-	LOONGSON_SET_CPUFREQ(1);
+	LOONGSON_SET_CPUFREQ(0);
 
 	/*
 	 * While waked up from standby mode, the cpu frequency is set to the
 	 * second lowest level, about 199M, which is too slow. To make the
-	 * system run well even if no cpufreq driver started, we just set it as
-	 * the highest level.
+	 * system run well if no cpufreq driver started, we just set it as the
+	 * highest level. if cpufreq module is loaded, just restore the
+	 * recorded value.
 	 */
 	if (!loongson_cpufreq_driver_loaded)
 		LOONGSON_SET_CPUFREQ(7);
+	else
+		LOONGSON_SET_CPUFREQ(cpufreq);
+
+	raw_spin_unlock(&loongson_cpufreq_lock);
 }
 #else
 #define loongson2_wait	NULL

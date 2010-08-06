@@ -257,12 +257,10 @@ static inline void do_perfcnt_IRQ(void)
 extern raw_spinlock_t loongson_cpufreq_lock;
 extern bool loongson_cpufreq_driver_loaded;
 
-#define LOONGSON_SET_CPUFREQ(level)	do {				\
-	unsigned long flags;						\
-	raw_spin_lock_irqsave(&loongson_cpufreq_lock, flags);		\
-	LOONGSON_CHIPCFG0 = (LOONGSON_CHIPCFG0 & (~7)) | (level);	\
-	raw_spin_unlock_irqrestore(&loongson_cpufreq_lock, flags);	\
+#define LOONGSON_SET_CPUFREQ(level)	do { \
+	LOONGSON_CHIPCFG0 = (LOONGSON_CHIPCFG0 & (~7)) | (level); \
 } while (0)
+
 #endif
 
 /*

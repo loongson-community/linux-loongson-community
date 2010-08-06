@@ -27,7 +27,9 @@ static void reset_cpu(void)
 	/*
 	 * reset cpu to full speed
 	 */
+	raw_spin_lock(&loongson_cpufreq_lock);
 	LOONGSON_SET_CPUFREQ(7);
+	raw_spin_unlock(&loongson_cpufreq_lock);
 }
 
 /* reset support for fuloong2f */
