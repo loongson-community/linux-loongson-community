@@ -82,7 +82,7 @@ void ml2f_reboot(void)
 	reset_cpu();
 
 	/* sending an reset signal to EC(embedded controller) */
-	ec_write(REG_RESET, BIT_RESET_ON);
+	ec_write(REG_RESET, ON);
 }
 
 #define yl2f89_reboot ml2f_reboot

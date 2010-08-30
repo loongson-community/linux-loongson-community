@@ -88,7 +88,7 @@ EXPORT_SYMBOL(yeeloong_report_lid_status);
 static void yeeloong_lid_update_task(struct work_struct *work)
 {
 	if (yeeloong_report_lid_status)
-		yeeloong_report_lid_status(BIT_LID_DETECT_ON);
+		yeeloong_report_lid_status(ON);
 }
 
 int wakeup_loongson(void)
@@ -118,7 +118,7 @@ int wakeup_loongson(void)
 			/* check the LID status */
 			lid_status = ec_read(REG_LID_DETECT);
 			/* wakeup cpu when people open the LID */
-			if (lid_status == BIT_LID_DETECT_ON) {
+			if (lid_status == ON) {
 				/* If we call it directly here, the WARNING
 				 * will be sent out by getnstimeofday
 				 * via "WARN_ON(timekeeping_suspended);"
