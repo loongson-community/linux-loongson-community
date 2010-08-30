@@ -119,9 +119,6 @@ static void yeeloong_backlight_exit(void)
 
 static struct power_supply yeeloong_ac, yeeloong_bat;
 
-#define AC_OFFLINE          0
-#define AC_ONLINE           1
-
 static int yeeloong_get_ac_props(struct power_supply *psy,
 				enum power_supply_property psp,
 				union power_supply_propval *val)
@@ -129,7 +126,7 @@ static int yeeloong_get_ac_props(struct power_supply *psy,
 	switch (psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
 		val->intval = ((ec_read(REG_BAT_POWER)) & BIT_BAT_POWER_ACIN) ?
-			AC_ONLINE : AC_OFFLINE;
+			ON : OFF;
 		break;
 	default:
 		return -EINVAL;
@@ -409,7 +406,7 @@ static void set_fan_pwm(int value)
 
 	/* We must ensure the fan is on */
 	if (value > 0)
-		ec_write(REG_FAN_CONTROL, BIT_FAN_CONTROL_ON);
+		ec_write(REG_FAN_CONTROL, ON);
 
 	ec_write(REG_FAN_SPEED_LEVEL, value);
 }
@@ -619,7 +616,7 @@ static int crt_video_output_set(struct output_device *od)
 
 	status = !!od->request_state;
 
-	if (ec_read(REG_CRT_DETECT) == BIT_CRT_DETECT_PLUG)
+	if (ec_read(REG_CRT_DETECT) == ON)
 		display_vo_set(CRT, status);
 
 	return 0;
@@ -658,7 +655,7 @@ static int yeeloong_vo_init(void)
 		return ret;
 	}
 	/* Ensure LCD is on by default */
-	yeeloong_lcd_vo_set(BIT_DISPLAY_LCD_ON);
+	yeeloong_lcd_vo_set(ON);
 
 	crt_output_dev = video_output_register("CRT", NULL, NULL,
 			&crt_output_properties);
@@ -671,7 +668,7 @@ static int yeeloong_vo_init(void)
 
 	/* Turn off CRT by default, and will be enabled when the CRT
 	 * connectting event reported by SCI */
-	yeeloong_crt_vo_set(BIT_CRT_DETECT_UNPLUG);
+	yeeloong_crt_vo_set(OFF);
 
 	return 0;
 }
@@ -744,15 +741,19 @@ static int report_lid_switch(int status)
 	return status;
 }
 
+static void yeeloong_vo_set(int lcd_status, int crt_status)
+{
+	yeeloong_lcd_vo_set(lcd_status);
+	yeeloong_crt_vo_set(crt_status);
+}
+
 static int crt_detect_handler(int status)
 {
-	if (status) {
-		yeeloong_crt_vo_set(BIT_CRT_DETECT_PLUG);
-		yeeloong_lcd_vo_set(BIT_DISPLAY_LCD_OFF);
-	} else {
-		yeeloong_lcd_vo_set(BIT_DISPLAY_LCD_ON);
-		yeeloong_crt_vo_set(BIT_CRT_DETECT_UNPLUG);
-	}
+	if (status)
+		yeeloong_vo_set(OFF, ON);
+	else
+		yeeloong_vo_set(ON, OFF);
+
 	return status;
 }
 
@@ -772,7 +773,7 @@ static int switchvideomode_handler(int status)
 
 	/* Only enable switch video output button
 	 * when CRT is connected */
-	if (ec_read(REG_CRT_DETECT) == BIT_CRT_DETECT_UNPLUG)
+	if (ec_read(REG_CRT_DETECT) == OFF)
 		return 0;
 	/* 0. no CRT connected: LCD on, CRT off
 	 * 1. BOTH on
@@ -786,24 +787,20 @@ static int switchvideomode_handler(int status)
 
 	switch (video_output_status) {
 	case 1:
-		yeeloong_lcd_vo_set(BIT_DISPLAY_LCD_ON);
-		yeeloong_crt_vo_set(BIT_CRT_DETECT_PLUG);
+		yeeloong_vo_set(ON, ON);
 		break;
 	case 2:
-		yeeloong_lcd_vo_set(BIT_DISPLAY_LCD_OFF);
-		yeeloong_crt_vo_set(BIT_CRT_DETECT_PLUG);
+		yeeloong_vo_set(OFF, ON);
 		break;
 	case 3:
-		yeeloong_lcd_vo_set(BIT_DISPLAY_LCD_OFF);
-		yeeloong_crt_vo_set(BIT_CRT_DETECT_UNPLUG);
+		yeeloong_vo_set(OFF, OFF);
 		break;
 	case 4:
-		yeeloong_lcd_vo_set(BIT_DISPLAY_LCD_ON);
-		yeeloong_crt_vo_set(BIT_CRT_DETECT_UNPLUG);
+		yeeloong_vo_set(ON, OFF);
 		break;
 	default:
 		/* Ensure LCD is on */
-		yeeloong_lcd_vo_set(BIT_DISPLAY_LCD_ON);
+		yeeloong_lcd_vo_set(ON);
 		break;
 	}
 	return video_output_status;
@@ -1046,7 +1043,7 @@ static int yeeloong_hotkey_init(void)
 	}
 
 	/* Update the current status of LID */
-	report_lid_switch(BIT_LID_DETECT_ON);
+	report_lid_switch(ON);
 
 #ifdef CONFIG_LOONGSON_SUSPEND
 	/* Install the real yeeloong_report_lid_status for pm.c */
@@ -1088,9 +1085,9 @@ static int yeeloong_suspend(struct device *dev)
 
 {
 	if (ec_version_before("EC_VER=PQ1D27"))
-		yeeloong_lcd_vo_set(BIT_DISPLAY_LCD_OFF);
-	yeeloong_crt_vo_set(BIT_CRT_DETECT_UNPLUG);
-	usb_ports_set(BIT_USB_FLAG_OFF);
+		yeeloong_lcd_vo_set(OFF);
+	yeeloong_crt_vo_set(OFF);
+	usb_ports_set(OFF);
 
 	return 0;
 }
@@ -1098,9 +1095,9 @@ static int yeeloong_suspend(struct device *dev)
 static int yeeloong_resume(struct device *dev)
 {
 	if (ec_version_before("EC_VER=PQ1D27"))
-		yeeloong_lcd_vo_set(BIT_DISPLAY_LCD_ON);
-	yeeloong_crt_vo_set(BIT_CRT_DETECT_PLUG);
-	usb_ports_set(BIT_USB_FLAG_ON);
+		yeeloong_lcd_vo_set(ON);
+	yeeloong_crt_vo_set(ON);
+	usb_ports_set(ON);
 
 	return 0;
 }
