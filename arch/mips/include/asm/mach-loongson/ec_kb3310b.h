@@ -24,6 +24,9 @@ extern int ec_get_event_num(void);
 typedef int (*sci_handler) (int status);
 extern sci_handler yeeloong_report_lid_status;
 
+#define ON	1
+#define OFF	0
+
 #define SCI_IRQ_NUM 0x0A
 
 /*
@@ -61,11 +64,7 @@ extern sci_handler yeeloong_report_lid_status;
 #define	BIT_FAN_AUTO		0
 #define	BIT_FAN_MANUAL		1
 #define	REG_FAN_CONTROL		0xF4D2
-#define	BIT_FAN_CONTROL_ON	(1 << 0)
-#define	BIT_FAN_CONTROL_OFF	(0 << 0)
 #define	REG_FAN_STATUS		0xF4DA
-#define	BIT_FAN_STATUS_ON	(1 << 0)
-#define	BIT_FAN_STATUS_OFF	(0 << 0)
 #define	REG_FAN_SPEED_HIGH	0xFE22
 #define	REG_FAN_SPEED_LOW	0xFE23
 #define	REG_FAN_SPEED_LEVEL	0xF4CC
@@ -106,8 +105,6 @@ extern sci_handler yeeloong_report_lid_status;
 #define	BIT_BAT_CHARGE_STATUS_OVERTEMP	(1 << 2)
 #define	BIT_BAT_CHARGE_STATUS_PRECHG	(1 << 1)
 #define	REG_BAT_STATE			0xF482
-#define	BIT_BAT_STATE_CHARGING		(1 << 1)
-#define	BIT_BAT_STATE_DISCHARGING	(1 << 0)
 #define	REG_BAT_POWER			0xF440
 #define	BIT_BAT_POWER_S3		(1 << 2)
 #define	BIT_BAT_POWER_ON		(1 << 1)
@@ -121,28 +118,16 @@ extern sci_handler yeeloong_report_lid_status;
 #define	REG_USB0_FLAG		0xF461
 #define	REG_USB1_FLAG		0xF462
 #define	REG_USB2_FLAG		0xF463
-#define	BIT_USB_FLAG_ON		1
-#define	BIT_USB_FLAG_OFF	0
 /* LID */
 #define	REG_LID_DETECT		0xF4BD
-#define	BIT_LID_DETECT_ON	1
-#define	BIT_LID_DETECT_OFF	0
 /* CRT */
 #define	REG_CRT_DETECT		0xF4AD
-#define	BIT_CRT_DETECT_PLUG	1
-#define	BIT_CRT_DETECT_UNPLUG	0
 /* LCD backlight brightness adjust: 9 levels */
 #define	REG_DISPLAY_BRIGHTNESS	0xF4F5
-/* Black screen Status */
-#define	BIT_DISPLAY_LCD_ON	1
-#define	BIT_DISPLAY_LCD_OFF	0
 /* LCD backlight control: off/restore */
 #define	REG_BACKLIGHT_CTRL	0xF7BD
-#define	BIT_BACKLIGHT_ON	1
-#define	BIT_BACKLIGHT_OFF	0
 /* Reset the machine auto-clear: rd/wr */
 #define	REG_RESET		0xF4EC
-#define	BIT_RESET_ON		1
 /* Light the led: rd/wr */
 #define	REG_LED			0xF4C8
 #define	BIT_LED_RED_POWER	(1 << 0)
@@ -156,15 +141,9 @@ extern sci_handler yeeloong_report_lid_status;
 #define	BIT_LED_TEST_OUT	0
 /* Camera on/off */
 #define	REG_CAMERA_STATUS	0xF46A
-#define	BIT_CAMERA_STATUS_ON	1
-#define	BIT_CAMERA_STATUS_OFF	0
 #define	REG_CAMERA_CONTROL	0xF7B7
-#define	BIT_CAMERA_CONTROL_OFF	0
-#define	BIT_CAMERA_CONTROL_ON	1
 /* Wlan Status */
 #define	REG_WLAN		0xF4FA
-#define	BIT_WLAN_ON		1
-#define	BIT_WLAN_OFF		0
 #define	REG_DISPLAY_LCD		0xF79F
 
 /* SCI Event Number from EC */
