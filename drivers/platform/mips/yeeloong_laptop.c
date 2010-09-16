@@ -1094,10 +1094,16 @@ static int yeeloong_suspend(struct device *dev)
 
 static int yeeloong_resume(struct device *dev)
 {
+	int ret;
+
 	if (ec_version_before("EC_VER=PQ1D27"))
 		yeeloong_lcd_vo_set(ON);
 	yeeloong_crt_vo_set(ON);
 	usb_ports_set(ON);
+
+	ret = sci_irq_init();
+	if (ret)
+		return -EFAULT;
 
 	return 0;
 }
