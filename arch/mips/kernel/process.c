@@ -64,12 +64,12 @@ void __noreturn cpu_idle(void)
 			smtc_idle_loop_hook();
 #endif
 
+			/* Don't trace irqs off for idle */
+			stop_critical_timings();
 			if (cpu_wait) {
-				/* Don't trace irqs off for idle */
-				stop_critical_timings();
 				(*cpu_wait)();
-				start_critical_timings();
 			}
+			start_critical_timings();
 		}
 #ifdef CONFIG_HOTPLUG_CPU
 		if (!cpu_online(cpu) && !cpu_isset(cpu, cpu_callin_map) &&
