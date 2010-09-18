@@ -18,13 +18,11 @@
  *    Percentage    = index of clockmod_table[] / total levels
  *	25%		2
  *	50%		4
- *	75%		6
  *	100%		8
  */
 #define DC_RESV	0
-#define	DC_25PT	2
-#define	DC_50PT	4
-#define DC_75PT	6
+#define DC_25PT 2
+#define DC_50PT 4
 #define DC_100PT 8
 
 /*
@@ -35,7 +33,6 @@ static struct cpufreq_frequency_table clockmod_table[] = {
 	{DC_RESV, CPUFREQ_ENTRY_INVALID},
 	{DC_25PT, 0},
 	{DC_50PT, 0},
-	{DC_75PT, 0},
 	{DC_100PT, 0},
 	{DC_RESV, CPUFREQ_TABLE_END},
 };
@@ -56,7 +53,6 @@ static inline unsigned int idx_to_freq(unsigned int idx)
  * Map from index of clockmod_table to chipcfg:
  *	Index	lowest 3bits of Chipcfg
  *	8	7
- *	6	5
  *	4	3
  *	2	1
  */
