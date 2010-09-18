@@ -41,12 +41,20 @@ EXPORT_SYMBOL(cpu_wait);
 DEFINE_RAW_SPINLOCK(loongson_cpufreq_lock);
 bool loongson_cpufreq_driver_loaded;
 EXPORT_SYMBOL(loongson_cpufreq_driver_loaded);
+EXPORT_SYMBOL(loongson_cpufreq_lock);
 
 static void loongson2_wait(void)
 {
 	u32 cpufreq;
+	ktime_t kt1, kt2;
+	s64 idle_time_ns;
 
 	raw_spin_lock(&loongson_cpufreq_lock);
+
+	local_irq_disable();
+	kt1 = ktime_get_real();
+	sched_clock_idle_sleep_event();
+	local_irq_enable();
 
 	/* Record the cpu frequency */
 	cpufreq = LOONGSON_GET_CPUFREQ();
@@ -66,10 +74,19 @@ static void loongson2_wait(void)
 	 * highest level. if cpufreq module is loaded, just restore the
 	 * recorded value.
 	 */
-	if (!loongson_cpufreq_driver_loaded)
-		LOONGSON_SET_CPUFREQ(7);
-	else
+	if (likely(loongson_cpufreq_driver_loaded))
 		LOONGSON_SET_CPUFREQ(cpufreq);
+	else
+		LOONGSON_SET_CPUFREQ(7);
+
+	/*
+	 * report back to the scheduler how long we deep-idled
+	 */
+	kt2 = ktime_get_real();
+	idle_time_ns = ktime_to_ns(ktime_sub(kt2, kt1));
+	local_irq_disable();
+	sched_clock_idle_wakeup_event(idle_time_ns);
+	local_irq_enable();
 
 	raw_spin_unlock(&loongson_cpufreq_lock);
 }
