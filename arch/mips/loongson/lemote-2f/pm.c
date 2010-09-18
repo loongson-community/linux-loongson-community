@@ -100,7 +100,7 @@ int wakeup_loongson(void)
 	if (irq < 0)
 		return 0;
 
-	pr_info("%s: irq = %d\n", __func__, irq);
+	pr_debug("%s: irq = %d\n", __func__, irq);
 
 	if (irq == I8042_KBD_IRQ)
 		return 1;
