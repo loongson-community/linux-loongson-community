@@ -119,14 +119,20 @@ static void yeeloong_backlight_exit(void)
 
 static struct power_supply yeeloong_ac, yeeloong_bat;
 
+#define RET (val->intval)
+
+static inline bool is_ac_in(void)
+{
+	return !!(ec_read(REG_BAT_POWER) & BIT_BAT_POWER_ACIN);
+}
+
 static int yeeloong_get_ac_props(struct power_supply *psy,
 				enum power_supply_property psp,
 				union power_supply_propval *val)
 {
 	switch (psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
-		val->intval = ((ec_read(REG_BAT_POWER)) & BIT_BAT_POWER_ACIN) ?
-			ON : OFF;
+		RET = is_ac_in();
 		break;
 	default:
 		return -EINVAL;
@@ -148,89 +154,20 @@ static struct power_supply yeeloong_ac = {
 };
 
 #define BAT_CAP_CRITICAL 5
-#define BAT_CAP_HIGH     99
+#define BAT_CAP_HIGH     95
 
 #define get_bat_info(type) \
 	((ec_read(REG_BAT_##type##_HIGH) << 8) | \
 	 (ec_read(REG_BAT_##type##_LOW)))
 
-static int yeeloong_bat_get_ex_property(enum power_supply_property psp,
-				     union power_supply_propval *val)
+static inline bool is_bat_in(void)
 {
-	int bat_in, curr_cap, cap_level, status, charge, health;
+	return !!(ec_read(REG_BAT_STATUS) & BIT_BAT_STATUS_IN);
+}
 
-	status = ec_read(REG_BAT_STATUS);
-	bat_in = status & BIT_BAT_STATUS_IN;
-	curr_cap = get_bat_info(RELATIVE_CAP);
-	if (status & BIT_BAT_STATUS_FULL)
-		curr_cap = 100;
-
-	switch (psp) {
-	case POWER_SUPPLY_PROP_PRESENT:
-		val->intval = bat_in;
-		break;
-	case POWER_SUPPLY_PROP_CAPACITY:
-		val->intval = curr_cap;
-		break;
-	case POWER_SUPPLY_PROP_CAPACITY_LEVEL:
-		cap_level = POWER_SUPPLY_CAPACITY_LEVEL_NORMAL;
-		if (status & BIT_BAT_STATUS_LOW) {
-			cap_level = POWER_SUPPLY_CAPACITY_LEVEL_LOW;
-			if (curr_cap <= BAT_CAP_CRITICAL)
-				cap_level =
-					POWER_SUPPLY_CAPACITY_LEVEL_CRITICAL;
-		} else if (status & BIT_BAT_STATUS_FULL) {
-			cap_level = POWER_SUPPLY_CAPACITY_LEVEL_FULL;
-			if (curr_cap >= BAT_CAP_HIGH)
-				cap_level = POWER_SUPPLY_CAPACITY_LEVEL_HIGH;
-		} else if (status & BIT_BAT_STATUS_DESTROY)
-			cap_level = POWER_SUPPLY_CAPACITY_LEVEL_UNKNOWN;
-		val->intval = cap_level;
-		break;
-	case POWER_SUPPLY_PROP_TIME_TO_EMPTY_NOW:
-		/* seconds */
-		val->intval = bat_in ? (curr_cap - 3) * 54 + 142 : 0;
-		break;
-	case POWER_SUPPLY_PROP_STATUS:
-		if (!bat_in)
-			charge = POWER_SUPPLY_STATUS_UNKNOWN;
-		else {
-			if (status & BIT_BAT_STATUS_FULL) {
-				val->intval = POWER_SUPPLY_STATUS_FULL;
-				break;
-			}
-
-			charge = ec_read(REG_BAT_CHARGE);
-			if (charge & FLAG_BAT_CHARGE_DISCHARGE)
-				charge = POWER_SUPPLY_STATUS_DISCHARGING;
-			else if (charge & FLAG_BAT_CHARGE_CHARGE)
-				charge = POWER_SUPPLY_STATUS_CHARGING;
-			else
-				charge = POWER_SUPPLY_STATUS_NOT_CHARGING;
-		}
-		val->intval = charge;
-		break;
-	case POWER_SUPPLY_PROP_HEALTH:
-		if (!bat_in) /* no battery present */
-			health = POWER_SUPPLY_HEALTH_UNKNOWN;
-		else { /* Assume it is good */
-			health = POWER_SUPPLY_HEALTH_GOOD;
-			if (status &
-				(BIT_BAT_STATUS_DESTROY | BIT_BAT_STATUS_LOW))
-				health = POWER_SUPPLY_HEALTH_DEAD;
-			if (ec_read(REG_BAT_CHARGE_STATUS) &
-				BIT_BAT_CHARGE_STATUS_OVERTEMP)
-				health = POWER_SUPPLY_HEALTH_OVERHEAT;
-		}
-		val->intval = health;
-		break;
-	case POWER_SUPPLY_PROP_CHARGE_NOW:	/* 1/100(%)*1000 µAh */
-		val->intval = curr_cap * get_bat_info(FULLCHG_CAP) * 10;
-		break;
-	default:
-		return -EINVAL;
-	}
-	return 0;
+static inline int get_bat_status(void)
+{
+	return ec_read(REG_BAT_STATUS);
 }
 
 static int get_battery_temp(void)
@@ -260,6 +197,12 @@ static int get_battery_voltage(void)
 	return value;
 }
 
+static inline char *get_manufacturer(void)
+{
+	return (ec_read(REG_BAT_VENDOR) == FLAG_BAT_VENDOR_SANYO) ? "SANYO" :
+		"SIMPLO";
+}
+
 static int yeeloong_get_bat_props(struct power_supply *psy,
 				     enum power_supply_property psp,
 				     union power_supply_propval *val)
@@ -267,35 +210,117 @@ static int yeeloong_get_bat_props(struct power_supply *psy,
 	switch (psp) {
 	/* Fixed information */
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN:
-		val->intval = get_bat_info(DESIGN_VOL) * 1000;	/* mV -> µV */
+		/* mV -> µV */
+		RET = get_bat_info(DESIGN_VOL) * 1000;
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
-		val->intval = get_bat_info(DESIGN_CAP) * 1000;	/* mAh->µAh */
+		/* mAh->µAh */
+		RET = get_bat_info(DESIGN_CAP) * 1000;
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
-		val->intval = get_bat_info(FULLCHG_CAP) * 1000;	/* µAh */
+		/* µAh */
+		RET = get_bat_info(FULLCHG_CAP) * 1000;
 		break;
 	case POWER_SUPPLY_PROP_MANUFACTURER:
-		val->strval = (ec_read(REG_BAT_VENDOR) ==
-				FLAG_BAT_VENDOR_SANYO) ? "SANYO" : "SIMPLO";
+		val->strval = get_manufacturer();
 		break;
 	/* Dynamic information */
+	case POWER_SUPPLY_PROP_PRESENT:
+		RET = is_bat_in();
+		break;
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
-		val->intval = get_battery_current() * 1000;	/* mA -> µA */
+		/* mA -> µA */
+		RET = is_bat_in() ? get_battery_current() * 1000 : 0;
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
-		val->intval = get_battery_voltage() * 1000;	/* mV -> µV */
+		/* mV -> µV */
+		RET = is_bat_in() ? get_battery_voltage() * 1000 : 0;
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
-		val->intval = get_battery_temp();	/* Celcius */
+		/* Celcius */
+		RET = is_bat_in() ? get_battery_temp() : 0;
 		break;
-	/* Dynamic but related information */
-	default:
-		return yeeloong_bat_get_ex_property(psp, val);
-	}
+	case POWER_SUPPLY_PROP_CAPACITY:
+		RET = is_bat_in() ? get_bat_info(RELATIVE_CAP) : 0;
+		break;
+	case POWER_SUPPLY_PROP_CAPACITY_LEVEL:
+		{
+		int status;
 
+		if (!is_bat_in()) {
+			RET = POWER_SUPPLY_CAPACITY_LEVEL_UNKNOWN;
+			break;
+		}
+
+		status = get_bat_status();
+		RET = POWER_SUPPLY_CAPACITY_LEVEL_NORMAL;
+
+		if (unlikely(status & BIT_BAT_STATUS_DESTROY)) {
+			RET = POWER_SUPPLY_CAPACITY_LEVEL_UNKNOWN;
+			break;
+		}
+
+		if (status & BIT_BAT_STATUS_LOW)
+			RET = POWER_SUPPLY_CAPACITY_LEVEL_LOW;
+		else if (status & BIT_BAT_STATUS_FULL)
+			RET = POWER_SUPPLY_CAPACITY_LEVEL_FULL;
+		else {
+			int curr_cap;
+			curr_cap = get_bat_info(RELATIVE_CAP);
+			if (curr_cap >= BAT_CAP_HIGH)
+				RET = POWER_SUPPLY_CAPACITY_LEVEL_HIGH;
+			else if (curr_cap <= BAT_CAP_CRITICAL)
+				RET = POWER_SUPPLY_CAPACITY_LEVEL_CRITICAL;
+		}
+
+		} break;
+	case POWER_SUPPLY_PROP_TIME_TO_EMPTY_NOW:
+		/* seconds */
+		RET = is_bat_in() ?
+			(get_bat_info(RELATIVE_CAP) - 3) * 54 + 142
+			: 0;
+		break;
+	case POWER_SUPPLY_PROP_STATUS:
+		{
+			int charge = ec_read(REG_BAT_CHARGE);
+			if (charge & FLAG_BAT_CHARGE_DISCHARGE)
+				RET = POWER_SUPPLY_STATUS_DISCHARGING;
+			else if (charge & FLAG_BAT_CHARGE_CHARGE)
+				RET = POWER_SUPPLY_STATUS_CHARGING;
+			else
+				RET = POWER_SUPPLY_STATUS_NOT_CHARGING;
+		}
+		break;
+	case POWER_SUPPLY_PROP_HEALTH:
+		{
+			int status;
+
+			if (!is_bat_in()) {
+				RET = POWER_SUPPLY_HEALTH_UNKNOWN;
+				break;
+			}
+
+			status = get_bat_status();
+
+			RET = POWER_SUPPLY_HEALTH_GOOD;
+			if (status & (BIT_BAT_STATUS_DESTROY |
+						BIT_BAT_STATUS_LOW))
+				RET = POWER_SUPPLY_HEALTH_DEAD;
+			if (ec_read(REG_BAT_CHARGE_STATUS) &
+					BIT_BAT_CHARGE_STATUS_OVERTEMP)
+				RET = POWER_SUPPLY_HEALTH_OVERHEAT;
+		}
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_NOW:	/* 1/100(%)*1000 µAh */
+		RET = get_bat_info(RELATIVE_CAP) *
+			get_bat_info(FULLCHG_CAP) * 10;
+		break;
+	default:
+		return -EINVAL;
+	}
 	return 0;
 }
+#undef RET
 
 static enum power_supply_property yeeloong_bat_props[] = {
 	POWER_SUPPLY_PROP_STATUS,
