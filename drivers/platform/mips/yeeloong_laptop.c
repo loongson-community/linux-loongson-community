@@ -1023,12 +1023,6 @@ static int sci_irq_init(void)
 	return 0;
 }
 
-static struct irqaction sci_irqaction = {
-	.handler = sci_irq_handler,
-	.name = "sci",
-	.flags = IRQF_SHARED,
-};
-
 static int yeeloong_hotkey_init(void)
 {
 	int ret;
@@ -1037,14 +1031,15 @@ static int yeeloong_hotkey_init(void)
 	if (ret)
 		return -EFAULT;
 
-	ret = setup_irq(SCI_IRQ_NUM, &sci_irqaction);
+	ret = request_threaded_irq(SCI_IRQ_NUM, NULL, &sci_irq_handler,
+			IRQF_ONESHOT, "sci", NULL);
 	if (ret)
 		return -EFAULT;
 
 	yeeloong_hotkey_dev = input_allocate_device();
 
 	if (!yeeloong_hotkey_dev) {
-		remove_irq(SCI_IRQ_NUM, &sci_irqaction);
+		free_irq(SCI_IRQ_NUM, NULL);
 		return -ENOMEM;
 	}
 
@@ -1081,7 +1076,7 @@ static int yeeloong_hotkey_init(void)
 static void yeeloong_hotkey_exit(void)
 {
 	/* Free irq */
-	remove_irq(SCI_IRQ_NUM, &sci_irqaction);
+	free_irq(SCI_IRQ_NUM, NULL);
 
 #ifdef CONFIG_LOONGSON_SUSPEND
 	/* Uninstall yeeloong_report_lid_status for pm.c */
