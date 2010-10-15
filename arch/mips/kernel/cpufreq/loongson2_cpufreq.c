@@ -8,6 +8,7 @@
  * for more details.
  */
 #include <linux/cpufreq.h>
+#include <linux/delay.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
 
@@ -97,6 +98,20 @@ static int l2_cpufreq_target(struct cpufreq_policy *policy, unsigned int
 	return 0;
 }
 
+static int l2_cpu_freq_notifier(struct notifier_block *nb,
+					unsigned long val, void *data)
+{
+	/* loops_per_jiffy is updated by adjust_jiffies() */
+	if (val == CPUFREQ_POSTCHANGE)
+		current_cpu_data.udelay_val = loops_per_jiffy;
+
+	return 0;
+}
+
+static struct notifier_block l2_cpufreq_nb = {
+	.notifier_call = l2_cpu_freq_notifier
+};
+
 static int l2_cpufreq_cpu_init(struct cpufreq_policy *policy)
 {
 	int i;
@@ -156,9 +171,17 @@ static int __init l2_cpufreq_init(void)
 {
 	int ret;
 
-	ret = cpufreq_register_driver(&l2_cpufreq_driver);
+	ret = cpufreq_register_notifier(&l2_cpufreq_nb,
+			CPUFREQ_TRANSITION_NOTIFIER);
 	if (ret)
 		return ret;
+
+	ret = cpufreq_register_driver(&l2_cpufreq_driver);
+	if (ret) {
+		cpufreq_unregister_notifier(&l2_cpufreq_nb,
+				CPUFREQ_TRANSITION_NOTIFIER);
+		return ret;
+	}
 
 	loongson_cpufreq_driver_loaded = 1;
 
@@ -167,8 +190,14 @@ static int __init l2_cpufreq_init(void)
 
 static void __exit l2_cpufreq_exit(void)
 {
+	if (!loongson_cpufreq_driver_loaded)
+		return;
+
 	loongson_cpufreq_driver_loaded = 0;
 	cpufreq_unregister_driver(&l2_cpufreq_driver);
+
+	cpufreq_unregister_notifier(&l2_cpufreq_nb,
+			CPUFREQ_TRANSITION_NOTIFIER);
 }
 
 module_init(l2_cpufreq_init);
