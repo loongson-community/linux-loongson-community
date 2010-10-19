@@ -299,14 +299,33 @@ if ($arch eq "x86_64") {
     $cc .= " -m64";
     $objcopy .= " -O elf64-sparc";
 } elsif ($arch eq "mips") {
-    # To enable module support, we need to enable the -mlong-calls option
-    # of gcc for module, after using this option, we can not get the real
-    # offset of the calling to _mcount, but the offset of the lui
-    # instruction or the addiu one. herein, we record the address of the
-    # first one, and then we can replace this instruction by a branch
-    # instruction to jump over the profiling function to filter the
-    # indicated functions, or swith back to the lui instruction to trace
-    # them, which means dynamic tracing.
+    # <For kernel>
+    # To disable tracing, just replace "jal _mcount" with nop;
+    # to enable tracing, replace back. so, the offset 14 is
+    # needed to be recorded.
+    #
+    #     10:   03e0082d        move    at,ra
+    #	  14:   0c000000        jal     0
+    #                    14: R_MIPS_26   _mcount
+    #                    14: R_MIPS_NONE *ABS*
+    #                    14: R_MIPS_NONE *ABS*
+    #	 18:   00020021        nop
+    #
+    # <For module>
+    #
+    # If no long call(-mlong-calls), the same to kernel.
+    #
+    # If the module space differs from the kernel space, long
+    # call is needed, as a result, the address of _mcount is
+    # needed to be recorded in a register and then jump from
+    # module space to kernel space via "jalr <register>". To
+    # disable tracing, "jalr <register>" can be replaced by
+    # nop; to enable tracing, replace it back. Since the
+    # offset of "jalr <register>" is not easy to be matched,
+    # the offset of the 1st _mcount below is recorded and to
+    # disable tracing, "lui v1, 0x0" is substituted with "b
+    # label", which jumps over "jalr <register>"; to enable
+    # tracing, replace it back.
     #
     #       c:	3c030000 	lui	v1,0x0
     #			c: R_MIPS_HI16	_mcount
@@ -318,19 +337,12 @@ if ($arch eq "x86_64") {
     #			10: R_MIPS_NONE	*ABS*
     #      14:	03e0082d 	move	at,ra
     #      18:	0060f809 	jalr	v1
+    #                     label:
     #
-    # for the kernel:
-    #
-    #     10:   03e0082d        move    at,ra
-    #	  14:   0c000000        jal     0 <loongson_halt>
-    #                    14: R_MIPS_26   _mcount
-    #                    14: R_MIPS_NONE *ABS*
-    #                    14: R_MIPS_NONE *ABS*
-    #	 18:   00020021        nop
     if ($is_module eq "0") {
 	    $mcount_regex = "^\\s*([0-9a-fA-F]+): R_MIPS_26\\s+_mcount\$";
     } else {
-	    $mcount_regex = "^\\s*([0-9a-fA-F]+): R_MIPS_HI16\\s+_mcount\$";
+	    $mcount_regex = "^\\s*([0-9a-fA-F]+): R_MIPS_(HI16|26)\\s+_mcount\$";
     }
     $objdump .= " -Melf-trad".$endian."mips ";
 
