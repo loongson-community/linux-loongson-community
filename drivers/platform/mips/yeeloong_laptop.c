@@ -766,20 +766,28 @@ static int report_lid_switch(int status)
 	return status;
 }
 
-static void yeeloong_vo_set(int lcd_status, int crt_status)
+static void yeeloong_vo_set(int status)
 {
-	yeeloong_lcd_vo_set(lcd_status);
-	yeeloong_crt_vo_set(crt_status);
+	/*
+	 * status = lcd_status << 1 | crt_status
+	 */
+	yeeloong_lcd_vo_set(status & 2);
+	yeeloong_crt_vo_set(status & 1);
 }
 
 static int crt_detect_handler(int status)
 {
-	if (status)
-		yeeloong_vo_set(OFF, ON);
-	else
-		yeeloong_vo_set(ON, OFF);
+	/*
+	 * When CRT is inserted, enable its output and disable the LCD output,
+	 * otherwise, do reversely.
+	 *
+	 *	LCD ON, CRT OFF (2) <--> LCD OFF, CRT ON (1)
+	 */
+	int tmp = status ? 1 : 2;
 
-	return status;
+	yeeloong_vo_set(tmp);
+
+	return tmp;
 }
 
 static int displaytoggle_handler(int status)
@@ -794,40 +802,27 @@ static int displaytoggle_handler(int status)
 
 static int switchvideomode_handler(int status)
 {
-	static int video_output_status;
+	/* Default status: LCD on, CRT off = (1 << 1) | 0 = 2 */
+	static int video_output_status = 2;
 
-	/* Only enable switch video output button
-	 * when CRT is connected */
+	/*
+	 * Only enable switch video output button
+	 * when CRT is connected
+	 */
 	if (ec_read(REG_CRT_DETECT) == OFF)
 		return 0;
-	/* 0. no CRT connected: LCD on, CRT off
-	 * 1. BOTH on
-	 * 2. LCD off, CRT on
-	 * 3. BOTH off
-	 * 4. LCD on, CRT off
+	/*
+	 * 2. no CRT connected: LCD on, CRT off
+	 * 3. BOTH on
+	 * 0. BOTH off
+	 * 1. LCD off, CRT on
 	 */
 	video_output_status++;
-	if (video_output_status > 4)
-		video_output_status = 1;
+	if (video_output_status > 3)
+		video_output_status = 0;
 
-	switch (video_output_status) {
-	case 1:
-		yeeloong_vo_set(ON, ON);
-		break;
-	case 2:
-		yeeloong_vo_set(OFF, ON);
-		break;
-	case 3:
-		yeeloong_vo_set(OFF, OFF);
-		break;
-	case 4:
-		yeeloong_vo_set(ON, OFF);
-		break;
-	default:
-		/* Ensure LCD is on */
-		yeeloong_lcd_vo_set(ON);
-		break;
-	}
+	yeeloong_vo_set(video_output_status);
+
 	return video_output_status;
 }
 
@@ -861,66 +856,42 @@ static int ac_bat_handler(int status)
 		power_supply_changed(&yeeloong_ac);
 		power_supply_changed(&yeeloong_bat);
 	}
+
 	return status;
 }
 
+struct sci_event {
+	int reg;
+	sci_handler handler;
+};
+
+static const struct sci_event se[] = {
+	[EVENT_AC_BAT] = {0, ac_bat_handler},
+	[EVENT_AUDIO_MUTE] = {REG_AUDIO_MUTE, NULL},
+	[EVENT_AUDIO_VOLUME] = {REG_AUDIO_VOLUME, NULL},
+	[EVENT_CRT_DETECT] = {REG_CRT_DETECT, crt_detect_handler},
+	[EVENT_CAMERA] = {REG_CAMERA_STATUS, camera_handler},
+	[EVENT_DISPLAYTOGGLE] = {REG_DISPLAY_LCD, displaytoggle_handler},
+	[EVENT_DISPLAY_BRIGHTNESS] = {REG_DISPLAY_BRIGHTNESS, NULL},
+	[EVENT_LID] = {REG_LID_DETECT, NULL},
+	[EVENT_SWITCHVIDEOMODE] = {0, switchvideomode_handler},
+	[EVENT_USB_OC0] = {REG_USB2_FLAG, usb0_handler},
+	[EVENT_USB_OC2] = {REG_USB2_FLAG, usb2_handler},
+};
+
 static void do_event_action(int event)
 {
-	sci_handler handler;
-	int reg, status;
+	int status;
 	struct key_entry *ke;
+	struct sci_event *sep;
 
-	reg = 0;
-	handler = NULL;
+	sep = (struct sci_event *)&se[event];
 
-	switch (event) {
-	case EVENT_LID:
-		reg = REG_LID_DETECT;
-		break;
-	case EVENT_SWITCHVIDEOMODE:
-		handler = switchvideomode_handler;
-		break;
-	case EVENT_CRT_DETECT:
-		reg = REG_CRT_DETECT;
-		handler = crt_detect_handler;
-		break;
-	case EVENT_CAMERA:
-		reg = REG_CAMERA_STATUS;
-		handler = camera_handler;
-		break;
-	case EVENT_USB_OC2:
-		reg = REG_USB2_FLAG;
-		handler = usb2_handler;
-		break;
-	case EVENT_USB_OC0:
-		reg = REG_USB0_FLAG;
-		handler = usb0_handler;
-		break;
-	case EVENT_DISPLAYTOGGLE:
-		reg = REG_DISPLAY_LCD;
-		handler = displaytoggle_handler;
-		break;
-	case EVENT_AUDIO_MUTE:
-		reg = REG_AUDIO_MUTE;
-		break;
-	case EVENT_DISPLAY_BRIGHTNESS:
-		reg = REG_DISPLAY_BRIGHTNESS;
-		break;
-	case EVENT_AUDIO_VOLUME:
-		reg = REG_AUDIO_VOLUME;
-		break;
-	case EVENT_AC_BAT:
-		handler = ac_bat_handler;
-		break;
-	default:
-		break;
-	}
+	if (sep->reg != 0)
+		status = ec_read(sep->reg);
 
-	if (reg != 0)
-		status = ec_read(reg);
-
-	if (handler != NULL)
-		status = handler(status);
+	if (sep->handler != NULL)
+		status = sep->handler(status);
 
 	pr_debug("%s: event: %d status: %d\n", __func__, event, status);
 
@@ -1165,40 +1136,21 @@ static int __init yeeloong_init(void)
 		return ret;
 	}
 
-	ret = yeeloong_backlight_init();
-	if (ret) {
-		pr_err("Fail to register yeeloong backlight driver.\n");
-		yeeloong_backlight_exit();
-		return ret;
-	}
+#define yeeloong_init_drv(drv, alias) do {			\
+	pr_info("Register yeeloong " alias " driver.\n");	\
+	ret = yeeloong_ ## drv ## _init();			\
+	if (ret) {						\
+		pr_err("Fail to register yeeloong " alias " driver.\n");	\
+		yeeloong_ ## drv ## _exit();			\
+		return ret;					\
+	}							\
+} while (0)
 
-	ret = yeeloong_bat_init();
-	if (ret) {
-		pr_err("Fail to register yeeloong battery driver.\n");
-		yeeloong_bat_exit();
-		return ret;
-	}
-
-	ret = yeeloong_hwmon_init();
-	if (ret) {
-		pr_err("Fail to register yeeloong hwmon driver.\n");
-		yeeloong_hwmon_exit();
-		return ret;
-	}
-
-	ret = yeeloong_vo_init();
-	if (ret) {
-		pr_err("Fail to register yeeloong video output driver.\n");
-		yeeloong_vo_exit();
-		return ret;
-	}
-
-	ret = yeeloong_hotkey_init();
-	if (ret) {
-		pr_err("Fail to register yeeloong hotkey driver.\n");
-		yeeloong_hotkey_exit();
-		return ret;
-	}
+	yeeloong_init_drv(backlight, "backlight");
+	yeeloong_init_drv(bat, "battery and AC");
+	yeeloong_init_drv(hwmon, "hardware monitor");
+	yeeloong_init_drv(vo, "video output");
+	yeeloong_init_drv(hotkey, "hotkey input");
 
 	return 0;
 }
