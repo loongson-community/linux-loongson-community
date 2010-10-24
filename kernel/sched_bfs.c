@@ -1460,7 +1460,6 @@ static void try_to_wake_up_local(struct task_struct *p)
 	struct rq *rq = task_rq(p);
 	bool success = false;
 
-	BUG_ON(rq != this_rq());
 	BUG_ON(p == current);
 	lockdep_assert_held(&grq.lock);
 
