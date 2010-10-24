@@ -14,17 +14,7 @@
 
 #include <loongson.h>
 
-/*
- * Percentages of cpu frequency (total levels = 8)
- *    Percentage    = index of clockmod_table[] / total levels
- *	25%		2
- *	50%		4
- *	100%		8
- */
 #define DC_RESV	0
-#define DC_25PT 2
-#define DC_50PT 4
-#define DC_100PT 8
 
 /*
  * For Loongson's frequency is not high, we set the minimum level as 50% to
@@ -32,9 +22,9 @@
  */
 static struct cpufreq_frequency_table clockmod_table[] = {
 	{DC_RESV, CPUFREQ_ENTRY_INVALID},
-	{DC_25PT, 0},
-	{DC_50PT, 0},
-	{DC_100PT, 0},
+	{1, 0},
+	{3, 0},
+	{7, 0},
 	{DC_RESV, CPUFREQ_TABLE_END},
 };
 
@@ -43,29 +33,22 @@ static unsigned int max_cpufreq_khz;
 static inline unsigned int idx_to_freq(unsigned int idx)
 {
 	/*
-	 * freq = max_cpufreq_khz * (index / total levels)
-	 *	= (max_cpufreq_khz * index) / 8
-	 *	= (max_cpufreq_khz * index) >> 3
+	 * freq = max_cpufreq_khz * ((index + 1) / total levels)
+	 *	= (max_cpufreq_khz * (index + 1)) / 8
+	 *	= (max_cpufreq_khz * (index + 1)) >> 3
 	 */
-	return (max_cpufreq_khz * idx) >> 3;
+	return (max_cpufreq_khz * (idx + 1)) >> 3;
 }
 
-/*
- * Map from index of clockmod_table to chipcfg:
- *	Index	lowest 3bits of Chipcfg
- *	8	7
- *	4	3
- *	2	1
- */
 static unsigned int l2_cpufreq_get(unsigned int cpu)
 {
-	return idx_to_freq(LOONGSON_GET_CPUFREQ() + 1);
+	return idx_to_freq(LOONGSON_GET_CPUFREQ());
 }
 
 static void l2_cpufreq_set(unsigned int newstate)
 {
 	raw_spin_lock(&loongson_cpufreq_lock);
-	LOONGSON_SET_CPUFREQ(clockmod_table[newstate].index - 1);
+	LOONGSON_SET_CPUFREQ(clockmod_table[newstate].index);
 	raw_spin_unlock(&loongson_cpufreq_lock);
 }
 
