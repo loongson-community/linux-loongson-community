@@ -582,131 +582,139 @@ static void yeeloong_hwmon_exit(void)
 
 /* video output subdriver */
 
-static int lcd_video_output_get(struct output_device *od)
-{
-	return ec_read(REG_DISPLAY_LCD);
-}
-
 #define LCD	0
 #define CRT	1
+#define VOD_NUM	2	/* The total number of video output device*/
 
-static void display_vo_set(int display, int on)
+static struct output_device *vod[VOD_NUM];
+
+static int vor[] = {REG_DISPLAY_LCD, REG_CRT_DETECT};
+
+static int get_vo_dev(struct output_device *od)
+{
+	int i, dev;
+
+	dev = -1;
+	for (i = 0; i < VOD_NUM; i++)
+		if (od == vod[i])
+			dev = i;
+
+	return dev;
+}
+
+static int vo_get_status(int dev)
+{
+	return ec_read(vor[dev]);
+}
+
+static int yeeloong_vo_get_status(struct output_device *od)
+{
+	int vd;
+
+	vd = get_vo_dev(od);
+	if (vd != -1)
+		return vo_get_status(vd);
+
+	return -ENODEV;
+}
+
+static void vo_set_state(int dev, int state)
 {
 	int addr;
 	unsigned long value;
 
-	addr = (display == LCD) ? 0x31 : 0x21;
+	switch (dev) {
+	case LCD:
+		addr = 0x31;
+		break;
+	case CRT:
+		addr = 0x21;
+		break;
+	default:
+		/* return directly if the wrong video output device */
+		return;
+	}
 
 	outb(addr, 0x3c4);
 	value = inb(0x3c5);
 
-	if (display == LCD)
-		value |= (on ? 0x03 : 0x02);
-	else {
-		if (on)
+	switch (dev) {
+	case LCD:
+		value |= (state ? 0x03 : 0x02);
+		break;
+	case CRT:
+		if (state)
 			clear_bit(7, &value);
 		else
 			set_bit(7, &value);
+		break;
+	default:
+		break;
 	}
 
 	outb(addr, 0x3c4);
 	outb(value, 0x3c5);
+
+	if (dev == LCD)
+		ec_write(REG_BACKLIGHT_CTRL, state);
 }
 
-static int lcd_video_output_set(struct output_device *od)
+static int yeeloong_vo_set_state(struct output_device *od)
 {
-	unsigned long status;
+	int vd;
 
-	status = !!od->request_state;
+	vd = get_vo_dev(od);
+	if (vd == -1)
+		return -ENODEV;
 
-	display_vo_set(LCD, status);
-	ec_write(REG_BACKLIGHT_CTRL, status);
+	if (vd == CRT && !vo_get_status(vd))
+		return 0;
+
+	vo_set_state(vd, !!od->request_state);
 
 	return 0;
 }
 
-static struct output_properties lcd_output_properties = {
-	.set_state = lcd_video_output_set,
-	.get_status = lcd_video_output_get,
+static struct output_properties vop = {
+	.set_state = yeeloong_vo_set_state,
+	.get_status = yeeloong_vo_get_status,
 };
-
-static int crt_video_output_get(struct output_device *od)
-{
-	return ec_read(REG_CRT_DETECT);
-}
-
-static int crt_video_output_set(struct output_device *od)
-{
-	unsigned long status;
-
-	status = !!od->request_state;
-
-	if (ec_read(REG_CRT_DETECT) == ON)
-		display_vo_set(CRT, status);
-
-	return 0;
-}
-
-static struct output_properties crt_output_properties = {
-	.set_state = crt_video_output_set,
-	.get_status = crt_video_output_get,
-};
-
-static struct output_device *lcd_output_dev, *crt_output_dev;
-
-static void yeeloong_lcd_vo_set(int status)
-{
-	lcd_output_dev->request_state = status;
-	lcd_video_output_set(lcd_output_dev);
-}
-
-static void yeeloong_crt_vo_set(int status)
-{
-	crt_output_dev->request_state = status;
-	crt_video_output_set(crt_output_dev);
-}
 
 static int yeeloong_vo_init(void)
 {
-	int ret;
+	int ret, i;
+	char dev_name[VOD_NUM][4] = {"LCD", "CRT"};
 
 	/* Register video output device: lcd, crt */
-	lcd_output_dev = video_output_register("LCD", NULL, NULL,
-			&lcd_output_properties);
-
-	if (IS_ERR(lcd_output_dev)) {
-		ret = PTR_ERR(lcd_output_dev);
-		lcd_output_dev = NULL;
-		return ret;
+	for (i = 0; i < VOD_NUM; i ++) {
+		vod[i] = video_output_register(dev_name[i], NULL, NULL, &vop);
+		if (IS_ERR(vod[i])) {
+			ret = PTR_ERR(vod[i]);
+			vod[i] = NULL;
+			return ret;
+		}
 	}
 	/* Ensure LCD is on by default */
-	yeeloong_lcd_vo_set(ON);
+	vo_set_state(LCD, ON);
 
-	crt_output_dev = video_output_register("CRT", NULL, NULL,
-			&crt_output_properties);
-
-	if (IS_ERR(crt_output_dev)) {
-		ret = PTR_ERR(crt_output_dev);
-		crt_output_dev = NULL;
-		return ret;
-	}
-
-	/* Turn off CRT by default, and will be enabled when the CRT
-	 * connectting event reported by SCI */
-	yeeloong_crt_vo_set(OFF);
+	/*
+	 * Turn off CRT by default, and will be enabled when the CRT
+	 * connectting event reported by SCI
+	 */
+	vo_set_state(CRT, OFF);
 
 	return 0;
 }
 
 static void yeeloong_vo_exit(void)
 {
-	if (lcd_output_dev) {
-		video_output_unregister(lcd_output_dev);
-		lcd_output_dev = NULL;
-	}
-	if (crt_output_dev) {
-		video_output_unregister(crt_output_dev);
-		crt_output_dev = NULL;
+	int i;
+
+	for (i = 0; i < VOD_NUM; i ++) {
+		if (vod[i]) {
+			video_output_unregister(vod[i]);
+			vod[i] = NULL;
+		}
 	}
 }
 
@@ -766,28 +774,16 @@ static int report_lid_switch(int status)
 	return status;
 }
 
-static void yeeloong_vo_set(int status)
-{
-	/*
-	 * status = lcd_status << 1 | crt_status
-	 */
-	yeeloong_lcd_vo_set(status & 2);
-	yeeloong_crt_vo_set(status & 1);
-}
-
 static int crt_detect_handler(int status)
 {
 	/*
 	 * When CRT is inserted, enable its output and disable the LCD output,
 	 * otherwise, do reversely.
-	 *
-	 *	LCD ON, CRT OFF (2) <--> LCD OFF, CRT ON (1)
 	 */
-	int tmp = status ? 1 : 2;
+	vo_set_state(CRT, status);
+	vo_set_state(LCD, !status);
 
-	yeeloong_vo_set(tmp);
-
-	return tmp;
+	return status;
 }
 
 static int displaytoggle_handler(int status)
@@ -795,21 +791,32 @@ static int displaytoggle_handler(int status)
 	/* EC(>=PQ1D26) does this job for us, we can not do it again,
 	 * otherwise, the brightness will not resume to the normal level! */
 	if (ec_version_before("EC_VER=PQ1D26"))
-		yeeloong_lcd_vo_set(status);
+		vo_set_state(LCD, status);
 
 	return status;
 }
 
+static int mypow(int x, int y)
+{
+	int i, j = x;
+
+	for (i = 1; i < y; i ++)
+		j *= j;
+
+	return j;
+}
+
 static int switchvideomode_handler(int status)
 {
-	/* Default status: LCD on, CRT off = (1 << 1) | 0 = 2 */
-	static int video_output_status = 2;
+	/* Default status: CRT|LCD = 0|1 = 1 */
+	static int bin_state = 1;
+	int i;
 
 	/*
 	 * Only enable switch video output button
 	 * when CRT is connected
 	 */
-	if (ec_read(REG_CRT_DETECT) == OFF)
+	if (!vo_get_status(CRT))
 		return 0;
 	/*
 	 * 2. no CRT connected: LCD on, CRT off
@@ -817,13 +824,15 @@ static int switchvideomode_handler(int status)
 	 * 0. BOTH off
 	 * 1. LCD off, CRT on
 	 */
-	video_output_status++;
-	if (video_output_status > 3)
-		video_output_status = 0;
 
-	yeeloong_vo_set(video_output_status);
+	bin_state++;
+	if (bin_state > mypow(2, VOD_NUM) - 1)
+		bin_state = 0;
+	
+	for (i = 0; i < VOD_NUM; i ++)
+		vo_set_state(i, bin_state & (1 << i));
 
-	return video_output_status;
+	return bin_state;
 }
 
 static int camera_handler(int status)
@@ -1076,8 +1085,8 @@ static int yeeloong_suspend(struct device *dev)
 
 {
 	if (ec_version_before("EC_VER=PQ1D27"))
-		yeeloong_lcd_vo_set(OFF);
-	yeeloong_crt_vo_set(OFF);
+		vo_set_state(LCD, OFF);
+	vo_set_state(CRT, OFF);
 	usb_ports_set(OFF);
 
 	return 0;
@@ -1088,8 +1097,8 @@ static int yeeloong_resume(struct device *dev)
 	int ret;
 
 	if (ec_version_before("EC_VER=PQ1D27"))
-		yeeloong_lcd_vo_set(ON);
-	yeeloong_crt_vo_set(ON);
+		vo_set_state(LCD, ON);
+	vo_set_state(CRT, ON);
 	usb_ports_set(ON);
 
 	ret = sci_irq_init();
