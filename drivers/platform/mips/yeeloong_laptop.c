@@ -260,17 +260,18 @@ static int yeeloong_get_bat_props(struct power_supply *psy,
 			break;
 		}
 
-		if (status & BIT_BAT_STATUS_LOW)
-			RET = POWER_SUPPLY_CAPACITY_LEVEL_LOW;
-		else if (status & BIT_BAT_STATUS_FULL)
+		if (status & BIT_BAT_STATUS_FULL)
 			RET = POWER_SUPPLY_CAPACITY_LEVEL_FULL;
 		else {
 			int curr_cap;
 			curr_cap = get_bat_info(RELATIVE_CAP);
-			if (curr_cap >= BAT_CAP_HIGH)
+
+			if (status & BIT_BAT_STATUS_LOW) {
+				RET = POWER_SUPPLY_CAPACITY_LEVEL_LOW;
+				if (curr_cap <= BAT_CAP_CRITICAL)
+					RET = POWER_SUPPLY_CAPACITY_LEVEL_CRITICAL;
+			} else if (curr_cap >= BAT_CAP_HIGH)
 				RET = POWER_SUPPLY_CAPACITY_LEVEL_HIGH;
-			else if (curr_cap <= BAT_CAP_CRITICAL)
-				RET = POWER_SUPPLY_CAPACITY_LEVEL_CRITICAL;
 		}
 
 		} break;
