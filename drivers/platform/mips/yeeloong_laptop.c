@@ -203,6 +203,21 @@ static inline char *get_manufacturer(void)
 		"SIMPLO";
 }
 
+static int get_relative_cap(void)
+{
+	/*
+	 * When the relative capacity becomes 2, the hardware is observed to
+	 * have been turned off forcely. so, we must tune it be suitable to
+	 * make the software do related actions.
+	 */
+	int tmp = get_bat_info(RELATIVE_CAP);
+
+	if (tmp <= (BAT_CAP_CRITICAL * 2))
+		tmp -= 3;
+
+	return tmp;
+}
+
 static int yeeloong_get_bat_props(struct power_supply *psy,
 				     enum power_supply_property psp,
 				     union power_supply_propval *val)
@@ -241,7 +256,7 @@ static int yeeloong_get_bat_props(struct power_supply *psy,
 		RET = is_bat_in() ? get_battery_temp() : 0;
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
-		RET = is_bat_in() ? get_bat_info(RELATIVE_CAP) : 0;
+		RET = is_bat_in() ? get_relative_cap() : 0;
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY_LEVEL:
 		{
@@ -264,7 +279,7 @@ static int yeeloong_get_bat_props(struct power_supply *psy,
 			RET = POWER_SUPPLY_CAPACITY_LEVEL_FULL;
 		else {
 			int curr_cap;
-			curr_cap = get_bat_info(RELATIVE_CAP);
+			curr_cap = get_relative_cap();
 
 			if (status & BIT_BAT_STATUS_LOW) {
 				RET = POWER_SUPPLY_CAPACITY_LEVEL_LOW;
@@ -277,9 +292,7 @@ static int yeeloong_get_bat_props(struct power_supply *psy,
 		} break;
 	case POWER_SUPPLY_PROP_TIME_TO_EMPTY_NOW:
 		/* seconds */
-		RET = is_bat_in() ?
-			(get_bat_info(RELATIVE_CAP) - 3) * 54 + 142
-			: 0;
+		RET = is_bat_in() ? (get_relative_cap() - 3) * 54 + 142 : 0;
 		break;
 	case POWER_SUPPLY_PROP_STATUS:
 		{
@@ -313,8 +326,7 @@ static int yeeloong_get_bat_props(struct power_supply *psy,
 		}
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_NOW:	/* 1/100(%)*1000 µAh */
-		RET = get_bat_info(RELATIVE_CAP) *
-			get_bat_info(FULLCHG_CAP) * 10;
+		RET = get_relative_cap() * get_bat_info(FULLCHG_CAP) * 10;
 		break;
 	default:
 		return -EINVAL;
