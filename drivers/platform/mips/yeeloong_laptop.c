@@ -48,23 +48,23 @@ static int ec_version_before(char *version)
 }
 
 /* backlight subdriver */
+#define MIN_BRIGHTNESS	1
 #define MAX_BRIGHTNESS	8
 
 static int yeeloong_set_brightness(struct backlight_device *bd)
 {
-	unsigned int level, current_level;
-	static unsigned int old_level;
+	unsigned char level;
+	static unsigned char old_level;
 
 	level = (bd->props.fb_blank == FB_BLANK_UNBLANK &&
 		 bd->props.power == FB_BLANK_UNBLANK) ?
 	    bd->props.brightness : 0;
 
-	level = SENSORS_LIMIT(level, 0, MAX_BRIGHTNESS);
+	level = SENSORS_LIMIT(level, MIN_BRIGHTNESS, MAX_BRIGHTNESS);
 
 	/* Avoid to modify the brightness when EC is tuning it */
 	if (old_level != level) {
-		current_level = ec_read(REG_DISPLAY_BRIGHTNESS);
-		if (old_level == current_level)
+		if (ec_read(REG_DISPLAY_BRIGHTNESS) == old_level)
 			ec_write(REG_DISPLAY_BRIGHTNESS, level);
 		old_level = level;
 	}
@@ -121,22 +121,21 @@ static struct power_supply yeeloong_ac, yeeloong_bat;
 
 #define RET (val->intval)
 
-static inline bool is_ac_in(void)
-{
-	return !!(ec_read(REG_BAT_POWER) & BIT_BAT_POWER_ACIN);
-}
+#define BAT_CAP_CRITICAL 5
+#define BAT_CAP_HIGH     95
+
+#define get_bat(type) \
+	ec_read(REG_BAT_##type)
+
+#define get_bat_l(type) \
+	((get_bat(type##_HIGH) << 8) | get_bat(type##_LOW))
 
 static int yeeloong_get_ac_props(struct power_supply *psy,
 				enum power_supply_property psp,
 				union power_supply_propval *val)
 {
-	switch (psp) {
-	case POWER_SUPPLY_PROP_ONLINE:
-		RET = is_ac_in();
-		break;
-	default:
-		return -EINVAL;
-	}
+	if (psp == POWER_SUPPLY_PROP_ONLINE)
+		RET = !!(get_bat(POWER) & BIT_BAT_POWER_ACIN);
 
 	return 0;
 }
@@ -153,54 +152,29 @@ static struct power_supply yeeloong_ac = {
 	.get_property = yeeloong_get_ac_props,
 };
 
-#define BAT_CAP_CRITICAL 5
-#define BAT_CAP_HIGH     95
-
-#define get_bat_info(type) \
-	((ec_read(REG_BAT_##type##_HIGH) << 8) | \
-	 (ec_read(REG_BAT_##type##_LOW)))
-
 static inline bool is_bat_in(void)
 {
-	return !!(ec_read(REG_BAT_STATUS) & BIT_BAT_STATUS_IN);
+	return !!(get_bat(STATUS) & BIT_BAT_STATUS_IN);
 }
 
-static inline int get_bat_status(void)
+static int get_bat_temp(void)
 {
-	return ec_read(REG_BAT_STATUS);
+	return get_bat_l(TEMPERATURE) * 1000;
 }
 
-static int get_battery_temp(void)
+static int get_bat_current(void)
 {
-	int value;
-
-	value = get_bat_info(TEMPERATURE);
-
-	return value * 1000;
+	return -(s16)get_bat_l(CURRENT);
 }
 
-static int get_battery_current(void)
+static int get_bat_voltage(void)
 {
-	s16 value;
-
-	value = get_bat_info(CURRENT);
-
-	return -value;
+	return get_bat_l(VOLTAGE);
 }
 
-static int get_battery_voltage(void)
+static char *get_manufacturer(void)
 {
-	int value;
-
-	value = get_bat_info(VOLTAGE);
-
-	return value;
-}
-
-static inline char *get_manufacturer(void)
-{
-	return (ec_read(REG_BAT_VENDOR) == FLAG_BAT_VENDOR_SANYO) ? "SANYO" :
-		"SIMPLO";
+	return (get_bat(VENDOR) == FLAG_BAT_VENDOR_SANYO) ? "SANYO" : "SIMPLO";
 }
 
 static int get_relative_cap(void)
@@ -210,7 +184,7 @@ static int get_relative_cap(void)
 	 * have been turned off forcely. so, we must tune it be suitable to
 	 * make the software do related actions.
 	 */
-	int tmp = get_bat_info(RELATIVE_CAP);
+	int tmp = get_bat_l(RELATIVE_CAP);
 
 	if (tmp <= (BAT_CAP_CRITICAL * 2))
 		tmp -= 3;
@@ -226,15 +200,15 @@ static int yeeloong_get_bat_props(struct power_supply *psy,
 	/* Fixed information */
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN:
 		/* mV -> µV */
-		RET = get_bat_info(DESIGN_VOL) * 1000;
+		RET = get_bat_l(DESIGN_VOL) * 1000;
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
 		/* mAh->µAh */
-		RET = get_bat_info(DESIGN_CAP) * 1000;
+		RET = get_bat_l(DESIGN_CAP) * 1000;
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
 		/* µAh */
-		RET = get_bat_info(FULLCHG_CAP) * 1000;
+		RET = get_bat_l(FULLCHG_CAP) * 1000;
 		break;
 	case POWER_SUPPLY_PROP_MANUFACTURER:
 		val->strval = get_manufacturer();
@@ -245,21 +219,20 @@ static int yeeloong_get_bat_props(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
 		/* mA -> µA */
-		RET = is_bat_in() ? get_battery_current() * 1000 : 0;
+		RET = is_bat_in() ? get_bat_current() * 1000 : 0;
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 		/* mV -> µV */
-		RET = is_bat_in() ? get_battery_voltage() * 1000 : 0;
+		RET = is_bat_in() ? get_bat_voltage() * 1000 : 0;
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
 		/* Celcius */
-		RET = is_bat_in() ? get_battery_temp() : 0;
+		RET = is_bat_in() ? get_bat_temp() : 0;
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
 		RET = is_bat_in() ? get_relative_cap() : 0;
 		break;
-	case POWER_SUPPLY_PROP_CAPACITY_LEVEL:
-		{
+	case POWER_SUPPLY_PROP_CAPACITY_LEVEL: {
 		int status;
 
 		if (!is_bat_in()) {
@@ -267,7 +240,7 @@ static int yeeloong_get_bat_props(struct power_supply *psy,
 			break;
 		}
 
-		status = get_bat_status();
+		status = get_bat(STATUS);
 		RET = POWER_SUPPLY_CAPACITY_LEVEL_NORMAL;
 
 		if (unlikely(status & BIT_BAT_STATUS_DESTROY)) {
@@ -278,8 +251,7 @@ static int yeeloong_get_bat_props(struct power_supply *psy,
 		if (status & BIT_BAT_STATUS_FULL)
 			RET = POWER_SUPPLY_CAPACITY_LEVEL_FULL;
 		else {
-			int curr_cap;
-			curr_cap = get_relative_cap();
+			int curr_cap = get_relative_cap();
 
 			if (status & BIT_BAT_STATUS_LOW) {
 				RET = POWER_SUPPLY_CAPACITY_LEVEL_LOW;
@@ -288,25 +260,21 @@ static int yeeloong_get_bat_props(struct power_supply *psy,
 			} else if (curr_cap >= BAT_CAP_HIGH)
 				RET = POWER_SUPPLY_CAPACITY_LEVEL_HIGH;
 		}
-
-		} break;
+	} break;
 	case POWER_SUPPLY_PROP_TIME_TO_EMPTY_NOW:
 		/* seconds */
 		RET = is_bat_in() ? (get_relative_cap() - 3) * 54 + 142 : 0;
 		break;
-	case POWER_SUPPLY_PROP_STATUS:
-		{
-			int charge = ec_read(REG_BAT_CHARGE);
+	case POWER_SUPPLY_PROP_STATUS: {
+			int charge = get_bat(CHARGE);
+
+			RET = POWER_SUPPLY_STATUS_UNKNOWN;
 			if (charge & FLAG_BAT_CHARGE_DISCHARGE)
 				RET = POWER_SUPPLY_STATUS_DISCHARGING;
 			else if (charge & FLAG_BAT_CHARGE_CHARGE)
 				RET = POWER_SUPPLY_STATUS_CHARGING;
-			else
-				RET = POWER_SUPPLY_STATUS_NOT_CHARGING;
-		}
-		break;
-	case POWER_SUPPLY_PROP_HEALTH:
-		{
+	} break;
+	case POWER_SUPPLY_PROP_HEALTH: {
 			int status;
 
 			if (!is_bat_in()) {
@@ -314,19 +282,18 @@ static int yeeloong_get_bat_props(struct power_supply *psy,
 				break;
 			}
 
-			status = get_bat_status();
-
+			status = get_bat(STATUS);
 			RET = POWER_SUPPLY_HEALTH_GOOD;
+
 			if (status & (BIT_BAT_STATUS_DESTROY |
 						BIT_BAT_STATUS_LOW))
 				RET = POWER_SUPPLY_HEALTH_DEAD;
-			if (ec_read(REG_BAT_CHARGE_STATUS) &
+			if (get_bat(CHARGE_STATUS) &
 					BIT_BAT_CHARGE_STATUS_OVERTEMP)
 				RET = POWER_SUPPLY_HEALTH_OVERHEAT;
-		}
-		break;
+	} break;
 	case POWER_SUPPLY_PROP_CHARGE_NOW:	/* 1/100(%)*1000 µAh */
-		RET = get_relative_cap() * get_bat_info(FULLCHG_CAP) * 10;
+		RET = get_relative_cap() * get_bat_l(FULLCHG_CAP) * 10;
 		break;
 	default:
 		return -EINVAL;
@@ -391,82 +358,78 @@ static void yeeloong_bat_exit(void)
 #define MIN_FAN_SPEED 0
 #define MAX_FAN_SPEED 3
 
+#define get_fan(type) \
+	ec_read(REG_FAN_##type)
+
+#define set_fan(type, val) \
+	ec_write(REG_FAN_##type, val)
+
+static inline int get_fan_speed_level(void)
+{
+	return get_fan(SPEED_LEVEL);
+}
+static inline void set_fan_speed_level(int speed)
+{
+	set_fan(SPEED_LEVEL, speed);
+}
+
+static inline int get_fan_mode(void)
+{
+	return get_fan(AUTO_MAN_SWITCH);
+}
+static inline void set_fan_mode(int mode)
+{
+	set_fan(AUTO_MAN_SWITCH, mode);
+}
+
+/*
+ * 3 different modes: Full speed(0); manual mode(1); auto mode(2)
+ */
 static int get_fan_pwm_enable(void)
 {
-	int level, mode;
-
-	level = ec_read(REG_FAN_SPEED_LEVEL);
-	mode = ec_read(REG_FAN_AUTO_MAN_SWITCH);
-
-	if (level == MAX_FAN_SPEED && mode == BIT_FAN_MANUAL)
-		mode = 0;
-	else if (mode == BIT_FAN_MANUAL)
-		mode = 1;
-	else
-		mode = 2;
-
-	return mode;
+	return (get_fan_mode() == BIT_FAN_AUTO) ? 2 :
+		(get_fan_speed_level() == MAX_FAN_SPEED) ? 0 : 1;
 }
 
 static void set_fan_pwm_enable(int mode)
 {
-	switch (mode) {
-	case 0:
-		/* fullspeed */
-		ec_write(REG_FAN_AUTO_MAN_SWITCH, BIT_FAN_MANUAL);
-		ec_write(REG_FAN_SPEED_LEVEL, MAX_FAN_SPEED);
-		break;
-	case 1:
-		ec_write(REG_FAN_AUTO_MAN_SWITCH, BIT_FAN_MANUAL);
-		break;
-	case 2:
-		ec_write(REG_FAN_AUTO_MAN_SWITCH, BIT_FAN_AUTO);
-		break;
-	default:
-		break;
-	}
+	set_fan_mode((mode == 2) ? BIT_FAN_AUTO : BIT_FAN_MANUAL);
+	if (mode == 0)
+		set_fan_speed_level(MAX_FAN_SPEED);
 }
 
 static int get_fan_pwm(void)
 {
-	return ec_read(REG_FAN_SPEED_LEVEL);
+	return get_fan_speed_level();
 }
 
 static void set_fan_pwm(int value)
 {
-	int mode;
-
-	mode = ec_read(REG_FAN_AUTO_MAN_SWITCH);
-	if (mode != BIT_FAN_MANUAL)
+	if (get_fan_mode() != BIT_FAN_MANUAL)
 		return;
 
-	value = SENSORS_LIMIT(value, 0, 3);
+	value = SENSORS_LIMIT(value, MIN_FAN_SPEED, MAX_FAN_SPEED);
 
 	/* We must ensure the fan is on */
 	if (value > 0)
-		ec_write(REG_FAN_CONTROL, ON);
+		set_fan(CONTROL, ON);
 
-	ec_write(REG_FAN_SPEED_LEVEL, value);
+	set_fan_speed_level(value);
+}
+
+static inline int get_fan_speed(void)
+{
+	return ((get_fan(SPEED_HIGH) & 0x0f) << 8) | get_fan(SPEED_LOW);
 }
 
 static int get_fan_rpm(void)
 {
-	int value;
-
-	value = FAN_SPEED_DIVIDER /
-	    (((ec_read(REG_FAN_SPEED_HIGH) & 0x0f) << 8) |
-	     ec_read(REG_FAN_SPEED_LOW));
-
-	return value;
+	return FAN_SPEED_DIVIDER / get_fan_speed();
 }
 
 static int get_cpu_temp(void)
 {
-	s8 value;
-
-	value = ec_read(REG_TEMPERATURE_VALUE);
-
-	return value * 1000;
+	return (s8)ec_read(REG_TEMPERATURE_VALUE) * 1000;
 }
 
 static int get_cpu_temp_max(void)
@@ -474,14 +437,9 @@ static int get_cpu_temp_max(void)
 	return 60 * 1000;
 }
 
-static int get_battery_temp_alarm(void)
+static int get_bat_temp_alarm(void)
 {
-	int status;
-
-	status = (ec_read(REG_BAT_CHARGE_STATUS) &
-			BIT_BAT_CHARGE_STATUS_OVERTEMP);
-
-	return !!status;
+	return !!(get_bat(CHARGE_STATUS) & BIT_BAT_CHARGE_STATUS_OVERTEMP);
 }
 
 static ssize_t store_sys_hwmon(void (*set) (int), const char *buf, size_t count)
@@ -527,10 +485,10 @@ CREATE_SENSOR_ATTR(pwm1_enable, S_IRUGO | S_IWUSR, get_fan_pwm_enable,
 		set_fan_pwm_enable);
 CREATE_SENSOR_ATTR(temp1_input, S_IRUGO, get_cpu_temp, NULL);
 CREATE_SENSOR_ATTR(temp1_max, S_IRUGO, get_cpu_temp_max, NULL);
-CREATE_SENSOR_ATTR(temp2_input, S_IRUGO, get_battery_temp, NULL);
-CREATE_SENSOR_ATTR(temp2_max_alarm, S_IRUGO, get_battery_temp_alarm, NULL);
-CREATE_SENSOR_ATTR(curr1_input, S_IRUGO, get_battery_current, NULL);
-CREATE_SENSOR_ATTR(in1_input, S_IRUGO, get_battery_voltage, NULL);
+CREATE_SENSOR_ATTR(temp2_input, S_IRUGO, get_bat_temp, NULL);
+CREATE_SENSOR_ATTR(temp2_max_alarm, S_IRUGO, get_bat_temp_alarm, NULL);
+CREATE_SENSOR_ATTR(curr1_input, S_IRUGO, get_bat_current, NULL);
+CREATE_SENSOR_ATTR(in1_input, S_IRUGO, get_bat_voltage, NULL);
 
 static ssize_t
 show_name(struct device *dev, struct device_attribute *attr, char *buf)
@@ -566,7 +524,6 @@ static int yeeloong_hwmon_init(void)
 
 	yeeloong_hwmon_dev = hwmon_device_register(NULL);
 	if (IS_ERR(yeeloong_hwmon_dev)) {
-		pr_err("Fail to register yeeloong hwmon device\n");
 		yeeloong_hwmon_dev = NULL;
 		return PTR_ERR(yeeloong_hwmon_dev);
 	}
