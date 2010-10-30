@@ -35,6 +35,7 @@
 #endif
 #include <linux/timer.h>
 #include <linux/sched.h>
+#include <linux/semaphore.h>
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,13))
 #include <linux/wireless.h>
