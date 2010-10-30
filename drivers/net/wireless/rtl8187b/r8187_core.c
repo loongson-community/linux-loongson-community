@@ -6756,10 +6756,9 @@ static void * __devinit rtl8187_usb_probe(struct usb_device *udev,
 		goto fail;
 	}
 	
-	netif_carrier_off(dev);
-	netif_stop_queue(dev);
-	
+	netif_carrier_off(dev);	
 	register_netdev(dev);
+	netif_stop_queue(dev);
 	
 	rtl8180_proc_init_one(dev);
 	
