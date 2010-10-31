@@ -178,6 +178,7 @@ static struct usb_driver rtl8187_usb_driver = {
 #ifdef CONFIG_RTL8180_PM
 	.suspend	= rtl8187_suspend,	          /* PM suspend fn */
 	.resume		= rtl8187_resume,                 /* PM resume fn  */
+	.reset_resume	= rtl8187_resume,                 /* PM resume fn  */
 #else
 	.suspend	= NULL,			          /* PM suspend fn */
 	.resume      	= NULL,			          /* PM resume fn  */
@@ -6714,6 +6715,11 @@ static void * __devinit rtl8187_usb_probe(struct usb_device *udev,
 	priv->ieee80211 = (struct net_device *)dev->priv;
 #endif
 	priv->udev=udev;
+
+#ifdef CONFIG_PM
+	udev->reset_resume = 1;
+#endif
+
 #ifdef CPU_64BIT	
 	priv->usb_buf = kmalloc(0x200, GFP_KERNEL);
 	priv->usb_pool = dma_pool_create("rtl8187b", NULL, 64, 64, 0);
