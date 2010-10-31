@@ -23,6 +23,7 @@ config LEMOTE_YEELOONG2F
 	select HWMON
 	select VIDEO_OUTPUT_CONTROL
 	select INPUT_SPARSEKMAP
+	select INPUT_EVDEV
 	depends on INPUT
 	default m
 	help
