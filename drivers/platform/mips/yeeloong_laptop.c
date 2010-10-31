@@ -656,7 +656,7 @@ static int yeeloong_vo_init(void)
 	char dev_name[VOD_NUM][4] = {"LCD", "CRT"};
 
 	/* Register video output device: lcd, crt */
-	for (i = 0; i < VOD_NUM; i ++) {
+	for (i = 0; i < VOD_NUM; i++) {
 		vod[i] = video_output_register(dev_name[i], NULL, NULL, &vop);
 		if (IS_ERR(vod[i])) {
 			ret = PTR_ERR(vod[i]);
@@ -680,7 +680,7 @@ static void yeeloong_vo_exit(void)
 {
 	int i;
 
-	for (i = 0; i < VOD_NUM; i ++) {
+	for (i = 0; i < VOD_NUM; i++) {
 		if (vod[i]) {
 			video_output_unregister(vod[i]);
 			vod[i] = NULL;
@@ -770,7 +770,7 @@ static int mypow(int x, int y)
 {
 	int i, j = x;
 
-	for (i = 1; i < y; i ++)
+	for (i = 1; i < y; i++)
 		j *= j;
 
 	return j;
@@ -799,7 +799,7 @@ static int switchvideomode_handler(int status)
 	if (bin_state > mypow(2, VOD_NUM) - 1)
 		bin_state = 0;
 	
-	for (i = 0; i < VOD_NUM; i ++)
+	for (i = 0; i < VOD_NUM; i++)
 		vo_set_state(i, bin_state & (1 << i));
 
 	return bin_state;
