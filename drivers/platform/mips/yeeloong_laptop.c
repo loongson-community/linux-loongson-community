@@ -16,6 +16,7 @@
 #include <linux/hwmon.h>	/* for hwmon subdriver */
 #include <linux/hwmon-sysfs.h>
 #include <linux/video_output.h>	/* for video output subdriver */
+#include <linux/lcd.h>		/* for lcd output subdriver */
 #include <linux/input.h>	/* for hotkey subdriver */
 #include <linux/input/sparse-keymap.h>
 #include <linux/interrupt.h>
@@ -659,6 +660,8 @@ static int yeeloong_vo_init(void)
 	for (i = 0; i < VOD_NUM; i++) {
 		vod[i] = video_output_register(dev_name[i], NULL, NULL, &vop);
 		if (IS_ERR(vod[i])) {
+			if (i != 0)
+				video_output_unregister(vod[i-1]);
 			ret = PTR_ERR(vod[i]);
 			vod[i] = NULL;
 			return ret;
@@ -684,6 +687,87 @@ static void yeeloong_vo_exit(void)
 		if (vod[i]) {
 			video_output_unregister(vod[i]);
 			vod[i] = NULL;
+		}
+	}
+}
+
+/* lcd subdriver */
+
+struct lcd_device *lcd[VOD_NUM];
+
+static int get_lcd_dev(struct lcd_device *ld)
+{
+	int i, dev;
+
+	dev = -1;
+	for (i = 0; i < VOD_NUM; i++)
+		if (ld == lcd[i])
+			dev = i;
+
+	return dev;
+}
+
+static int yeeloong_lcd_set_power(struct lcd_device *ld, int power)
+{
+	int dev = get_lcd_dev(ld);
+
+	if (power == FB_BLANK_UNBLANK)
+		vo_set_state(dev, ON);
+	if (power == FB_BLANK_POWERDOWN)
+		vo_set_state(dev, OFF);
+
+	return 0;
+}
+
+static int yeeloong_lcd_get_power(struct lcd_device *ld)
+{
+	return vo_get_status(get_lcd_dev(ld));
+}
+
+static struct lcd_ops lcd_ops = {
+	.set_power = yeeloong_lcd_set_power,
+	.get_power = yeeloong_lcd_get_power,
+};
+
+static int yeeloong_lcd_init(void)
+{
+	int ret, i;
+	char dev_name[VOD_NUM][4] = {"LCD", "CRT"};
+
+	/* Register video output device: lcd, crt */
+	for (i = 0; i < VOD_NUM; i++) {
+		lcd[i] = lcd_device_register(dev_name[i], NULL, NULL, &lcd_ops);
+		if (IS_ERR(lcd[i])) {
+			if (i != 0)
+				lcd_device_unregister(lcd[i-1]);
+			ret = PTR_ERR(lcd[i]);
+			lcd[i] = NULL;
+			return ret;
+		}
+	}
+#if 0
+	/* This has been done by the vide output driver */
+
+	/* Ensure LCD is on by default */
+	vo_set_state(LCD, ON);
+
+	/*
+	 * Turn off CRT by default, and will be enabled when the CRT
+	 * connectting event reported by SCI
+	 */
+	vo_set_state(CRT, OFF);
+#endif
+	return 0;
+}
+
+static void yeeloong_lcd_exit(void)
+{
+	int i;
+
+	for (i = 0; i < VOD_NUM; i++) {
+		if (lcd[i]) {
+			lcd_device_unregister(lcd[i]);
+			lcd[i] = NULL;
 		}
 	}
 }
@@ -1129,6 +1213,7 @@ static int __init yeeloong_init(void)
 	yeeloong_init_drv(bat, "battery and AC");
 	yeeloong_init_drv(hwmon, "hardware monitor");
 	yeeloong_init_drv(vo, "video output");
+	yeeloong_init_drv(lcd, "lcd output");
 	yeeloong_init_drv(hotkey, "hotkey input");
 
 	return 0;
@@ -1137,6 +1222,7 @@ static int __init yeeloong_init(void)
 static void __exit yeeloong_exit(void)
 {
 	yeeloong_hotkey_exit();
+	yeeloong_lcd_exit();
 	yeeloong_vo_exit();
 	yeeloong_hwmon_exit();
 	yeeloong_bat_exit();

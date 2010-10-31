@@ -18,6 +18,7 @@ config LEMOTE_YEELOONG2F
 	tristate "Lemote YeeLoong Laptop"
 	depends on LEMOTE_MACH2F
 	select BACKLIGHT_LCD_SUPPORT
+	select LCD_CLASS_DEVICE
 	select BACKLIGHT_CLASS_DEVICE
 	select POWER_SUPPLY
 	select HWMON
