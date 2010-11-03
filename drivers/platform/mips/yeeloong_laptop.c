@@ -22,6 +22,8 @@
 #include <linux/interrupt.h>
 #include <linux/delay.h>
 #include <linux/power_supply.h>	/* for AC & Battery subdriver */
+#include <linux/reboot.h>	/* for register_reboot_notifier */
+#include <linux/suspend.h>	/* for register_pm_notifier */
 
 #include <cs5536/cs5536.h>
 
@@ -776,6 +778,10 @@ static void yeeloong_lcd_exit(void)
 
 static struct input_dev *yeeloong_hotkey_dev;
 
+static atomic_t reboot_flag, sleep_flag;
+#define in_sleep() (&sleep_flag)
+#define in_reboot() (&reboot_flag)
+
 static const struct key_entry yeeloong_keymap[] = {
 	{KE_SW, EVENT_LID, { SW_LID } },
 	{KE_KEY, EVENT_CAMERA, { KEY_CAMERA } }, /* Fn + ESC */
@@ -790,6 +796,19 @@ static const struct key_entry yeeloong_keymap[] = {
 	{KE_KEY, EVENT_AUDIO_VOLUME, { KEY_VOLUMEDOWN } }, /* Fn + left */
 	{KE_END, 0}
 };
+
+static int is_fake_event(u16 keycode)
+{
+	switch (keycode) {
+	case KEY_SLEEP:
+	case SW_LID:
+		return atomic_read(in_sleep()) | atomic_read(in_reboot());
+		break;
+	default:
+		break;
+	}
+	return 0;
+}
 
 static struct key_entry *get_event_key_entry(int event, int status)
 {
@@ -822,8 +841,17 @@ static struct key_entry *get_event_key_entry(int event, int status)
 
 static int report_lid_switch(int status)
 {
-	input_report_switch(yeeloong_hotkey_dev, SW_LID, !status);
-	input_sync(yeeloong_hotkey_dev);
+	static int old_status;
+
+	/*
+	 * LID is a switch button, so, two continuous same status should be
+	 * ignored
+	 */
+	if (old_status != status) {
+		input_report_switch(yeeloong_hotkey_dev, SW_LID, !status);
+		input_sync(yeeloong_hotkey_dev);
+	}
+	old_status = status;
 
 	return status;
 }
@@ -960,7 +988,18 @@ static void do_event_action(int event)
 
 	/* Report current key to user-space */
 	ke = get_event_key_entry(event, status);
-	if (ke) {
+
+	/*
+	 * Ignore the LID and SLEEP event when we are already in sleep or
+	 * reboot state, this will avoid the recursive pm operations. but note:
+	 * the report_lid_switch() called in arch/mips/loongson/lemote-2f/pm.c
+	 * is necessary, because it is used to wake the system from sleep
+	 * state. In the future, perhaps SW_LID should works like SLEEP, no
+	 * need to function as a SWITCH, just report the state when the LID is
+	 * closed is enough, this event can tell the software to "SLEEP", no
+	 * need to tell the softwares when we are resuming from "SLEEP".
+	 */
+	if (ke && !is_fake_event(ke->keycode)) {
 		if (ke->keycode == SW_LID)
 			report_lid_switch(status);
 		else
@@ -1057,24 +1096,85 @@ static int sci_irq_init(void)
 	return 0;
 }
 
+static int notify_reboot(struct notifier_block *nb, unsigned long event, void *buf)
+{
+	switch (event) {
+	case SYS_RESTART:
+	case SYS_HALT:
+	case SYS_POWER_OFF:
+		atomic_set(in_reboot(), 1);
+		break;
+	default:
+		return NOTIFY_DONE;
+	}
+
+	return NOTIFY_OK;
+}
+
+static int notify_pm(struct notifier_block *nb, unsigned long event, void *buf)
+{
+	switch (event) {
+	case PM_HIBERNATION_PREPARE:
+	case PM_SUSPEND_PREPARE:
+		atomic_inc(in_sleep());
+		break;
+	case PM_POST_HIBERNATION:
+	case PM_POST_SUSPEND:
+	case PM_RESTORE_PREPARE:	/* do we need this ?? */
+		atomic_dec(in_sleep());
+		break;
+	default:
+		return NOTIFY_DONE;
+	}
+
+	pr_debug("%s: event = %lu, in_sleep() = %d\n", __func__, event,
+			atomic_read(in_sleep()));
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block reboot_notifier = {
+	.notifier_call = notify_reboot,
+};
+
+static struct notifier_block pm_notifier = {
+	.notifier_call = notify_pm,
+};
+
 static int yeeloong_hotkey_init(void)
 {
-	int ret;
+	int ret = 0;
+
+	ret = register_reboot_notifier(&reboot_notifier);
+	if (ret) {
+		pr_err("can't register reboot notifier\n");
+		goto end;
+	}
+
+	ret = register_pm_notifier(&pm_notifier);
+	if (ret) {
+		pr_err("can't register pm notifier\n");
+		goto free_reboot_notifier;
+	}
 
 	ret = sci_irq_init();
-	if (ret)
-		return -EFAULT;
+	if (ret) {
+		pr_err("can't init SCI interrupt\n");
+		goto free_pm_notifier;
+	}
 
 	ret = request_threaded_irq(SCI_IRQ_NUM, NULL, &sci_irq_handler,
 			IRQF_ONESHOT, "sci", NULL);
-	if (ret)
-		return -EFAULT;
+	if (ret) {
+		pr_err("can't thread SCI interrupt handler\n");
+		goto free_pm_notifier;
+	}
 
 	yeeloong_hotkey_dev = input_allocate_device();
 
 	if (!yeeloong_hotkey_dev) {
-		free_irq(SCI_IRQ_NUM, NULL);
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto free_irq;
 	}
 
 	yeeloong_hotkey_dev->name = "HotKeys";
@@ -1085,16 +1185,12 @@ static int yeeloong_hotkey_init(void)
 	ret = sparse_keymap_setup(yeeloong_hotkey_dev, yeeloong_keymap, NULL);
 	if (ret) {
 		pr_err("Fail to setup input device keymap\n");
-		input_free_device(yeeloong_hotkey_dev);
-		return ret;
+		goto free_dev;
 	}
 
 	ret = input_register_device(yeeloong_hotkey_dev);
-	if (ret) {
-		sparse_keymap_free(yeeloong_hotkey_dev);
-		input_free_device(yeeloong_hotkey_dev);
-		return ret;
-	}
+	if (ret)
+		goto free_keymap;
 
 	/* Update the current status of LID */
 	report_lid_switch(ON);
@@ -1103,8 +1199,20 @@ static int yeeloong_hotkey_init(void)
 	/* Install the real yeeloong_report_lid_status for pm.c */
 	yeeloong_report_lid_status = report_lid_switch;
 #endif
-
 	return 0;
+
+free_keymap:
+	sparse_keymap_free(yeeloong_hotkey_dev);
+free_dev:
+	input_free_device(yeeloong_hotkey_dev);
+free_irq:
+	free_irq(SCI_IRQ_NUM, NULL);
+free_pm_notifier:
+	unregister_pm_notifier(&pm_notifier);
+free_reboot_notifier:
+	unregister_reboot_notifier(&reboot_notifier);
+end:
+	return ret;
 }
 
 static void yeeloong_hotkey_exit(void)
