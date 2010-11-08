@@ -13,6 +13,7 @@
 
 #include <linux/types.h>
 #include <linux/pci_regs.h>
+#include <linux/pci_ids.h>
 
 extern void cs5536_pci_conf_write4(int function, int reg, u32 value);
 extern u32 cs5536_pci_conf_read4(int function, int reg);
@@ -43,16 +44,6 @@ extern u32 cs5536_pci_conf_read4(int function, int reg);
 /* CONFIG of PCI VENDOR ID*/
 #define CFG_PCI_VENDOR_ID(mod_dev_id, sys_vendor_id) \
 	(((mod_dev_id) << 16) | (sys_vendor_id))
-
-/* VENDOR ID */
-#define	CS5536_VENDOR_ID	0x1022
-
-/* DEVICE ID */
-#define	CS5536_ISA_DEVICE_ID		0x2090
-#define	CS5536_IDE_DEVICE_ID		0x209a
-#define	CS5536_ACC_DEVICE_ID		0x2093
-#define	CS5536_OHCI_DEVICE_ID		0x2094
-#define	CS5536_EHCI_DEVICE_ID		0x2095
 
 /* CLASS CODE : CLASS SUB-CLASS INTERFACE */
 #define	CS5536_ISA_CLASS_CODE		0x060100
@@ -85,16 +76,6 @@ extern u32 cs5536_pci_conf_read4(int function, int reg);
 
 /* CARDBUS CIS POINTER */
 #define	PCI_CARDBUS_CIS_POINTER		0x00000000
-
-/* SUBSYSTEM VENDOR ID  */
-#define	CS5536_SUB_VENDOR_ID		CS5536_VENDOR_ID
-
-/* SUBSYSTEM ID */
-#define	CS5536_ISA_SUB_ID		CS5536_ISA_DEVICE_ID
-#define	CS5536_IDE_SUB_ID		CS5536_IDE_DEVICE_ID
-#define	CS5536_ACC_SUB_ID		CS5536_ACC_DEVICE_ID
-#define	CS5536_OHCI_SUB_ID		CS5536_OHCI_DEVICE_ID
-#define	CS5536_EHCI_SUB_ID		CS5536_EHCI_DEVICE_ID
 
 /* EXPANSION ROM BAR */
 #define	PCI_EXPANSION_ROM_BAR		0x00000000

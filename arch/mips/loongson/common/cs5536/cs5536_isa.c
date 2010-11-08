@@ -235,8 +235,9 @@ u32 pci_isa_read_reg(int reg)
 
 	switch (reg) {
 	case PCI_VENDOR_ID:
-		cfg = CFG_PCI_VENDOR_ID(CS5536_ISA_DEVICE_ID,
-				CS5536_VENDOR_ID);
+	case PCI_SUBSYSTEM_VENDOR_ID:
+		cfg = CFG_PCI_VENDOR_ID(PCI_DEVICE_ID_AMD_CS5536_ISA,
+				PCI_VENDOR_ID_AMD);
 		break;
 	case PCI_COMMAND:
 		/* we just check the first LBAR for the IO enable bit, */
@@ -293,10 +294,6 @@ u32 pci_isa_read_reg(int reg)
 		break;
 	case PCI_CARDBUS_CIS:
 		cfg = PCI_CARDBUS_CIS_POINTER;
-		break;
-	case PCI_SUBSYSTEM_VENDOR_ID:
-		cfg = CFG_PCI_VENDOR_ID(CS5536_ISA_SUB_ID,
-				CS5536_SUB_VENDOR_ID);
 		break;
 	case PCI_ROM_ADDRESS:
 		cfg = PCI_EXPANSION_ROM_BAR;
