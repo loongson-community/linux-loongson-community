@@ -46,4 +46,15 @@ config LEMOTE_LYNLOONG2F
 	  size-fixed screen: 1360x768 with sisfb video driver. and also, it has
 	  its own specific suspend support.
 
+config GDIUM_LAPTOP
+	tristate "GDIUM laptop extras"
+	depends on DEXXON_GDIUM
+	select POWER_SUPPLY
+	select I2C
+	select INPUT_POLLDEV
+	default m
+	help
+	  This mini-driver drives the ST7 chipset present in the Gdium laptops.
+	  This gives battery support, wlan rfkill.
+
 endif # MIPS_PLATFORM_DEVICES
