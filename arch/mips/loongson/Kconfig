@@ -79,7 +79,6 @@ config DEXXON_GDIUM
 	select SYS_SUPPORTS_HIGHMEM
 	select SYS_SUPPORTS_LITTLE_ENDIAN
 	select ARCH_REQUIRE_GPIOLIB
-	select LOONGSON_MC146818
 	help
 	  Dexxon gdium netbook based on Loongson 2F and SM502.
 endchoice
