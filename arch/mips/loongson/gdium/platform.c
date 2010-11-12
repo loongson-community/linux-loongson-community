@@ -14,18 +14,14 @@
 #include <linux/i2c.h>
 #include <linux/i2c-gpio.h>
 
-#include <loongson.h>
-
 #define GDIUM_GPIO_BASE 224
 
 static struct i2c_board_info __initdata sm502dev_i2c_devices[] = {
 	{
 		I2C_BOARD_INFO("lm75", 0x48),
-		.type = "lm75",
 	},
 	{
-		I2C_BOARD_INFO("rtc-m41t80", 0x68),
-		.type = "m41t83",
+		I2C_BOARD_INFO("m41t83", 0x68),
 	},
 	{
 		I2C_BOARD_INFO("gdium-laptop", 0x40),
@@ -75,9 +71,9 @@ static struct i2c_gpio_platform_data i2c_gpio0_data = {
 };
 
 static struct platform_device i2c_gpio0_device = {
-		.name	= "i2c-gpio",
-		.id	= 0,
-		.dev	= { .platform_data  = &i2c_gpio0_data, },
+	.name	= "i2c-gpio",
+	.id	= 0,
+	.dev	= { .platform_data  = &i2c_gpio0_data, },
 };
 
 /* bus 1 is for the CRT/VGA external screen */
@@ -91,9 +87,9 @@ static struct i2c_gpio_platform_data i2c_gpio1_data = {
 };
 
 static struct platform_device i2c_gpio1_device = {
-		.name	= "i2c-gpio",
-		.id	= 1,
-		.dev	= { .platform_data  = &i2c_gpio1_data, },
+	.name	= "i2c-gpio",
+	.id	= 1,
+	.dev	= { .platform_data  = &i2c_gpio1_data, },
 };
 
 static struct platform_device *devices[] __initdata = {
@@ -105,18 +101,18 @@ static struct platform_device *devices[] __initdata = {
 static int __init gdium_platform_devices_setup(void)
 {
 	int ret;
-	printk(KERN_INFO "Registering gdium platform devices\n");
 
-	platform_add_devices(devices, ARRAY_SIZE(devices));
+	pr_info("Registering gdium platform devices\n");
 
 	ret = i2c_register_board_info(0, sm502dev_i2c_devices,
 		ARRAY_SIZE(sm502dev_i2c_devices));
 
 	if (ret != 0) {
-		printk(KERN_INFO "Error while registering gdium platform"
-				" devices: %d\n", ret);
+		pr_info("Error while registering platform devices: %d\n", ret);
 		return ret;
 	}
+
+	platform_add_devices(devices, ARRAY_SIZE(devices));
 
 	return 0;
 }
