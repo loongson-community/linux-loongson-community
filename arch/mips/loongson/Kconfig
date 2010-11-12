@@ -112,3 +112,12 @@ config LOONGSON_UART_BASE
 config LOONGSON_MC146818
 	bool
 	default n
+
+config GDIUM_PWM_CLOCK
+	tristate "Gdium PWM Timer"
+	default n
+	depends on HAVE_PWM && EXPERIMENTAL
+	select MIPS_EXTERNAL_TIMER
+	help
+	  This options enables the experimental sm501-pwm based clock. With it,
+	  you may be possible to use the loongson2f cpufreq driver.
