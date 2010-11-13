@@ -27,7 +27,7 @@ extern unsigned long sm501_set_clock(struct device *dev,
 extern unsigned long sm501_find_clock(struct device *dev,
 				      int clksrc, unsigned long req_freq);
 
-extern int sm501_configure_gpio(struct device *dev,
+extern void sm501_configure_gpio(struct device *dev,
 				unsigned int gpio, unsigned char mode);
 
 /* sm501_misc_control

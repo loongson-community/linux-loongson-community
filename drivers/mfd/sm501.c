@@ -1146,13 +1146,10 @@ static inline int sm501_gpio_isregistered(struct sm501_devdata *sm)
 	return sm->gpio.registered;
 }
 
-int sm501_configure_gpio(struct device *dev, unsigned int gpio,
-			 unsigned char mode)
+void sm501_configure_gpio(struct device *dev, unsigned int gpio, unsigned
+		char mode)
 {
-	int reg, offset, set;
-
-	offset = 0;
-	set = 0;
+	unsigned long set, reg, offset = gpio;
 
 	if (offset >= 32) {
 		reg = SM501_GPIO63_32_CONTROL;
@@ -1160,12 +1157,12 @@ int sm501_configure_gpio(struct device *dev, unsigned int gpio,
 	} else
 		reg = SM501_GPIO31_0_CONTROL;
 
-	if (mode)
-		set = 1<<offset;
+	set = mode ? 1 << offset : 0;
 
-	sm501_modify_reg(dev, reg, set, 1<<offset);
-	return 0;
+	sm501_modify_reg(dev, reg, set, 0);
 }
+EXPORT_SYMBOL_GPL(sm501_configure_gpio);
+
 #else
 static inline int sm501_register_gpio(struct sm501_devdata *sm)
 {
