@@ -116,7 +116,7 @@ config LOONGSON_MC146818
 config GDIUM_PWM_CLOCK
 	tristate "Gdium PWM Timer"
 	default n
-	depends on HAVE_PWM && EXPERIMENTAL
+	depends on HAVE_PWM && EXPERIMENTAL && BROKEN
 	select MIPS_EXTERNAL_TIMER
 	help
 	  This options enables the experimental sm501-pwm based clock. With it,
