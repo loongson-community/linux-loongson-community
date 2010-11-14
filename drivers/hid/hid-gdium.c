@@ -176,6 +176,7 @@ static void gdium_input_remove(struct hid_device *hdev)
 
 static const struct hid_device_id gdium_input_devices[] = {
 	{ HID_USB_DEVICE(USB_VENDOR_ID_GDIUM, USB_DEVICE_ID_GDIUM) },
+	{}
 };
 MODULE_DEVICE_TABLE(hid, gdium_input_devices);
 
