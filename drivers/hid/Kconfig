@@ -515,9 +515,9 @@ config HID_ZYDACRON
 	Support for Zydacron remote control.
 
 config HID_GDIUM
-	tristate "Gdium Fn keys support"
+	bool "Gdium Fn keys support" if EMBEDDED
 	depends on USB_HID && DEXXON_GDIUM
-	default m
+	default !EMBEDDED
 	---help---
 	Support for Functions keys available on Gdiums.
 

@@ -21,7 +21,7 @@
 
 #define GDIUM_FN_ON	1
 
-static int fnmode = 1;
+static int fnmode = GDIUM_FN_ON;
 module_param(fnmode, int, 0644);
 MODULE_PARM_DESC(fnmode, "Mode of fn key on Gdium (0 = disabled, 1 = Enabled)");
 
@@ -195,7 +195,7 @@ static int gdium_input_init(void)
 
 	ret = hid_register_driver(&gdium_input_driver);
 	if (ret)
-		 printk(KERN_ERR "can't register gdium keyboard driver\n");
+		 pr_err("can't register gdium keyboard driver\n");
 
 	return ret;
 }
