@@ -58,7 +58,7 @@ struct sm501_gpio {
 struct sm501_gpio {
 	/* no gpio support, empty definition for sm501_devdata. */
 };
-#endif
+#endif	/* CONFIG_MFD_SM501_GPIO */
 
 struct sm501_devdata {
 	spinlock_t			 reg_lock;
@@ -1161,8 +1161,6 @@ void sm501_configure_gpio(struct device *dev, unsigned int gpio, unsigned
 
 	sm501_modify_reg(dev, reg, set, 0);
 }
-EXPORT_SYMBOL_GPL(sm501_configure_gpio);
-
 #else
 static inline int sm501_register_gpio(struct sm501_devdata *sm)
 {
@@ -1188,7 +1186,7 @@ int sm501_configure_gpio(struct device *dev, unsigned int gpio,
 {
 	return -1;
 }
-#endif
+#endif	/* CONFIG_MFD_SM501_GPIO */
 EXPORT_SYMBOL_GPL(sm501_configure_gpio);
 
 static int sm501_register_gpio_i2c_instance(struct sm501_devdata *sm,
