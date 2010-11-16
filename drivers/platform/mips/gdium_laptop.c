@@ -67,10 +67,13 @@
 #endif
 
 #define BAT_VOLT_PRESENT	500000	/* Min voltage to consider battery present uV */
-#define BAT_MIN			7000000 /* Min battery voltage in uV */
-#define BAT_TRICKLE_EN		8000000 /* Charging at 1.4A before  8.0V and then charging at 0.25A */
-#define BAT_MAX			7950000 /* Max battery voltage ~8V in uV */
-#define BAT_READ_ERROR		300000 /* battery read error of 0.3V */
+#define BAT_MIN			7000000	/* Min battery voltage in uV */
+#define BAT_MIN_MV		7000	/* Min battery voltage in mV */
+#define BAT_TRICKLE_EN		8000000	/* Charging at 1.4A before  8.0V and then charging at 0.25A */
+#define BAT_MAX			7950000	/* Max battery voltage ~8V in V */
+#define BAT_MAX_MV		7950	/* Max battery voltage ~8V in V */
+#define BAT_READ_ERROR		300000	/* battery read error of 0.3V */
+#define BAT_READ_ERROR_MV	300	/* battery read error of 0.3V */
 
 #define SM502_WLAN_ON		(224+16)/* SM502 GPIO16 may be used on gdium v2 (v3?) as wlan_on */
 					/* when R422 is connected */
@@ -99,6 +102,7 @@ struct gdium_laptop_data {
 	/* important registers value */
 	char				status;
 	char				ctrl;
+	/* mV */
 	int				battery_level;
 	char				version;
 };
@@ -108,7 +112,7 @@ struct gdium_laptop_data {
 /* All are supposed to be called with mutex held                      */
 /**********************************************************************/
 /*
- * Return battery voltage in uV
+ * Return battery voltage in mV
  * >= 0 battery voltage
  * < 0 error
  */
@@ -144,10 +148,9 @@ static s32 ec_read_battery(struct i2c_client *client)
 
 	ret = (bat_high << 2) | (bat_low & 3);
 	/*
-	 * uV precision is not available and converting to uV first
-	 * will overflow. So convert to mV first and then uV
+	 * mV
 	 */
-	ret = ((ret * 5 * 2) * 1000 / 1024) * 1000;
+	ret = (ret * 5 * 2) * 1000 / 1024;
 
 	return ret;
 }
@@ -464,13 +467,17 @@ static int gdium_ac_get_props(struct power_supply *psy,
 	return ret;
 }
 
+#undef RET
+#define RET (val->intval)
+
 static int gdium_battery_get_props(struct power_supply *psy,
 		enum power_supply_property psp,
 		union power_supply_propval *val)
 {
 	char status, ctrl;
 	struct gdium_laptop_data *data = container_of(psy, struct gdium_laptop_data, gdium_battery);
-	int ret = -EINVAL;
+	int percentage_capacity = 0, charge_now = 0, time_to_empty = 0;
+	int ret = 0, tmp;
 
 	if (!data) {
 		pr_err("gdium-battery: gdium_laptop_data not found\n");
@@ -480,66 +487,107 @@ static int gdium_battery_get_props(struct power_supply *psy,
 	status = data->status;
 	ctrl   = data->ctrl;
 	switch (psp) {
-	case POWER_SUPPLY_PROP_STATUS:
+	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
+		/* uAh */
+		RET = 5000000;
+		break;
+	case POWER_SUPPLY_PROP_CURRENT_NOW:
+	case POWER_SUPPLY_PROP_TIME_TO_EMPTY_NOW:
+		/* This formula is gotten by gnuplot with the statistic data */
+		time_to_empty = (data->battery_level - BAT_MIN_MV + BAT_READ_ERROR_MV) * 113 - 29870;
+		if (psp == POWER_SUPPLY_PROP_TIME_TO_EMPTY_NOW) {
+			/* seconds */
+			RET = time_to_empty / 10;
+			break;
+		}
+		/* fall through */
+	case POWER_SUPPLY_PROP_CHARGE_NOW:
+	case POWER_SUPPLY_PROP_CAPACITY: {
+		tmp = data->battery_level * 1000;
+		/* > BAT_MIN to avoid negative values */
+		percentage_capacity = 0;
+		if ((status & EC_STATUS_BATID) && (tmp > BAT_MIN))
+			percentage_capacity = (tmp-BAT_MIN)*100/(BAT_MAX-BAT_MIN);
+
+		if (percentage_capacity > 100)
+			percentage_capacity = 100;
+
+		if (psp == POWER_SUPPLY_PROP_CAPACITY) {
+			RET = percentage_capacity;
+			break;
+		}
+		charge_now = 50000 * percentage_capacity;
+		if (psp == POWER_SUPPLY_PROP_CHARGE_NOW) {
+			/* uAh */
+			RET = charge_now;
+			break;
+		}
+	}	/* fall through */
+	case POWER_SUPPLY_PROP_STATUS: {
 		if (status & EC_STATUS_ADAPT)
 			if (ctrl & EC_CTRL_CHARGE_EN)
-				val->intval = POWER_SUPPLY_STATUS_CHARGING;
+				RET = POWER_SUPPLY_STATUS_CHARGING;
 			else
-				val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
+				RET = POWER_SUPPLY_STATUS_NOT_CHARGING;
 		else
-			val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
-		ret = 0;
+			RET = POWER_SUPPLY_STATUS_DISCHARGING;
+
+		if (psp == POWER_SUPPLY_PROP_STATUS)
+			break;
+		/* mAh -> µA */
+		switch (RET) {
+		case POWER_SUPPLY_STATUS_CHARGING:
+			RET = -(data->charge_cmd == 2) ? 1400000 : 250000;
+			break;
+		case POWER_SUPPLY_STATUS_DISCHARGING:
+			RET = charge_now / time_to_empty * 36000;
+			break;
+		case POWER_SUPPLY_STATUS_NOT_CHARGING:
+		default:
+			RET = 0;
+			break;
+		}
+	} break;
+	case POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN:
+		RET = BAT_MAX+BAT_READ_ERROR;
 		break;
-	case POWER_SUPPLY_PROP_VOLTAGE_MIN:
-		val->intval = BAT_MIN;
-		ret = 0;
+	case POWER_SUPPLY_PROP_VOLTAGE_MIN_DESIGN:
+		RET = BAT_MIN-BAT_READ_ERROR;
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
-		val->intval = data->battery_level;
-		ret = 0;
-		break;
-	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
-		val->intval = BAT_MAX;
-		ret = 0;
+		/* mV -> uV */
+		RET = data->battery_level * 1000;
 		break;
 	case POWER_SUPPLY_PROP_PRESENT:
-		val->intval = !!(status & EC_STATUS_BATID);
-		ret = 0;
-		break;
-	case POWER_SUPPLY_PROP_CAPACITY:
-		ret = data->battery_level;
-		/* > BAT_MIN to avoid negative values */
-		if ((status & EC_STATUS_BATID) && (ret > BAT_MIN))
-			val->intval = (ret-BAT_MIN)*100/(BAT_MAX-BAT_MIN);
-		else
-			val->intval = 0;
-
-		if (val->intval > 100)
-			val->intval = 100;
-
-		ret = 0;
+		RET = !!(status & EC_STATUS_BATID);
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY_LEVEL:
-		ret = data->battery_level;
+		tmp = data->battery_level * 1000;
+		RET = POWER_SUPPLY_CAPACITY_LEVEL_UNKNOWN;
 		if (status & EC_STATUS_BATID) {
-			if (ret >= BAT_MAX)
-				val->intval = POWER_SUPPLY_CAPACITY_LEVEL_FULL;
-			else if (ret <= BAT_MIN)
-				val->intval = POWER_SUPPLY_CAPACITY_LEVEL_LOW;
-			else
-				val->intval = POWER_SUPPLY_CAPACITY_LEVEL_NORMAL;
-		} else
-			val->intval = POWER_SUPPLY_CAPACITY_LEVEL_LOW;
-		ret = 0;
+			if (tmp >= BAT_MAX) {
+				RET = POWER_SUPPLY_CAPACITY_LEVEL_HIGH;
+				if (tmp >= BAT_MAX+BAT_READ_ERROR)
+					RET = POWER_SUPPLY_CAPACITY_LEVEL_FULL;
+			} else if (tmp <= BAT_MIN+BAT_READ_ERROR) {
+				RET = POWER_SUPPLY_CAPACITY_LEVEL_LOW;
+				if (tmp <= BAT_MIN)
+					RET = POWER_SUPPLY_CAPACITY_LEVEL_CRITICAL;
+			} else
+				RET = POWER_SUPPLY_CAPACITY_LEVEL_NORMAL;
+		}
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_TYPE:
 		if (ctrl & EC_CTRL_TRICKLE)
-			val->intval = POWER_SUPPLY_CHARGE_TYPE_TRICKLE;
+			RET = POWER_SUPPLY_CHARGE_TYPE_TRICKLE;
 		else if (ctrl & EC_CTRL_CHARGE_EN)
-			val->intval = POWER_SUPPLY_CHARGE_TYPE_FAST;
+			RET = POWER_SUPPLY_CHARGE_TYPE_FAST;
 		else
-			val->intval = POWER_SUPPLY_CHARGE_TYPE_NONE;
-		ret = 0;
+			RET = POWER_SUPPLY_CHARGE_TYPE_NONE;
+		break;
+	case POWER_SUPPLY_PROP_CURRENT_MAX:
+		/* 1.4A ? */
+		RET = 1400000;
 		break;
 	default:
 		break;
@@ -547,6 +595,7 @@ static int gdium_battery_get_props(struct power_supply *psy,
 
 	return ret;
 }
+#undef RET
 
 static enum power_supply_property gdium_ac_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
@@ -555,9 +604,14 @@ static enum power_supply_property gdium_ac_props[] = {
 static enum power_supply_property gdium_battery_props[] = {
 	POWER_SUPPLY_PROP_STATUS,
 	POWER_SUPPLY_PROP_PRESENT,
-	POWER_SUPPLY_PROP_VOLTAGE_MIN,
+	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
+	POWER_SUPPLY_PROP_CHARGE_NOW,
+	POWER_SUPPLY_PROP_TIME_TO_EMPTY_NOW,
+	POWER_SUPPLY_PROP_VOLTAGE_MIN_DESIGN,
+	POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
-	POWER_SUPPLY_PROP_VOLTAGE_MAX,
+	POWER_SUPPLY_PROP_CURRENT_MAX,
+	POWER_SUPPLY_PROP_CURRENT_NOW,
 	POWER_SUPPLY_PROP_CAPACITY,
 	POWER_SUPPLY_PROP_CAPACITY_LEVEL,
 	POWER_SUPPLY_PROP_CHARGE_TYPE,
@@ -593,13 +647,13 @@ static void gdium_laptop_battery_work(struct work_struct *work)
 	present = (data->status & EC_STATUS_BATID) ? 1 : 0;
 	if (present)
 		if (data->status & EC_STATUS_ADAPT)
-			data->battery_level = (unsigned int)ret - BAT_READ_ERROR;
+			data->battery_level = (unsigned int)ret - BAT_READ_ERROR_MV;
 		else
 			data->battery_level = (unsigned int)ret;
 	else
 		data->battery_level = 0;
 
-	if ((data->status & EC_STATUS_ADAPT) && present && (data->battery_level <= BAT_MAX))
+	if ((data->status & EC_STATUS_ADAPT) && present && (data->battery_level <= BAT_MAX_MV))
 		if (ret < BAT_TRICKLE_EN)
 			data->charge_cmd = 2;
 		else
@@ -701,7 +755,7 @@ static int gdium_laptop_regs_show(struct seq_file *s, void *p)
 	seq_printf(s, "Sign       : 0x%02x\n", (unsigned char)ec_read_sign(client));
 	seq_printf(s, "Bat Lo     : 0x%02x\n", (unsigned char)i2c_smbus_read_byte_data(client, EC_BAT_LOW));
 	seq_printf(s, "Bat Hi     : 0x%02x\n", (unsigned char)i2c_smbus_read_byte_data(client, EC_BAT_HIGH));
-	seq_printf(s, "Battery    : %d uV\n",  (unsigned int)ec_read_battery(client));
+	seq_printf(s, "Battery    : %d uV\n",  (unsigned int)ec_read_battery(client) * 1000);
 	seq_printf(s, "Charge cmd : %s %s\n", data->charge_cmd & 2 ? "C" : " ", data->charge_cmd & 1 ? "T" : " ");
 
 	mutex_unlock(&data->mutex);
