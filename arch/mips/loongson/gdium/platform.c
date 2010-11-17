@@ -41,8 +41,8 @@ static void sm502dev_backlight_exit(struct device *dev)
 
 static struct platform_pwm_backlight_data backlight_data = {
 	.pwm_id		= 0,
-	.max_brightness	= 100,
-	.dft_brightness	= 50,
+	.max_brightness	= 15,
+	.dft_brightness	= 8,
 	.pwm_period_ns	= 50000, /* 20 kHz */
 	.init		= sm502dev_backlight_init,
 	.exit		= sm502dev_backlight_exit,
