@@ -824,6 +824,60 @@ config CSRC_R4K
 	select CSRC_R4K_LIB
 	bool
 
+config MIPS_USER_RDTSC
+	bool "Emulate rdtsc instruction for MIPS"
+	depends on CSRC_R4K && MIPS32_O32
+	default n
+	help
+	  This optoin enables the Emulated rdtsc support for MIPS, which allows
+	  the user-space applications read the R4k count directly. Currently,
+	  this only support the CONFIG_MIPS32_O32 and R4K, but future, we may
+	  add support for scall64-{n32,64}.S and scall32-32.S and for the count
+	  registers provided by the other MIPS variants.
+
+	  This emulation based on the syscall instruction, by default, the
+	  syscall is encoded as 0x0000000c, except the 0xc, the other parts can
+	  be encoded as specific meaning. when a syscall instruction is issued,
+	  through checking the encoding of the instruction, when the encoding
+	  is the generic 0x000000c, we do the generic syscall work, if
+	  something other is encoded in, we can do relevant things, except for
+	  the light-weight things, such as read a register. herein, we read the
+	  count register whenever there is something encoded in the syscall
+	  instruction. In the future, we may be possible to abstract more
+	  light-weight & frequently-used operations and add a
+	  sys_call_table-like table to store the entries of some light-weight
+	  operations and encode 1,2,3... into the syscall instruction and jump
+	  to respective entry for diffrent numbers, as a result, we get
+	  fast-syscall and which may speed up the user-space applications and
+	  even be possibly improve the determinism.
+
+	  *Example*
+
+	  #include <stdio.h>
+	  #include <stdint.h>
+
+	  /*
+	   * Currently, our return value is only 32bit, In the long run,
+	   * this should be uint64_t, just like clock_gettime(), but it
+	   * should has high precision/low overhead than clock_gettime()
+	   */
+	  uint32_t rdtsc(void)
+	  {
+		  /*
+		   * Linux will store the value of the count register into
+		   * the v0 register, which is just the return value of this
+		   * function, so, please ignore the compiling warning.
+		   */
+		  __asm__ __volatile__ (
+			  "syscall 1\n"
+		  :::"$2");
+	  }
+
+	  int main(int argc, char *argv[])
+	  {
+		  return printf("cycles: %u\n", rdtsc());
+	  }
+
 config CSRC_SB1250
 	bool
 

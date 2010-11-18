@@ -26,6 +26,18 @@
 
 	.align  5
 NESTED(handle_sys, PT_SIZE, sp)
+#ifdef CONFIG_MIPS_USER_RDTSC
+	MFC0	k0, CP0_EPC
+	lw	k1, 0(k0)
+	sltiu	k1, k1, 0x1c
+	bne	k1, zero, 1f		# Normal syscall code: 0x0c < 0x1c
+	 nop
+	mfc0	v0, CP0_COUNT 		# Get TSC
+	PTR_ADDIU	k0, 4		# ret from syscall
+	MTC0	k0, CP0_EPC
+	eret
+1:
+#endif /* CONFIG_MIPS_USER_RDTSC */
 	.set	noat
 	SAVE_SOME
 	TRACE_IRQS_ON_RELOAD
