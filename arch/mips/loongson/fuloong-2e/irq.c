@@ -9,7 +9,6 @@
  */
 #include <linux/interrupt.h>
 
-#include <asm/irq_cpu.h>
 #include <asm/i8259.h>
 
 #include <loongson.h>
@@ -46,20 +45,9 @@ static struct irqaction cascade_irqaction = {
 
 void __init mach_init_irq(void)
 {
-	/* init all controller
-	 *   0-15         ------> i8259 interrupt
-	 *   16-23        ------> mips cpu interrupt
-	 *   32-63        ------> bonito irq
-	 */
-
 	/* most bonito irq should be level triggered */
 	LOONGSON_INTEDGE = LOONGSON_ICU_SYSTEMERR | LOONGSON_ICU_MASTERERR |
 	    LOONGSON_ICU_RETRYERR | LOONGSON_ICU_MBOXES;
-
-	/* Sets the first-level interrupt dispatcher. */
-	mips_cpu_irq_init();
-	init_i8259_irqs();
-	bonito_irq_init();
 
 	/* bonito irq at IP2 */
 	setup_irq(MIPS_CPU_IRQ_BASE + 2, &cascade_irqaction);

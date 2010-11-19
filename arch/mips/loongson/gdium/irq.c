@@ -13,9 +13,6 @@
 #include <linux/interrupt.h>
 #include <linux/module.h>
 
-#include <asm/irq_cpu.h>
-#include <asm/mipsregs.h>
-
 #include <loongson.h>
 #include <machine.h>
 
@@ -49,15 +46,6 @@ struct irqaction ip6_irqaction = {
 
 void __init mach_init_irq(void)
 {
-	/* init all controller
-	*   16-23        ------> mips cpu interrupt
-	*   32-63        ------> bonito irq
-	*/
-
-	/* Sets the first-level interrupt dispatcher. */
-	mips_cpu_irq_init();
-	bonito_irq_init();
-
 	/* setup north bridge irq (bonito) */
 	setup_irq(LOONGSON_NORTH_BRIDGE_IRQ, &ip6_irqaction);
 }
