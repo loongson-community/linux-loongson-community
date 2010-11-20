@@ -167,9 +167,22 @@ static struct platform_device_id platform_device_ids[] = {
 };
 MODULE_DEVICE_TABLE(platform, platform_device_ids);
 
+static struct platform_driver platform_driver = {
+	.driver = {
+		.name = "l2_cpufreq",
+		.owner = THIS_MODULE,
+	},
+	.id_table = platform_device_ids,
+};
+
 static int __init l2_cpufreq_init(void)
 {
 	int ret;
+
+	/* Register platform stuff */
+	ret = platform_driver_register(&platform_driver);
+	if (ret)
+		return ret;
 
 	ret = cpufreq_register_notifier(&l2_cpufreq_nb,
 			CPUFREQ_TRANSITION_NOTIFIER);
@@ -198,6 +211,8 @@ static void __exit l2_cpufreq_exit(void)
 
 	cpufreq_unregister_notifier(&l2_cpufreq_nb,
 			CPUFREQ_TRANSITION_NOTIFIER);
+
+	platform_driver_unregister(&platform_driver);
 }
 
 module_init(l2_cpufreq_init);
