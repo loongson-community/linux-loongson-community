@@ -117,7 +117,23 @@ static struct clock_event_device gdium_pwm_clock_cevt = {
 	.set_mode       = gdium_pwm_clock_set_mode,
 };
 
-static int __init gdium_pwm_clock_probe(struct platform_device *pdev)
+static struct platform_device_id platform_device_ids[] = {
+	{
+		.name = "gdium-pwmclk",
+	},
+	{}
+};
+MODULE_DEVICE_TABLE(platform, platform_device_ids);
+
+static struct platform_driver gdium_pwm_clock_driver = {
+	.driver		= {
+		.name   = drv_name,
+		.owner  = THIS_MODULE,
+	},
+	.id_table = platform_device_ids,
+};
+
+static int gdium_pwm_clock_drvinit(void)
 {
 	int ret;
 	struct clocksource *cs = &gdium_pwm_clock_clocksource;
@@ -128,17 +144,17 @@ static int __init gdium_pwm_clock_probe(struct platform_device *pdev)
 
 	clock_pwm = pwm_request(CLOCK_PWM, drv_name);
 	if (clock_pwm == NULL) {
-		dev_err(&pdev->dev, "unable to request PWM for Gdium clock\n");
+		pr_err("unable to request PWM for Gdium clock\n");
 		return -EBUSY;
 	}
 	ret = pwm_config(clock_pwm, CLOCK_PWM_DUTY, CLOCK_PWM_PERIOD);
 	if (ret) {
-		dev_err(&pdev->dev, "unable to configure PWM for Gdium clock\n");
+		pr_err("unable to configure PWM for Gdium clock\n");
 		goto err_pwm_request;
 	}
 	ret = pwm_enable(clock_pwm);
 	if (ret) {
-		dev_err(&pdev->dev, "unable to enable PWM for Gdium clock\n");
+		pr_err("unable to enable PWM for Gdium clock\n");
 		goto err_pwm_request;
 	}
 
@@ -152,9 +168,10 @@ static int __init gdium_pwm_clock_probe(struct platform_device *pdev)
 
 	/* SM501 PWM1 connected to intn2 <->ip4 */
 	LOONGSON_INTPOL = (1 << 13);
+	LOONGSON_INTEDGE &= ~(1 << 13);
 	ret = request_irq(CLOCK_PWM_IRQ, gdium_pwm_clock_interrupt, IRQF_DISABLED, drv_name, &gdium_pwm_clock_cevt);
 	if (ret) {
-		dev_err(&pdev->dev, "Can't claim irq\n");
+		pr_err("Can't claim irq\n");
 		goto err_pwm_disable;
 	}
 
@@ -162,10 +179,10 @@ static int __init gdium_pwm_clock_probe(struct platform_device *pdev)
 	cs->mult = clocksource_hz2mult(CLOCK_PWM_FREQ, cs->shift);
 	ret = clocksource_register(&gdium_pwm_clock_clocksource);
 	if (ret) {
-		dev_err(&pdev->dev, "Can't register clocksource\n");
+		pr_err("Can't register clocksource\n");
 		goto err_irq;
 	}
-	dev_info(&pdev->dev, "Clocksource registered with shift %d and mult %d\n",
+	pr_info("Clocksource registered with shift %d and mult %d\n",
 			cs->shift, cs->mult);
 
 	debugfs_file = debugfs_create_file(drv_name, S_IFREG | S_IRUGO,
@@ -182,21 +199,29 @@ err_pwm_request:
 	return ret;
 }
 
-static struct platform_driver gdium_pwm_clock_driver = {
-	.probe		= gdium_pwm_clock_probe,
-	.driver		= {
-		.name   = drv_name,
-		.owner  = THIS_MODULE,
-	},
-};
+static void gdium_pwm_clock_drvexit(void)
+{
+	free_irq(CLOCK_PWM_IRQ, &gdium_pwm_clock_cevt);
+	pwm_disable(clock_pwm);
+	pwm_free(clock_pwm);
+}
+
 
 static int __devinit gdium_pwm_clock_init(void)
 {
+	int ret = gdium_pwm_clock_drvinit();
+
+	if (ret) {
+		pr_err("Fail to register gdium clock driver\n");
+		return ret;
+	}
+
 	return platform_driver_register(&gdium_pwm_clock_driver);
 }
 
 static void __exit gdium_pwm_clock_cleanup(void)
 {
+	gdium_pwm_clock_drvexit();
 	platform_driver_unregister(&gdium_pwm_clock_driver);
 }
 

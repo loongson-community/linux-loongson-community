@@ -29,6 +29,10 @@ void mach_irq_dispatch(unsigned int pending)
 		bonito_irqdispatch();
 	} else if (pending & CAUSEF_IP3)        /* CPU UART */
 		do_IRQ(LOONGSON_UART_IRQ);
+#if defined(CONFIG_GDIUM_PWM_CLOCK) || defined(CONFIG_GDIUM_PWM_CLOCK_MODULE)
+	else if (pending & CAUSEF_IP4)		/* SM501 PWM clock */
+		do_IRQ(MIPS_CPU_IRQ_BASE + 4);
+#endif
 	else
 		spurious_interrupt();
 }

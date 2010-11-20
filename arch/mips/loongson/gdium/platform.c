@@ -92,10 +92,16 @@ static struct platform_device i2c_gpio1_device = {
 	.dev	= { .platform_data  = &i2c_gpio1_data, },
 };
 
+static struct platform_device gdium_clock = {
+	.name		= "gdium-pwmclk",
+	.id		= -1,
+};
+
 static struct platform_device *devices[] __initdata = {
 	&i2c_gpio0_device,
 	&i2c_gpio1_device,
 	&backlight,
+	&gdium_clock,
 };
 
 static int __init gdium_platform_devices_setup(void)
