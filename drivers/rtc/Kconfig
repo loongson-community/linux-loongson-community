@@ -447,6 +447,7 @@ comment "Platform RTC drivers"
 config RTC_DRV_CMOS
 	tristate "PC-style 'CMOS'"
 	depends on X86 || ALPHA || ARM || M32R || ATARI || PPC || MIPS || SPARC64
+	depends on !DEXXON_GDIUM
 	default y if X86
 	help
 	  Say "yes" here to get direct support for the real time clock
