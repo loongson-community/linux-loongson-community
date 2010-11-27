@@ -44,6 +44,7 @@ EXPORT_SYMBOL(loongson_cpufreq_driver_loaded);
 
 static void loongson2_wait(void)
 {
+#ifndef	CONFIG_R4K_TIMER_FOR_CPUFREQ
 	u32 cpufreq;
 
 	raw_spin_lock(&loongson_cpufreq_lock);
@@ -72,6 +73,7 @@ static void loongson2_wait(void)
 		LOONGSON_SET_CPUFREQ(cpufreq);
 
 	raw_spin_unlock(&loongson_cpufreq_lock);
+#endif	/* CONFIG_R4K_TIMER_FOR_CPUFREQ */
 }
 #else
 #define loongson2_wait	NULL

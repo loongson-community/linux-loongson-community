@@ -45,12 +45,73 @@ static unsigned int l2_cpufreq_get(unsigned int cpu)
 	return idx_to_freq(LOONGSON_GET_CPUFREQ());
 }
 
+#ifdef CONFIG_R4K_TIMER_FOR_CPUFREQ
+
+unsigned int scale_shift;
+extern void update_virtual_count(unsigned int target_scale_shift);
+
+static unsigned int idx_to_scale_shift(unsigned int newstate)
+{
+
+	/*
+	 * newstate the the index of the array clockmod_table, the valid value
+	 * is 1, 2, 3.
+	 *
+	 * The return value is the scale_shift for respective frequency.
+	 *
+	 *  newstate | Freq_scale of CR80 | multiple        | scale_shift
+	 *     1     |        1           | 8 / (1+1) = 4   |  2
+	 *     2     |        3           | 8 / (3+1) = 2   |  1
+	 *     3     |        7           | 8 / (7+1) = 1   |  0
+	 *
+	 *  scale_shift = 3 - newstate
+	 */
+
+	return 3 - newstate;
+}
+
+static inline void sync_virtual_count(unsigned int target_scale_shift)
+{
+	update_virtual_count(target_scale_shift);
+	scale_shift = target_scale_shift;
+}
+
+static void l2_cpufreq_set(unsigned int newstate)
+{
+	unsigned long flag;
+	unsigned int target_scale_shift;
+
+	target_scale_shift = idx_to_scale_shift(newstate);
+
+	pr_debug("%s: scale_shift = %d, target_scale_shift = %d, target_set: %d\n",
+			__func__, scale_shift, target_scale_shift,
+			clockmod_table[newstate].index);
+
+	raw_spin_lock_irqsave(&loongson_cpufreq_lock, flag);
+	/* When freq becomes higher ... */
+	if (scale_shift > target_scale_shift)
+		sync_virtual_count(target_scale_shift);
+	/* Set the CR80 register */
+	LOONGSON_SET_CPUFREQ(clockmod_table[newstate].index);
+	/* When freq becomes lower ... */
+	if (scale_shift < target_scale_shift)
+		sync_virtual_count(target_scale_shift);
+	raw_spin_unlock_irqrestore(&loongson_cpufreq_lock, flag);
+
+	pr_debug("%s: scale_shift = %d, target_scale_shift = %d, target_set: %d\n",
+			__func__, scale_shift, target_scale_shift,
+			clockmod_table[newstate].index); }
+
+#else
+
 static void l2_cpufreq_set(unsigned int newstate)
 {
 	raw_spin_lock(&loongson_cpufreq_lock);
 	LOONGSON_SET_CPUFREQ(clockmod_table[newstate].index);
 	raw_spin_unlock(&loongson_cpufreq_lock);
 }
+
+#endif /* CONFIG_R4K_TIMER_FOR_CPUFREQ */
 
 static int l2_cpufreq_target(struct cpufreq_policy *policy, unsigned int
 		target_freq, unsigned int relation)

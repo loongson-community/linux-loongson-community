@@ -4,11 +4,38 @@
 
 config MIPS_EXTERNAL_TIMER
 	bool
+	select TIMER_SUPPORTS_CPUFREQ
+
+config R4K_TIMER_FOR_CPUFREQ
+	bool "Enable R4K Timer for CPUFreq Driver"
+	depends on !PREEMPT_RT
+	depends on CSRC_R4K && CEVT_R4K
+	depends on CPU_LOONGSON2F
+	select TIMER_SUPPORTS_CPUFREQ
+	select CPU_FREQ
+	select LOONGSON2_CPUFREQ
+	default n
+	help
+	  This option ensures the R4K Timer works normally with the CPUFreq
+	  driver. Currently, It is only designed for Loongson2F with specific
+	  optimization.
+
+	  If no external timer provided by your Loongson2F boards, this is
+	  preferrable.
+
+	  If unsure, say NO, but for Gdium netbook, Say Yes Please to ensure
+	  the netbook is not too hot!
+
+# For PREEMPT_RT need precise time, we must disable TIMER_SUPPORTS_CPUFREQ
+# Exactly, we may need to disable the whole cpu freq support
+config TIMER_SUPPORTS_CPUFREQ
+	bool
+	depends on !PREEMPT_RT
 
 config MIPS_CPUFREQ
 	bool
 	default y
-	depends on CPU_SUPPORTS_CPUFREQ && MIPS_EXTERNAL_TIMER
+	depends on CPU_SUPPORTS_CPUFREQ && TIMER_SUPPORTS_CPUFREQ
 
 if MIPS_CPUFREQ
 
