@@ -22,6 +22,50 @@
 
 #ifndef CONFIG_MIPS_MT_SMTC
 
+#ifdef CONFIG_R4K_TIMER_FOR_CPUFREQ
+
+extern cycle_t read_virtual_count(void);
+extern unsigned int scale_shift;
+#define hpt_scale_down(cycle) ((cycle) >> scale_shift)
+#define hpt_scale_down_shift(cycle, shift) ((cycle) >> (shift))
+
+static u64 last_hpt_target;
+
+static inline void update_virtual_target(u32 delta)
+{
+	last_hpt_target = read_virtual_count() + delta;
+}
+
+/*
+ * This should be called with irq disabled and spin lock
+ *
+ * We must update the virtual clocksource and the clockevent when prepare or
+ * post change the cpu frequency.
+ */
+
+void update_virtual_count(unsigned int target_scale_shift)
+{
+	u64 now64;
+	/*
+	 * If we want to change the cpufreq before the target timer event is
+	 * met, we must update the delta to the new one.
+	 */
+	now64 = read_virtual_count();
+	if (now64 < last_hpt_target) {
+		unsigned int cnt = read_c0_count();
+		cnt += hpt_scale_down_shift((last_hpt_target - now64),
+				target_scale_shift);
+		write_c0_compare(cnt);
+	}
+}
+
+#else
+
+#define hpt_scale_down(cycle) (cycle)
+#define update_virtual_target(delta)
+
+#endif	/* CONFIG_R4K_TIMER_FOR_CPUFREQ */
+
 static int mips_next_event(unsigned long delta,
                            struct clock_event_device *evt)
 {
@@ -29,9 +73,13 @@ static int mips_next_event(unsigned long delta,
 	int res;
 
 	cnt = read_c0_count();
-	cnt += delta;
+	cnt += hpt_scale_down(delta);
 	write_c0_compare(cnt);
 	res = ((int)(read_c0_count() - cnt) > 0) ? -ETIME : 0;
+
+	/* Update the virtual counter */
+	update_virtual_target(delta);
+
 	return res;
 }
 

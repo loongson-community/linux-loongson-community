@@ -45,6 +45,7 @@ EXPORT_SYMBOL(loongson_cpufreq_lock);
 
 static void loongson2_wait(void)
 {
+#ifndef	CONFIG_R4K_TIMER_FOR_CPUFREQ
 	u32 cpufreq;
 	ktime_t kt1, kt2;
 	s64 idle_time_ns;
@@ -89,6 +90,7 @@ static void loongson2_wait(void)
 	local_irq_enable();
 
 	raw_spin_unlock(&loongson_cpufreq_lock);
+#endif	/* CONFIG_R4K_TIMER_FOR_CPUFREQ */
 }
 #else
 #define loongson2_wait	NULL
