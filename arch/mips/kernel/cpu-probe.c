@@ -57,7 +57,6 @@ static void loongson2_wait(void)
 	local_irq_disable();
 	kt1 = ktime_get_real();
 	sched_clock_idle_sleep_event();
-	local_irq_enable();
 
 	/* Record the cpu frequency */
 	cpufreq = LOONGSON_GET_CPUFREQ();
@@ -87,7 +86,6 @@ static void loongson2_wait(void)
 	 */
 	kt2 = ktime_get_real();
 	idle_time_ns = ktime_to_ns(ktime_sub(kt2, kt1));
-	local_irq_disable();
 	sched_clock_idle_wakeup_event(idle_time_ns);
 	local_irq_enable();
 
