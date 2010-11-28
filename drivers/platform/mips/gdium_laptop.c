@@ -903,6 +903,7 @@ static struct i2c_driver gdium_laptop_driver = {
 	},
 	.probe = gdium_laptop_probe,
 	.remove = gdium_laptop_remove,
+	.shutdown = gdium_laptop_remove,
 	.suspend = gdium_laptop_suspend,
 	.resume = gdium_laptop_resume,
 	.id_table = gdium_id,
