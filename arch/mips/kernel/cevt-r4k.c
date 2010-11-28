@@ -43,7 +43,7 @@ static inline void update_virtual_target(u32 delta)
  * post change the cpu frequency.
  */
 
-void update_virtual_count(unsigned int target_scale_shift)
+void notrace update_virtual_count(unsigned int target_scale_shift)
 {
 	u64 now64;
 	/*
