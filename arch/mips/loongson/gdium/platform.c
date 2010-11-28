@@ -62,8 +62,13 @@ static struct platform_device backlight = {
  */
 /* bus 0 is the one for the ST7, DS75 etc... */
 static struct i2c_gpio_platform_data i2c_gpio0_data = {
+#if CONFIG_GDIUM_VERSION > 2
 	.sda_pin	= GDIUM_GPIO_BASE + 13,
 	.scl_pin	= GDIUM_GPIO_BASE + 6,
+#else
+	.sda_pin        = 192+15,
+	.scl_pin        = 192+14,
+#endif
 	.udelay		= 5,
 	.timeout	= HZ / 10,
 	.sda_is_open_drain = 0,

@@ -31,7 +31,11 @@
 
 #define EC_FIRM_VERSION		0
 
+#if CONFIG_GDIUM_VERSION > 2
 #define EC_REG_BASE		1
+#else
+#define EC_REG_BASE		0
+#endif
 
 #define EC_STATUS		(EC_REG_BASE+0)
 #define EC_STATUS_LID		(1<<0)
@@ -157,7 +161,11 @@ static s32 ec_read_battery(struct i2c_client *client)
 
 static s32 ec_read_version(struct i2c_client *client)
 {
+#if CONFIG_GDIUM_VERSION > 2
 	return i2c_smbus_read_byte_data(client, EC_FIRM_VERSION);
+#else
+	return 0;
+#endif
 }
 
 static s32 ec_read_status(struct i2c_client *client)
@@ -559,7 +567,11 @@ static int gdium_battery_get_props(struct power_supply *psy,
 		RET = data->battery_level * 1000;
 		break;
 	case POWER_SUPPLY_PROP_PRESENT:
+#if CONFIG_GDIUM_VERSION > 2
 		RET = !!(status & EC_STATUS_BATID);
+#else
+		RET = !!(data->battery_level > BAT_VOLT_PRESENT);
+#endif
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY_LEVEL:
 		tmp = data->battery_level * 1000;
@@ -644,22 +656,21 @@ static void gdium_laptop_battery_work(struct work_struct *work)
 	 * - ac adapter plugged in
 	 * - battery not fully charged
 	 */
-	present = (data->status & EC_STATUS_BATID) ? 1 : 0;
-	if (present)
+#if CONFIG_GDIUM_VERSION > 2
+	present = !!(data->status & EC_STATUS_BATID);
+#else
+	present = !!(ret > BAT_VOLT_PRESENT);
+#endif
+	data->battery_level = 0;
+	if (present) {
+		data->battery_level = (unsigned int)ret;
 		if (data->status & EC_STATUS_ADAPT)
-			data->battery_level = (unsigned int)ret - BAT_READ_ERROR_MV;
-		else
-			data->battery_level = (unsigned int)ret;
-	else
-		data->battery_level = 0;
+			data->battery_level -= BAT_READ_ERROR_MV;
+	}
 
+	data->charge_cmd = 0;
 	if ((data->status & EC_STATUS_ADAPT) && present && (data->battery_level <= BAT_MAX_MV))
-		if (ret < BAT_TRICKLE_EN)
-			data->charge_cmd = 2;
-		else
-			data->charge_cmd = 3;
-	else
-		data->charge_cmd = 0;
+		data->charge_cmd = (ret < BAT_TRICKLE_EN) ? 2 : 3;
 
 	ec_charge_en(client, (data->charge_cmd >> 1) & 1, data->charge_cmd & 1);
 

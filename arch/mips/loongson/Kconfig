@@ -121,3 +121,12 @@ config GDIUM_PWM_CLOCK
 	help
 	  This options enables the experimental sm501-pwm based clock. With it,
 	  you may be possible to use the loongson2f cpufreq driver.
+
+config GDIUM_VERSION
+	int "Configure Gdium Version"
+	depends on DEXXON_GDIUM
+	default "3"
+	help
+	  I have no information about how to determine which version your board
+	  is, If the default config doesn't work for it, please change it to
+	  smaller ones.
