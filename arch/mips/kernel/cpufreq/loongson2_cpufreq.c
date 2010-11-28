@@ -40,7 +40,7 @@ static inline unsigned int idx_to_freq(unsigned int idx)
 	return (max_cpufreq_khz * (idx + 1)) >> 3;
 }
 
-static unsigned int l2_cpufreq_get(unsigned int cpu)
+static inline unsigned int l2_cpufreq_get(unsigned int cpu)
 {
 	return idx_to_freq(LOONGSON_GET_CPUFREQ());
 }
@@ -50,7 +50,7 @@ static unsigned int l2_cpufreq_get(unsigned int cpu)
 unsigned int scale_shift;
 extern void update_virtual_count(unsigned int target_scale_shift);
 
-static unsigned int idx_to_scale_shift(unsigned int newstate)
+static inline unsigned int idx_to_scale_shift(unsigned int newstate)
 {
 
 	/*
@@ -76,7 +76,7 @@ static inline void sync_virtual_count(unsigned int target_scale_shift)
 	scale_shift = target_scale_shift;
 }
 
-static void l2_cpufreq_set(unsigned int newstate)
+static void notrace l2_cpufreq_set(unsigned int newstate)
 {
 	unsigned long flag;
 	unsigned int target_scale_shift;
@@ -87,7 +87,8 @@ static void l2_cpufreq_set(unsigned int newstate)
 			__func__, scale_shift, target_scale_shift,
 			clockmod_table[newstate].index);
 
-	raw_spin_lock_irqsave(&loongson_cpufreq_lock, flag);
+	/* For we are UP, Give up the spin lock... */
+	raw_local_irq_save(flag);
 	/* When freq becomes higher ... */
 	if (scale_shift > target_scale_shift)
 		sync_virtual_count(target_scale_shift);
@@ -96,11 +97,57 @@ static void l2_cpufreq_set(unsigned int newstate)
 	/* When freq becomes lower ... */
 	if (scale_shift < target_scale_shift)
 		sync_virtual_count(target_scale_shift);
-	raw_spin_unlock_irqrestore(&loongson_cpufreq_lock, flag);
+	raw_local_irq_restore(flag);
 
 	pr_debug("%s: scale_shift = %d, target_scale_shift = %d, target_set: %d\n",
 			__func__, scale_shift, target_scale_shift,
-			clockmod_table[newstate].index); }
+			clockmod_table[newstate].index);
+}
+
+/*
+ * Put CPU into the 1st level, We have no good method to recover the timesplice
+ * in wait mode, so, we only allow the CPU gointo the 1st level, not the ZERO
+ * level.
+ *
+ * To avoid recording the garbage result in the kernel tracing, we don't call
+ * notifiers when FUNCTION_TRACER is enabled.
+ */
+
+void notrace loongson2_wait(void)
+{
+	/*
+	 * Only enable cpu_wait() after this module is loaded, otherwise, the
+	 * system will block for no availalbe resources we need.
+	 */
+	if (!loongson_cpufreq_driver_loaded)
+		return;
+
+#ifdef CONFIG_FUNCTION_TRACER
+	/* If we are already in the 1st level, stop resetting it. */
+	if (LOONGSON_GET_CPUFREQ() != 1)
+		l2_cpufreq_set(1);
+#else
+	{
+	struct cpufreq_freqs freqs;
+
+	freqs.old = l2_cpufreq_get(0);
+	freqs.new = idx_to_freq(1);
+
+	if (freqs.new == freqs.old)
+		return;
+
+	/* notifiers */
+	freqs.cpu = 0;
+	cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
+
+	/* setting the cpu frequency as the 1st level */
+	l2_cpufreq_set(1);
+
+	/* notifiers */
+	cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
+	}
+#endif
+}
 
 #else
 
