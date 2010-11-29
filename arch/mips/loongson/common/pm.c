@@ -92,8 +92,7 @@ static inline void stop_perf_counters(void)
 	__write_64bit_c0_register($24, 0, 0);
 }
 
-
-static void loongson_suspend_enter(void)
+static inline void loongson_suspend_enter(void)
 {
 	static unsigned int cached_cpu_freq;
 
@@ -126,10 +125,12 @@ static int loongson_pm_enter(suspend_state_t state)
 {
 	mach_suspend();
 
+#ifndef CONFIG_DEXXON_GDIUM
 	/* processor specific suspend */
 	loongson_suspend_enter();
 
 	mach_resume();
+#endif
 
 	return 0;
 }

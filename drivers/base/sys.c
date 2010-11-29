@@ -476,6 +476,7 @@ EXPORT_SYMBOL_GPL(sysdev_suspend);
 int sysdev_resume(void)
 {
 	struct sysdev_class *cls;
+	char *ptr = (char *)CKSEG1ADDR(0x100);
 
 	WARN_ONCE(!irqs_disabled(),
 		"Interrupts enabled while resuming system devices\n");
@@ -489,6 +490,7 @@ int sysdev_resume(void)
 			 kobject_name(&cls->kset.kobj));
 
 		list_for_each_entry(sysdev, &cls->kset.list, kobj.entry) {
+			memcpy(ptr,kobject_name(&sysdev->kobj),0x20);
 			pr_debug(" %s\n", kobject_name(&sysdev->kobj));
 
 			__sysdev_resume(sysdev);
