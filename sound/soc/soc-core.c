@@ -165,8 +165,11 @@ static ssize_t pmdown_time_set(struct device *dev,
 {
 	struct snd_soc_pcm_runtime *rtd =
 			container_of(dev, struct snd_soc_pcm_runtime, dev);
+	int ret;
 
-	strict_strtol(buf, 10, &rtd->pmdown_time);
+	ret = strict_strtol(buf, 10, &rtd->pmdown_time);
+	if (ret)
+		return ret;
 
 	return count;
 }
@@ -3040,8 +3043,10 @@ int snd_soc_register_dais(struct device *dev,
 	for (i = 0; i < count; i++) {
 
 		dai = kzalloc(sizeof(struct snd_soc_dai), GFP_KERNEL);
-		if (dai == NULL)
-			return -ENOMEM;
+		if (dai == NULL) {
+			ret = -ENOMEM;
+			goto err;
+		}
 
 		/* create DAI component name */
 		dai->name = fmt_multiple_name(dev, &dai_drv[i]);
@@ -3260,9 +3265,6 @@ int snd_soc_register_codec(struct device *dev,
 	return 0;
 
 error:
-	for (i--; i >= 0; i--)
-		snd_soc_unregister_dai(dev);
-
 	if (codec->reg_cache)
 		kfree(codec->reg_cache);
 	kfree(codec->name);
