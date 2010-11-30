@@ -11,6 +11,7 @@
 #include <linux/percpu.h>
 #include <linux/smp.h>
 #include <linux/irq.h>
+#include <linux/module.h>
 
 #include <asm/smtc_ipi.h>
 #include <asm/time.h>
@@ -59,6 +60,7 @@ void notrace update_virtual_count(unsigned int target_scale_shift)
 		write_c0_compare(cnt);
 	}
 }
+EXPORT_SYMBOL(update_virtual_count);
 
 #else
 

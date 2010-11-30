@@ -253,11 +253,6 @@ static inline void do_perfcnt_IRQ(void)
 #define LOONGSON_CHIPCFG0		LOONGSON_REG(LOONGSON_REGBASE + 0x80)
 #define LOONGSON_GET_CPUFREQ()		(LOONGSON_CHIPCFG0 & 7)
 
-#include <linux/spinlock_types.h>
-#include <linux/spinlock.h>
-extern raw_spinlock_t loongson_cpufreq_lock;
-extern bool loongson_cpufreq_driver_loaded;
-
 #define LOONGSON_SET_CPUFREQ(level)	do { \
 	LOONGSON_CHIPCFG0 = (LOONGSON_CHIPCFG0 & (~7)) | (level); \
 } while (0)
