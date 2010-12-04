@@ -45,11 +45,6 @@ static inline unsigned int l2_cpufreq_get(unsigned int cpu)
 	return idx_to_freq(LOONGSON_GET_CPUFREQ());
 }
 
-#ifdef CONFIG_R4K_TIMER_FOR_CPUFREQ
-
-unsigned int scale_shift;
-extern void update_virtual_count(unsigned int target_scale_shift);
-
 static inline unsigned int idx_to_scale_shift(unsigned int newstate)
 {
 
@@ -70,10 +65,22 @@ static inline unsigned int idx_to_scale_shift(unsigned int newstate)
 	return 3 - newstate;
 }
 
+static unsigned long loops_per_jiffy_ref;
+#define hpt_scale_down(x) ((x) >> target_scale_shift)
+static inline void hpt_scale_down_lpj(unsigned int target_scale_shift)
+{
+	current_cpu_data.udelay_val = hpt_scale_down(loops_per_jiffy_ref);
+}
+
+#ifdef CONFIG_R4K_TIMER_FOR_CPUFREQ
+extern unsigned int scale_shift;
+extern void update_virtual_count(unsigned int target_scale_shift);
+
 static inline void sync_virtual_count(unsigned int target_scale_shift)
 {
 	update_virtual_count(target_scale_shift);
 	scale_shift = target_scale_shift;
+	hpt_scale_down_lpj(target_scale_shift);
 }
 
 static void notrace l2_cpufreq_set(unsigned int newstate)
@@ -113,15 +120,8 @@ static void notrace l2_cpufreq_set(unsigned int newstate)
  * notifiers when FUNCTION_TRACER is enabled.
  */
 
-void notrace loongson2_wait(void)
+void notrace loongson2_cpu_wait(void)
 {
-	/*
-	 * Only enable cpu_wait() after this module is loaded, otherwise, the
-	 * system will block for no availalbe resources we need.
-	 */
-	if (!loongson_cpufreq_driver_loaded)
-		return;
-
 #ifdef CONFIG_FUNCTION_TRACER
 	/* If we are already in the 1st level, stop resetting it. */
 	if (LOONGSON_GET_CPUFREQ() != 1)
@@ -149,16 +149,67 @@ void notrace loongson2_wait(void)
 #endif
 }
 
-#else
+#else	/* MIPS_EXTERNAL_TIMER */
 
 static void l2_cpufreq_set(unsigned int newstate)
 {
-	raw_spin_lock(&loongson_cpufreq_lock);
+	unsigned long flags;
+	unsigned int target_scale_shift;
+
+	target_scale_shift = idx_to_scale_shift(newstate);
+
+	local_irq_save(flags);
 	LOONGSON_SET_CPUFREQ(clockmod_table[newstate].index);
+	hpt_scale_down_lpj(target_scale_shift);
+	local_irq_restore(flags);
+}
+
+static void notrace loongson2_cpu_wait(void)
+{
+	u32 cpufreq;
+	ktime_t kt1, kt2;
+	s64 idle_time_ns;
+	unsigned long flags;
+
+	local_irq_save(flags);
+	kt1 = ktime_get_real();
+	sched_clock_idle_sleep_event();
+
+	/* Record the cpu frequency */
+	cpufreq = LOONGSON_CHIPCFG0;
+
+	/*
+	 * Currently, there is no wait instruction in Loongson platform,
+	 * herein, we emulate the wait mode via setting the cpu frequency to
+	 * the lowest level to put it into the standby mode, which can be waked
+	 * up by external interrupts
+	 */
+	LOONGSON_SET_CPUFREQ(0);
+
+	/* Resotore it */
+	LOONGSON_CHIPCFG0 = cpufreq;
+
+	/*
+	 * report back to the scheduler how long we deep-idled
+	 */
+	kt2 = ktime_get_real();
+	idle_time_ns = ktime_to_ns(ktime_sub(kt2, kt1));
+	sched_clock_idle_wakeup_event(idle_time_ns);
+	local_irq_restore(flags);
+
 	raw_spin_unlock(&loongson_cpufreq_lock);
 }
 
 #endif /* CONFIG_R4K_TIMER_FOR_CPUFREQ */
+
+static inline void register_cpu_wait(void)
+{
+	cpu_wait = loongson2_cpu_wait;
+}
+static inline void unregister_cpu_wait(void)
+{
+	cpu_wait = NULL;
+}
 
 static int l2_cpufreq_target(struct cpufreq_policy *policy, unsigned int
 		target_freq, unsigned int relation)
@@ -188,20 +239,6 @@ static int l2_cpufreq_target(struct cpufreq_policy *policy, unsigned int
 
 	return 0;
 }
-
-static int l2_cpu_freq_notifier(struct notifier_block *nb,
-					unsigned long val, void *data)
-{
-	/* loops_per_jiffy is updated by adjust_jiffies() */
-	if (val == CPUFREQ_POSTCHANGE)
-		current_cpu_data.udelay_val = loops_per_jiffy;
-
-	return 0;
-}
-
-static struct notifier_block l2_cpufreq_nb = {
-	.notifier_call = l2_cpu_freq_notifier
-};
 
 static int l2_cpufreq_cpu_init(struct cpufreq_policy *policy)
 {
@@ -270,38 +307,28 @@ static int __init l2_cpufreq_init(void)
 {
 	int ret;
 
+	/* Save the original loops_erf_jiffy for reference */
+	loops_per_jiffy_ref = loops_per_jiffy;
+
 	/* Register platform stuff */
 	ret = platform_driver_register(&platform_driver);
 	if (ret)
 		return ret;
 
-	ret = cpufreq_register_notifier(&l2_cpufreq_nb,
-			CPUFREQ_TRANSITION_NOTIFIER);
+	ret = cpufreq_register_driver(&l2_cpufreq_driver);
 	if (ret)
 		return ret;
 
-	ret = cpufreq_register_driver(&l2_cpufreq_driver);
-	if (ret) {
-		cpufreq_unregister_notifier(&l2_cpufreq_nb,
-				CPUFREQ_TRANSITION_NOTIFIER);
-		return ret;
-	}
-
-	loongson_cpufreq_driver_loaded = 1;
+	register_cpu_wait();
 
 	return 0;
 }
 
 static void __exit l2_cpufreq_exit(void)
 {
-	if (!loongson_cpufreq_driver_loaded)
-		return;
+	unregister_cpu_wait();
 
-	loongson_cpufreq_driver_loaded = 0;
 	cpufreq_unregister_driver(&l2_cpufreq_driver);
-
-	cpufreq_unregister_notifier(&l2_cpufreq_nb,
-			CPUFREQ_TRANSITION_NOTIFIER);
 
 	platform_driver_unregister(&platform_driver);
 }

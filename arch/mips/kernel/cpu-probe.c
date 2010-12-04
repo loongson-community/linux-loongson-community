@@ -35,70 +35,6 @@
 void (*cpu_wait)(void);
 EXPORT_SYMBOL(cpu_wait);
 
-#if defined(CONFIG_CPU_LOONGSON2) && defined(CONFIG_MIPS_CPUFREQ)
-
-#include <loongson.h>
-DEFINE_RAW_SPINLOCK(loongson_cpufreq_lock);
-bool loongson_cpufreq_driver_loaded;
-EXPORT_SYMBOL(loongson_cpufreq_driver_loaded);
-EXPORT_SYMBOL(loongson_cpufreq_lock);
-
-#ifndef	CONFIG_R4K_TIMER_FOR_CPUFREQ
-static void notrace loongson2_wait(void)
-{
-	u32 cpufreq;
-	ktime_t kt1, kt2;
-	s64 idle_time_ns;
-
-	raw_spin_lock(&loongson_cpufreq_lock);
-
-	local_irq_disable();
-	kt1 = ktime_get_real();
-	sched_clock_idle_sleep_event();
-	local_irq_enable();
-
-	/* Record the cpu frequency */
-	cpufreq = LOONGSON_GET_CPUFREQ();
-
-	/*
-	 * Currently, there is no wait instruction in Loongson platform,
-	 * herein, we emulate the wait mode via setting the cpu frequency to
-	 * the lowest level to put it into the standby mode, which can be waked
-	 * up by external interrupts
-	 */
-	LOONGSON_SET_CPUFREQ(0);
-
-	/*
-	 * While waked up from standby mode, the cpu frequency is set to the
-	 * second lowest level, about 199M, which is too slow. To make the
-	 * system run well if no cpufreq driver started, we just set it as the
-	 * highest level. if cpufreq module is loaded, just restore the
-	 * recorded value.
-	 */
-	if (likely(loongson_cpufreq_driver_loaded))
-		LOONGSON_SET_CPUFREQ(cpufreq);
-	else
-		LOONGSON_SET_CPUFREQ(7);
-
-	/*
-	 * report back to the scheduler how long we deep-idled
-	 */
-	kt2 = ktime_get_real();
-	idle_time_ns = ktime_to_ns(ktime_sub(kt2, kt1));
-	local_irq_disable();
-	sched_clock_idle_wakeup_event(idle_time_ns);
-	local_irq_enable();
-
-	raw_spin_unlock(&loongson_cpufreq_lock);
-}
-#else
-/* We implement it in the CPUFreq Driver ... */
-extern void loongson2_wait(void);
-#endif	/* CONFIG_R4K_TIMER_FOR_CPUFREQ */
-#else
-#define loongson2_wait	NULL
-#endif
-
 static void r3081_wait(void)
 {
 	unsigned long cfg = read_c0_conf();
@@ -223,9 +159,6 @@ void __init check_wait(void)
 	}
 
 	switch (c->cputype) {
-	case CPU_LOONGSON2:
-		cpu_wait = loongson2_wait;
-		break;
 	case CPU_R3081:
 	case CPU_R3081E:
 		cpu_wait = r3081_wait;
