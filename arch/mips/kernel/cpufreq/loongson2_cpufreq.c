@@ -206,8 +206,6 @@ static void notrace loongson2_cpu_wait(void)
 	idle_time_ns = ktime_to_ns(ktime_sub(kt2, kt1));
 	sched_clock_idle_wakeup_event(idle_time_ns);
 	local_irq_restore(flags);
-
-	raw_spin_unlock(&loongson_cpufreq_lock);
 }
 
 #endif /* CONFIG_R4K_TIMER_FOR_CPUFREQ */
