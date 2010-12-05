@@ -112,6 +112,13 @@ static void notrace l2_cpufreq_set(unsigned int newstate)
 }
 
 /*
+ * The CPUFreq driver will put the cpu into the lowest level(1), no need to do
+ * it here.  If we do it here, some CPUFreq governors will not function well,
+ * so, disable the cpu_wait() completely when the R4K is used.
+ */
+
+#if 0
+/*
  * Put CPU into the 1st level, We have no good method to recover the timesplice
  * in wait mode, so, we only allow the CPU gointo the 1st level, not the ZERO
  * level.
@@ -148,6 +155,9 @@ void notrace loongson2_cpu_wait(void)
 	}
 #endif
 }
+#else
+#define loongson2_cpu_wait NULL
+#endif
 
 #else	/* MIPS_EXTERNAL_TIMER */
 
