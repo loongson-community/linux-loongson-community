@@ -66,15 +66,18 @@ config CS5536
 
 config CS5536_MFGPT
 	bool "CS5536 MFGPT Timer"
+	depends on BROKEN
 	depends on CS5536
 	select MIPS_EXTERNAL_TIMER
 	help
 	  This option enables the mfgpt0 timer of AMD CS5536.
 
-	  If you want to enable the Loongson2 CPUFreq Driver, Please enable
-	  this option at first, otherwise, You will get wrong system time.
+	  To enable the Loongson2 CPUFreq Driver, this option is a
+	  precondition, but from 2.6.37, we have a better choice, that is
+	  CONFIG_R4K_TIMER_FOR_CPUFREQ=y. To get a good CPUFreq driver, that
+	  option should be enabled with the ondemand governor.
 
-	  If unsure, say Yes.
+	  If unsure, say NO.
 
 config LOONGSON_SUSPEND
 	bool
