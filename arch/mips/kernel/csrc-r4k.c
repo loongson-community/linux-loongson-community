@@ -10,6 +10,7 @@
 #include <linux/init.h>
 #include <linux/timer.h>
 #include <linux/delay.h>
+#include <linux/module.h>
 
 #include <asm/cpu-features.h>
 #include <asm/time.h>
@@ -23,7 +24,8 @@
  */
 #ifdef CONFIG_R4K_TIMER_FOR_CPUFREQ
 
-extern unsigned int scale_shift;
+unsigned int scale_shift;
+EXPORT_SYMBOL(scale_shift);
 #define hpt_scale_up(cycle) ((cycle) << scale_shift)
 
 /*
@@ -134,10 +136,11 @@ static struct clocksource clocksource_mips = {
 	.read		= c0_hpt_read,
 #ifdef CONFIG_R4K_FOR_CPUFREQ
 	.mask		= CLOCKSOURCE_MASK(64);
+	.flags		= CLOCK_SOURCE_IS_CONTINUOUS | CLOCK_SOURCE_MUST_VERIFY,
 #else
 	.mask		= CLOCKSOURCE_MASK(32),
+	.flags		= CLOCK_SOURCE_IS_CONTINUOUS,
 #endif
-	.flags		= CLOCK_SOURCE_IS_CONTINUOUS | CLOCK_SOURCE_MUST_VERIFY,
 };
 
 int __init init_r4k_clocksource(void)
