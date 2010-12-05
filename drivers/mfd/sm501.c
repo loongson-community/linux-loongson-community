@@ -28,11 +28,6 @@
 
 #include <asm/io.h>
 
-#ifdef CONFIG_LOONGSON_SUSPEND
-unsigned char __iomem *sm50x_base_reg = NULL;
-EXPORT_SYMBOL_GPL(sm50x_base_reg);
-#endif
-
 struct sm501_device {
 	struct list_head		list;
 	struct platform_device		pdev;
@@ -1701,7 +1696,7 @@ static int __devinit sm501_pci_probe(struct pci_dev *dev,
 		goto err3;
 	}
 
-	sm->regs = sm50x_base_reg = pci_ioremap_bar(dev, 1);
+	sm->regs = pci_ioremap_bar(dev, 1);
 
 	if (sm->regs == NULL) {
 		dev_err(&dev->dev, "cannot remap registers\n");

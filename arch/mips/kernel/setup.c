@@ -488,7 +488,6 @@ static void __init arch_mem_init(char **cmdline_p)
 	}
 
 	bootmem_init();
-	reserve_bootmem(0, PAGE_SIZE, BOOTMEM_DEFAULT);
 	device_tree_init();
 	sparse_init();
 	plat_swiotlb_setup();
