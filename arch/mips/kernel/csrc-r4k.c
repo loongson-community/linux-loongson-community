@@ -37,9 +37,10 @@ EXPORT_SYMBOL(scale_shift);
  * Return the virtual but precise 64bit count
  */
 
+static u32 hpt_last_read;
+
 cycle_t notrace read_virtual_count(void)
 {
-	static u32 hpt_last_read;
 	static u64 hpt_last_cnt;
 	u64 diff;
 	unsigned int now;
@@ -49,29 +50,48 @@ cycle_t notrace read_virtual_count(void)
 
 	now = read_c0_count();
 
-	/*
-	 * The first time c0_hpt_read() is called, no cpufreq driver loaded,
-	 * so, the cycle read from the counter is the real one
-	 */
-	if (unlikely(!hpt_last_read))
+	if (unlikely(!hpt_last_read)) {
+		/*
+		 * The '1st' time c0_hpt_read() is called so, the cycle read
+		 * from the counter is the real one
+		 *
+		 * When resuming from PM, we also reset it.
+		 */
 		hpt_last_cnt = hpt_last_read = now;
-
-	/* Get diff and Check for counter overflow */
-	diff = now - hpt_last_read - (now < hpt_last_read);
-	/* Calculate the real cycles */
-	hpt_last_cnt += hpt_scale_up(diff);
-	/* Save for the next access */
-	hpt_last_read = now;
+	} else {
+		/* Get diff and Check for counter overflow */
+		diff = now - hpt_last_read - (now < hpt_last_read);
+		/* Calculate the real cycles */
+		hpt_last_cnt += hpt_scale_up(diff);
+		/* Save for the next access */
+		hpt_last_read = now;
+	}
 
 	local_irq_restore(flags);
 
 	return hpt_last_cnt;
 }
 
+static inline void reset_virtual_count(void)
+{
+	hpt_last_read = 0;
+}
+
+static void r4k_suspend(struct clocksource *cs)
+{
+}
+
+static void r4k_resume(struct clocksource *cs)
+{
+	reset_virtual_count();
+}
+
 #define hpt_read() read_virtual_count()
 #else
 #define setup_r4k_for_cpufreq(clock)
 #define hpt_read() read_c0_count()
+#define r4k_suspend() NULL
+#define r4k_resume() NULL
 #endif	/* CONFIG_R4K_TIMER_FOR_CPUFREQ */
 
 cycle_t notrace c0_hpt_read(struct clocksource *cs)
@@ -147,6 +167,10 @@ static struct clocksource clocksource_mips = {
 #else
 	.mask		= CLOCKSOURCE_MASK(32),
 	.flags		= CLOCK_SOURCE_IS_CONTINUOUS,
+#endif
+#ifdef CONFIG_PM
+	.suspend	= r4k_suspend,
+	.resume		= r4k_resume,
 #endif
 };
 
