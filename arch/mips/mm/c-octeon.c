@@ -182,7 +182,7 @@ static void __cpuinit probe_octeon(void)
 	struct cpuinfo_mips *c = &current_cpu_data;
 
 	config1 = read_c0_config1();
-	switch (c->cputype) {
+	switch (current_cpu_type()) {
 	case CPU_CAVIUM_OCTEON:
 	case CPU_CAVIUM_OCTEON_PLUS:
 		c->icache.linesz = 2 << ((config1 >> 19) & 7);

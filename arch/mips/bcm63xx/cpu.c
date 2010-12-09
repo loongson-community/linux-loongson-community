@@ -297,7 +297,7 @@ void __init bcm63xx_cpu_init(void)
 	/* soc registers location depends on cpu type */
 	expected_cpu_id = 0;
 
-	switch (c->cputype) {
+	switch (current_cpu_type()) {
 	case CPU_BMIPS3300:
 		if ((read_c0_prid() & 0xff00) == PRID_IMP_BMIPS3300_ALT) {
 			expected_cpu_id = BCM6348_CPU_ID;
