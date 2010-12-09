@@ -74,7 +74,7 @@ static inline int __maybe_unused r10000_llsc_war(void)
  */
 static int __cpuinit m4kc_tlbp_war(void)
 {
-	return (current_cpu_data.processor_id & 0xffff00) ==
+	return (current_cpu_prid() & 0xffff00) ==
 	       (PRID_COMP_MIPS | PRID_IMP_4KC);
 }
 
