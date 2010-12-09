@@ -65,13 +65,6 @@ static inline unsigned int idx_to_scale_shift(unsigned int newstate)
 	return 3 - newstate;
 }
 
-static unsigned long loops_per_jiffy_ref;
-#define hpt_scale_down(x) ((x) >> target_scale_shift)
-static inline void hpt_scale_down_lpj(unsigned int target_scale_shift)
-{
-	current_cpu_data.udelay_val = hpt_scale_down(loops_per_jiffy_ref);
-}
-
 #ifdef CONFIG_R4K_TIMER_FOR_CPUFREQ
 extern unsigned int scale_shift;
 extern void update_virtual_count(unsigned int target_scale_shift);
@@ -80,7 +73,6 @@ static inline void sync_virtual_count(unsigned int target_scale_shift)
 {
 	update_virtual_count(target_scale_shift);
 	scale_shift = target_scale_shift;
-	hpt_scale_down_lpj(target_scale_shift);
 }
 
 static void notrace l2_cpufreq_set(unsigned int newstate)
@@ -164,13 +156,9 @@ void notrace loongson2_cpu_wait(void)
 static void l2_cpufreq_set(unsigned int newstate)
 {
 	unsigned long flags;
-	unsigned int target_scale_shift;
-
-	target_scale_shift = idx_to_scale_shift(newstate);
 
 	local_irq_save(flags);
 	LOONGSON_SET_CPUFREQ(clockmod_table[newstate].index);
-	hpt_scale_down_lpj(target_scale_shift);
 	local_irq_restore(flags);
 }
 
@@ -315,17 +303,16 @@ static int __init l2_cpufreq_init(void)
 {
 	int ret;
 
-	/* Save the original loops_erf_jiffy for reference */
-	loops_per_jiffy_ref = loops_per_jiffy;
-
 	/* Register platform stuff */
 	ret = platform_driver_register(&platform_driver);
 	if (ret)
 		return ret;
 
 	ret = cpufreq_register_driver(&l2_cpufreq_driver);
-	if (ret)
+	if (ret) {
+		platform_driver_unregister(&platform_driver);
 		return ret;
+	}
 
 	register_cpu_wait();
 
