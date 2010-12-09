@@ -42,7 +42,12 @@ cycle_t notrace read_virtual_count(void)
 	static u32 hpt_last_read;
 	static u64 hpt_last_cnt;
 	u64 diff;
-	unsigned int now = read_c0_count();
+	unsigned int now;
+	unsigned long flags;
+
+	local_irq_save(flags);
+
+	now = read_c0_count();
 
 	/*
 	 * The first time c0_hpt_read() is called, no cpufreq driver loaded,
@@ -57,6 +62,8 @@ cycle_t notrace read_virtual_count(void)
 	hpt_last_cnt += hpt_scale_up(diff);
 	/* Save for the next access */
 	hpt_last_read = now;
+
+	local_irq_restore(flags);
 
 	return hpt_last_cnt;
 }
