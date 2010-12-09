@@ -150,10 +150,63 @@ static struct clocksource clocksource_mips = {
 #endif
 };
 
+static u64 r4k_udelay_factor __read_mostly;
+static u64 r4k_ndelay_factor __read_mostly;
+
+static inline void r4k_setup_delays(void)
+{
+	r4k_udelay_factor = mips_hpt_frequency / 1000000;
+	/*
+	 * For __ndelay we divide by 2^16, so the factor is multiplied
+	 * by the same amount.
+	 */
+	r4k_ndelay_factor = (r4k_udelay_factor * 0x10000ull) / 1000ull;
+
+	lpj_fine = mips_hpt_frequency / HZ;
+}
+
+static inline void rep_nop(void)
+{
+	__asm__ __volatile__("nop;" : : : "memory");
+}
+
+void __delay(unsigned int loops)
+{
+	cycle_t now, bclock;
+
+	preempt_disable();
+	bclock = hpt_read64();
+	for (;;) {
+		now = hpt_read64();
+		if ((now - bclock) >= loops)
+			break;
+		/* Allow RT tasks to run */
+		preempt_enable();
+		rep_nop();
+		preempt_disable();
+	}
+	preempt_enable();
+}
+EXPORT_SYMBOL(__delay);
+
+void __udelay(unsigned int us)
+{
+	__delay(us * r4k_udelay_factor);
+}
+EXPORT_SYMBOL(__udelay);
+
+void __ndelay(unsigned int ns)
+{
+	__delay((ns * r4k_ndelay_factor) >> 16);
+}
+EXPORT_SYMBOL(__ndelay);
+
 int __init init_r4k_clocksource(void)
 {
 	if (!cpu_has_counter || !mips_hpt_frequency)
 		return -ENXIO;
+
+	r4k_setup_delays();
 
 	setup_hres_sched_clock(mips_hpt_frequency);
 
