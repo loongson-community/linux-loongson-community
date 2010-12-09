@@ -16,6 +16,8 @@
 #ifndef __ASM_MACH_LOONGSON_CPU_FEATURE_OVERRIDES_H
 #define __ASM_MACH_LOONGSON_CPU_FEATURE_OVERRIDES_H
 
+#define current_cpu_type()	CPU_LOONGSON2
+
 #define cpu_dcache_line_size()	32
 #define cpu_icache_line_size()	32
 #define cpu_scache_line_size()	32
