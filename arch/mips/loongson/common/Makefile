@@ -3,7 +3,10 @@
 #
 
 obj-y += setup.o init.o cmdline.o env.o time.o reset.o irq.o \
-    pci.o bonito-irq.o mem.o machtype.o platform.o
+    bonito-irq.o mem.o machtype.o platform.o
+
+obj-$(CONFIG_PCI)	+= pci.o
+
 obj-$(CONFIG_GENERIC_GPIO) += gpio.o
 
 #
@@ -25,9 +28,3 @@ obj-$(CONFIG_CS5536) += cs5536/
 #
 
 obj-$(CONFIG_LOONGSON_SUSPEND) += pm.o
-
-# Enable RTC Class support
-#
-# please enable CONFIG_RTC_DRV_CMOS
-#
-obj-$(CONFIG_RTC_DRV_CMOS) += rtc.o
