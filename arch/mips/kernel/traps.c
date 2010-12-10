@@ -609,8 +609,8 @@ static int simulate_rdhwr(struct pt_regs *regs, unsigned int opcode)
 			regs->regs[rt] = smp_processor_id();
 			return 0;
 		case 1:		/* SYNCI length */
-			regs->regs[rt] = min(current_cpu_data.dcache.linesz,
-					     current_cpu_data.icache.linesz);
+			regs->regs[rt] = min(cpu_dcache_line_size(),
+					     cpu_icache_line_size());
 			return 0;
 		case 2:		/* Read count register */
 			regs->regs[rt] = read_c0_count();
