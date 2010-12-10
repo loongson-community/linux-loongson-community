@@ -179,12 +179,14 @@ static u64 r4k_ndelay_factor __read_mostly;
 
 static inline void r4k_setup_delays(void)
 {
-	r4k_udelay_factor = mips_hpt_frequency / 1000000;
+	r4k_udelay_factor = mips_hpt_frequency;
+	do_div(r4k_udelay_factor, 1000000);
 	/*
 	 * For __ndelay we divide by 2^16, so the factor is multiplied
 	 * by the same amount.
 	 */
-	r4k_ndelay_factor = (r4k_udelay_factor * 0x10000ull) / 1000ull;
+	r4k_ndelay_factor = (r4k_udelay_factor * 0x10000ull);
+	do_div(r4k_ndelay_factor, 1000ull);
 
 	lpj_fine = mips_hpt_frequency / HZ;
 }
