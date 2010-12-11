@@ -27,8 +27,13 @@ unsigned long free_mem_end_ptr;
 extern unsigned char __image_begin, __image_end;
 
 /* debug interfaces  */
+#ifdef CONFIG_DEBUG_ZBOOT
 extern void puts(const char *s);
 extern void puthex(unsigned long long val);
+#else
+#define puts(s)
+#define puthex(val)
+#endif
 
 void error(char *x)
 {
