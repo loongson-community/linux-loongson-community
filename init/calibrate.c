@@ -20,6 +20,7 @@ static int __init lpj_setup(char *str)
 
 __setup("lpj=", lpj_setup);
 
+#ifndef ARCH_HAS_PREPARED_LPJ
 #ifdef ARCH_HAS_READ_CURRENT_TIMER
 
 /* This routine uses the read_current_timer() routine and gets the
@@ -107,6 +108,7 @@ static unsigned long __cpuinit calibrate_delay_direct(void)
 #else
 static unsigned long __cpuinit calibrate_delay_direct(void) {return 0;}
 #endif
+#endif	/* ARCH_HAS_PREPARED_LPJ */
 
 /*
  * This is the number of bits of precision for the loops_per_jiffy.  Each
@@ -121,8 +123,10 @@ static unsigned long __cpuinit calibrate_delay_direct(void) {return 0;}
 
 void __cpuinit calibrate_delay(void)
 {
+#ifndef ARCH_HAS_PREPARED_LPJ
 	unsigned long ticks, loopbit;
 	int lps_precision = LPS_PREC;
+#endif
 	static bool printed;
 
 	if (preset_lpj) {
@@ -134,7 +138,10 @@ void __cpuinit calibrate_delay(void)
 		loops_per_jiffy = lpj_fine;
 		pr_info("Calibrating delay loop (skipped), "
 			"value calculated using timer frequency.. ");
-	} else if ((loops_per_jiffy = calibrate_delay_direct()) != 0) {
+	}
+
+#ifndef ARCH_HAS_PREPARED_LPJ
+	else if ((loops_per_jiffy = calibrate_delay_direct()) != 0) {
 		if (!printed)
 			pr_info("Calibrating delay using timer "
 				"specific routine.. ");
@@ -173,6 +180,8 @@ void __cpuinit calibrate_delay(void)
 				loops_per_jiffy &= ~loopbit;
 		}
 	}
+#endif	/* ARCH_HAS_PREPARED_LPJ */
+
 	if (!printed)
 		pr_cont("%lu.%02lu BogoMIPS (lpj=%lu)\n",
 			loops_per_jiffy/(500000/HZ),
