@@ -301,10 +301,14 @@ static inline unsigned long cpu_get_fpu_id(void)
 /*
  * Check the CPU has an FPU the official way.
  */
+#ifdef CONFIG_SW_FPU
+#define __cpu_has_fpu()	0
+#else
 static inline int __cpu_has_fpu(void)
 {
 	return ((cpu_get_fpu_id() & 0xff00) != FPIR_IMP_NONE);
 }
+#endif
 
 static inline void cpu_probe_vmbits(struct cpuinfo_mips *c)
 {
@@ -1031,7 +1035,7 @@ __cpuinit void cpu_probe(void)
 	if (mips_dsp_disabled)
 		c->ases &= ~MIPS_ASE_DSP;
 
-	if (cpu_options() & MIPS_CPU_FPU) {
+	if (cpu_has_fpu) {
 		c->fpu_id = cpu_get_fpu_id();
 
 		if (cpu_isa_level() == MIPS_CPU_ISA_M32R1 ||
@@ -1055,6 +1059,6 @@ __cpuinit void cpu_report(void)
 {
 	pr_info("CPU revision is: %08x (%s)\n",
 	       current_cpu_prid(), cpu_name_string());
-	if (cpu_options() & MIPS_CPU_FPU)
+	if (cpu_has_fpu)
 		pr_info("FPU revision is: %08x\n", cpu_fpu_id());
 }

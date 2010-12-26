@@ -16,4 +16,4 @@ obj- := $(platform-)
 
 obj-y += kernel/
 obj-y += mm/
-obj-y += math-emu/
+obj-$(CONFIG_SW_FPU) += math-emu/
