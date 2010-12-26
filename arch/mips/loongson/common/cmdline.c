@@ -21,6 +21,7 @@
 #include <asm/bootinfo.h>
 
 #include <loongson.h>
+#include <machine.h>
 
 /* the kernel command line copied from arcs_cmdline */
 char loongson_cmdline[COMMAND_LINE_SIZE];

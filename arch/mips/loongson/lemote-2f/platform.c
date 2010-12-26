@@ -12,6 +12,7 @@
 #include <linux/platform_device.h>
 
 #include <asm/bootinfo.h>
+#include <machine.h>
 
 static struct platform_device yeeloong_pdev = {
 	.name = "yeeloong_laptop",
