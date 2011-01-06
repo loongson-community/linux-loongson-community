@@ -178,8 +178,13 @@ struct va_format {
 
 extern struct atomic_notifier_head panic_notifier_list;
 extern long (*panic_blink)(int state);
+#ifdef CONFIG_FULL_PANIC
 NORET_TYPE void panic(const char * fmt, ...)
 	__attribute__ ((NORET_AND format (printf, 1, 2))) __cold;
+#else
+#define panic(fmt, ...) tiny_panic(0, ## __VA_ARGS__)
+NORET_TYPE void tiny_panic(int a, ...) ATTRIB_NORET;
+#endif
 extern void oops_enter(void);
 extern void oops_exit(void);
 void print_oops_end_marker(void);
