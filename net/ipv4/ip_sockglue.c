@@ -704,6 +704,7 @@ static int do_ip_setsockopt(struct sock *sk, int level,
 			err = ip_mc_leave_group(sk, &mreq);
 		break;
 	}
+#ifdef CONFIG_IGMP
 	case IP_MSFILTER:
 	{
 		struct ip_msfilter *msf;
@@ -740,6 +741,7 @@ static int do_ip_setsockopt(struct sock *sk, int level,
 		kfree(msf);
 		break;
 	}
+#endif
 	case IP_BLOCK_SOURCE:
 	case IP_UNBLOCK_SOURCE:
 	case IP_ADD_SOURCE_MEMBERSHIP:
@@ -857,6 +859,7 @@ static int do_ip_setsockopt(struct sock *sk, int level,
 				   greqs.gsr_interface);
 		break;
 	}
+#ifdef CONFIG_IGMP
 	case MCAST_MSFILTER:
 	{
 		struct sockaddr_in *psin;
@@ -922,6 +925,7 @@ mc_msf_out:
 		kfree(gsf);
 		break;
 	}
+#endif
 	case IP_MULTICAST_ALL:
 		if (optlen < 1)
 			goto e_inval;
