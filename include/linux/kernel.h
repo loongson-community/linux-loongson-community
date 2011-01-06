@@ -260,7 +260,7 @@ extern struct pid *session_of_pgrp(struct pid *pgrp);
  */
 #define HW_ERR		"[Hardware Error]: "
 
-#ifdef CONFIG_PRINTK
+#if defined(CONFIG_PRINTK) || (defined(CONFIG_PRINTK_FUNC) && defined(DO_PRINTK))
 asmlinkage int vprintk(const char *fmt, va_list args)
 	__attribute__ ((format (printf, 1, 0)));
 asmlinkage int printk(const char * fmt, ...)
