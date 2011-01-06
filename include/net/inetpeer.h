@@ -39,6 +39,7 @@ struct inet_peer {
 	};
 };
 
+#ifdef CONFIG_INETPEER
 void			inet_initpeers(void) __init;
 
 /* can be called with or without local BH being disabled */
@@ -56,7 +57,6 @@ static inline void inet_peer_refcheck(const struct inet_peer *p)
 	WARN_ON_ONCE(atomic_read(&p->refcnt) <= 0);
 }
 
-
 /* can be called with or without local BH being disabled */
 static inline __u16	inet_getid(struct inet_peer *p, int more)
 {
@@ -64,5 +64,15 @@ static inline __u16	inet_getid(struct inet_peer *p, int more)
 	inet_peer_refcheck(p);
 	return atomic_add_return(more, &p->ip_id_count) - more;
 }
+
+#else
+
+#define inet_getpeer(a, b) (0)
+#define inet_getid(a, b) (0)
+#define inet_putpeer(b)
+#define inet_initpeers()
+#define inet_peer_refcheck(a)
+
+#endif
 
 #endif /* _NET_INETPEER_H */
