@@ -11,7 +11,11 @@ extern void unix_notinflight(struct file *fp);
 extern void unix_gc(void);
 extern void wait_for_unix_gc(void);
 
+#ifdef CONFIG_NET_SMALL
+#define UNIX_HASH_SIZE	16
+#else
 #define UNIX_HASH_SIZE	256
+#endif
 
 extern unsigned int unix_tot_inflight;
 
