@@ -39,14 +39,16 @@ ATOMIC_NOTIFIER_HEAD(panic_notifier_list);
 
 EXPORT_SYMBOL(panic_notifier_list);
 
+/* Returns how long it waited in ms */
+long (*panic_blink)(int state);
+EXPORT_SYMBOL(panic_blink);
+
+#ifdef CONFIG_PANIC
+
 static long no_blink(int state)
 {
 	return 0;
 }
-
-/* Returns how long it waited in ms */
-long (*panic_blink)(int state);
-EXPORT_SYMBOL(panic_blink);
 
 /**
  *	panic - halt the system
@@ -170,6 +172,7 @@ NORET_TYPE void tiny_panic(int a, ...)
 EXPORT_SYMBOL(panic);
 #else
 EXPORT_SYMBOL(tiny_panic);
+#endif
 #endif
 
 
