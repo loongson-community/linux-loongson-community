@@ -12,13 +12,18 @@
 # Author: Wu Zhangjin <wuzhangjin@gmail.com>
 #
 
+# Fail on warnings - also for files referenced in subdirs
+# -Werror can be disabled for specific files using:
+# CFLAGS_<file.o> := -Wno-error
+subdir-ccflags-$(CONFIG_MIPS_WERROR) := -Werror
+
 # Disable Function Tracer
 KBUILD_CFLAGS := $(shell echo $(KBUILD_CFLAGS) | sed -e "s/-pg//")
 
-KBUILD_CFLAGS := $(LINUXINCLUDE) $(KBUILD_CFLAGS) -D__KERNEL__ \
+KBUILD_CFLAGS := $(LINUXINCLUDE) $(KBUILD_CFLAGS) \
 	-D"VMLINUX_LOAD_ADDRESS_ULL=$(VMLINUX_LOAD_ADDRESS)ull"
 
-KBUILD_AFLAGS := $(LINUXINCLUDE) $(KBUILD_AFLAGS) -D__ASSEMBLY__ \
+KBUILD_AFLAGS := $(LINUXINCLUDE) $(KBUILD_AFLAGS) \
 	-DKERNEL_ENTRY=0x$(shell $(NM) $(objtree)/$(KBUILD_IMAGE) 2>/dev/null | grep " kernel_entry" | cut -f1 -d \ )
 
 targets := head.o decompress.o dbg.o uart-16550.o uart-alchemy.o
