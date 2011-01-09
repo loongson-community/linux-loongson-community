@@ -304,4 +304,10 @@ void ftrace_likely_update(struct ftrace_branch_data *f, int val, int expect);
  */
 #define ACCESS_ONCE(x) (*(volatile typeof(x) *)&(x))
 
+#ifdef CONFIG_CC_COMBINE_FWHOLE_PROGRAM
+#define __global __attribute__((externally_visible))
+#else
+#define __global
+#endif
+
 #endif /* __LINUX_COMPILER_H */

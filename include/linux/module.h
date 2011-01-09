@@ -195,7 +195,7 @@ struct module_use {
 #define __CRC_SYMBOL(sym, sec)					\
 	extern void *__crc_##sym __attribute__((weak));		\
 	static const unsigned long __kcrctab_##sym		\
-	__used							\
+	__used	__global					\
 	__attribute__((section("__kcrctab" sec), unused))	\
 	= (unsigned long) &__crc_##sym;
 #else
@@ -204,13 +204,13 @@ struct module_use {
 
 /* For every exported symbol, place a struct in the __ksymtab section */
 #define __EXPORT_SYMBOL(sym, sec)				\
-	extern typeof(sym) sym;					\
+	extern typeof(sym) sym __global;			\
 	__CRC_SYMBOL(sym, sec)					\
 	static const char __kstrtab_##sym[]			\
 	__attribute__((section("__ksymtab_strings"), aligned(1))) \
 	= MODULE_SYMBOL_PREFIX #sym;                    	\
 	static const struct kernel_symbol __ksymtab_##sym	\
-	__used							\
+	__used	__global					\
 	__attribute__((section("__ksymtab" sec), unused))	\
 	= { (unsigned long)&sym, __kstrtab_##sym }
 
@@ -228,8 +228,13 @@ struct module_use {
 #define EXPORT_UNUSED_SYMBOL(sym) __EXPORT_SYMBOL(sym, "_unused")
 #define EXPORT_UNUSED_SYMBOL_GPL(sym) __EXPORT_SYMBOL(sym, "_unused_gpl")
 #else
+#ifdef CC_COMBINE_FWHOLE_PROGRAM
+#define EXPORT_UNUSED_SYMBOL(sym) extern typeof(sym) sym __global
+#define EXPORT_UNUSED_SYMBOL_GPL(sym) extern typeof(sym) sym __global
+#else
 #define EXPORT_UNUSED_SYMBOL(sym)
 #define EXPORT_UNUSED_SYMBOL_GPL(sym)
+#endif
 #endif
 
 #endif
@@ -546,11 +551,19 @@ extern void module_update_tracepoints(void);
 extern int module_get_iter_tracepoints(struct tracepoint_iter *iter);
 
 #else /* !CONFIG_MODULES... */
+#ifdef CC_COMBINE_FWHOLE_PROGRAM
+#define EXPORT_SYMBOL(sym) extern typeof(sym) sym __global
+#define EXPORT_SYMBOL_GPL(sym) EXPORT_SYMBOL(sym)
+#define EXPORT_SYMBOL_GPL_FUTURE(sym) EXPORT_SYMBOL(sym)
+#define EXPORT_UNUSED_SYMBOL(sym) EXPORT_SYMBOL(sym)
+#define EXPORT_UNUSED_SYMBOL_GPL(sym) EXPORT_SYMBOL(sym)
+#else
 #define EXPORT_SYMBOL(sym)
 #define EXPORT_SYMBOL_GPL(sym)
 #define EXPORT_SYMBOL_GPL_FUTURE(sym)
 #define EXPORT_UNUSED_SYMBOL(sym)
 #define EXPORT_UNUSED_SYMBOL_GPL(sym)
+#endif
 
 /* Given an address, look for it in the exception tables. */
 static inline const struct exception_table_entry *
