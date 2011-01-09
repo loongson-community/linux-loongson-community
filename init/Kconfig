@@ -1079,6 +1079,22 @@ config MAX_SWAPFILES_SHIFT
 	help
 	  Select the maximum number of swapfiles (5 for default).
 
+config MAX_NR_CON_DRIVER
+	int "Number of console drivers" if EMBEDDED
+	range 1 16
+	default 16
+	help
+	  Select the maximum number of console drivers (16 for default).
+
+config MAX_NR_CONSOLES
+	int "Number of consoles" if EMBEDDED
+	range 1 63
+	default 63
+	help
+	  Select the maximum number of consoles (63 for default).
+
+	  For a normal desktop machine, 8 should be a preferred value.
+
 config BINFMT_SCRIPT
 	default y
 	bool "Enable support for executable shell scripts" if EMBEDDED
