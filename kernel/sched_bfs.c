@@ -1935,7 +1935,7 @@ calc_load(unsigned long load, unsigned long exp, unsigned long active)
 /*
  * calc_load - update the avenrun load estimates every LOAD_FREQ seconds.
  */
-void calc_global_load(void)
+void calc_global_load(unsigned long ticks)
 {
 	long active;
 
