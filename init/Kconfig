@@ -1189,6 +1189,7 @@ config CC_FUNIT_AT_A_TIME
 
 config CC_COMBINE_FWHOLE_PROGRAM
        bool "Compile multiple source files at once" if EMBEDDED
+       depends on BROKEN
        default n
        help
          GCC can perform optimisation between different C files by using its
@@ -1197,6 +1198,15 @@ config CC_COMBINE_FWHOLE_PROGRAM
          optimisations are made possible. Say N unless you have a version of
          GCC in which at least PR27898, PR28706, PR28712, PR28744 and PR28779
          are fixed.
+
+	 This is broken currently for the attribute externally_visible doesn't
+	 works well, To make it work, should wait externally_visible or convert
+	 linux target to simply:
+	 	foo.o:  $(foo-objs)
+	 Please get more information from:
+	 	http://gcc.gnu.org/wiki/LinkTimeOptimization
+	 For a bigger kernel image, -fwhopr should be used instead of -flto to
+	 reduce the memory usage.
 
 config MEASURE_INLINES
 	default n
