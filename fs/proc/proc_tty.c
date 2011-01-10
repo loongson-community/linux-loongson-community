@@ -140,7 +140,7 @@ static const struct file_operations proc_tty_drivers_operations = {
  * This function is called by tty_register_driver() to handle
  * registering the driver's /proc handler into /proc/tty/driver/<foo>
  */
-void proc_tty_register_driver(struct tty_driver *driver)
+void __global proc_tty_register_driver(struct tty_driver *driver)
 {
 	struct proc_dir_entry *ent;
 		

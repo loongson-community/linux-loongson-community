@@ -32,7 +32,7 @@
  * and the problem, and then passes it off to one of the appropriate
  * routines.
  */
-asmlinkage void __kprobes do_page_fault(struct pt_regs *regs, unsigned long write,
+asmlinkage void __kprobes __global do_page_fault(struct pt_regs *regs, unsigned long write,
 			      unsigned long address)
 {
 	struct vm_area_struct * vma = NULL;

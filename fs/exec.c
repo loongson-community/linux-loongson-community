@@ -60,8 +60,8 @@
 #include <asm/tlb.h>
 #include "internal.h"
 
-int core_uses_pid;
-char core_pattern[CORENAME_MAX_SIZE] = "core";
+int __global core_uses_pid;
+char __global core_pattern[CORENAME_MAX_SIZE] = "core";
 unsigned int core_pipe_limit;
 int suid_dumpable = 0;
 
@@ -974,7 +974,7 @@ static void flush_old_files(struct files_struct * files)
 	spin_unlock(&files->file_lock);
 }
 
-char *get_task_comm(char *buf, struct task_struct *tsk)
+char * __global get_task_comm(char *buf, struct task_struct *tsk)
 {
 	/* buf must be at least sizeof(tsk->comm) in size */
 	task_lock(tsk);
@@ -983,7 +983,7 @@ char *get_task_comm(char *buf, struct task_struct *tsk)
 	return buf;
 }
 
-void set_task_comm(struct task_struct *tsk, char *buf)
+void __global set_task_comm(struct task_struct *tsk, char *buf)
 {
 	task_lock(tsk);
 
@@ -1357,7 +1357,7 @@ EXPORT_SYMBOL(search_binary_handler);
 /*
  * sys_execve() executes a new program.
  */
-int do_execve(const char * filename,
+int __global do_execve(const char * filename,
 	const char __user *const __user *argv,
 	const char __user *const __user *envp,
 	struct pt_regs * regs)
@@ -1876,7 +1876,7 @@ static int umh_pipe_setup(struct subprocess_info *info)
 	return 0;
 }
 
-void do_coredump(long signr, int exit_code, struct pt_regs *regs)
+void __global do_coredump(long signr, int exit_code, struct pt_regs *regs)
 {
 	struct core_state core_state;
 	char corename[CORENAME_MAX_SIZE + 1];

@@ -101,7 +101,7 @@ static struct file_system_type proc_fs_type = {
 	.kill_sb	= proc_kill_sb,
 };
 
-void __init proc_root_init(void)
+void __init __global proc_root_init(void)
 {
 	int err;
 

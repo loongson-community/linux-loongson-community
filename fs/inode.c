@@ -73,7 +73,7 @@ static unsigned int i_hash_shift __read_mostly;
  */
 
 LIST_HEAD(inode_in_use);
-LIST_HEAD(inode_unused);
+__global LIST_HEAD(inode_unused);
 static struct hlist_head *inode_hashtable __read_mostly;
 
 /*
@@ -82,7 +82,7 @@ static struct hlist_head *inode_hashtable __read_mostly;
  * NOTE! You also have to own the lock if you change
  * the i_state of an inode while it is in use..
  */
-DEFINE_SPINLOCK(inode_lock);
+__global DEFINE_SPINLOCK(inode_lock);
 
 /*
  * iprune_sem provides exclusion between the kswapd or try_to_free_pages
@@ -101,7 +101,7 @@ static DECLARE_RWSEM(iprune_sem);
 /*
  * Statistics gathering..
  */
-struct inodes_stat_t inodes_stat;
+struct __global inodes_stat_t inodes_stat;
 
 static struct kmem_cache *inode_cachep __read_mostly;
 
@@ -235,7 +235,7 @@ void __destroy_inode(struct inode *inode)
 }
 EXPORT_SYMBOL(__destroy_inode);
 
-void destroy_inode(struct inode *inode)
+void __global destroy_inode(struct inode *inode)
 {
 	__destroy_inode(inode);
 	if (inode->i_sb->s_op->destroy_inode)

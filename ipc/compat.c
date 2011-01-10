@@ -232,7 +232,7 @@ static inline int put_compat_semid_ds(struct semid64_ds *s,
 	return err;
 }
 
-long compat_sys_semctl(int first, int second, int third, void __user *uptr)
+long __global compat_sys_semctl(int first, int second, int third, void __user *uptr)
 {
 	union semun fourth;
 	u32 pad;
@@ -305,7 +305,7 @@ long compat_sys_semctl(int first, int second, int third, void __user *uptr)
 	return err;
 }
 
-long compat_sys_msgsnd(int first, int second, int third, void __user *uptr)
+long __global compat_sys_msgsnd(int first, int second, int third, void __user *uptr)
 {
 	struct compat_msgbuf __user *up = uptr;
 	long type;
@@ -321,7 +321,7 @@ long compat_sys_msgsnd(int first, int second, int third, void __user *uptr)
 	return do_msgsnd(first, type, up->mtext, second, third);
 }
 
-long compat_sys_msgrcv(int first, int second, int msgtyp, int third,
+long __global compat_sys_msgrcv(int first, int second, int msgtyp, int third,
 			   int version, void __user *uptr)
 {
 	struct compat_msgbuf __user *up;
@@ -416,7 +416,7 @@ static inline int put_compat_msqid_ds(struct msqid64_ds *m,
 	return err;
 }
 
-long compat_sys_msgctl(int first, int second, void __user *uptr)
+long __global compat_sys_msgctl(int first, int second, void __user *uptr)
 {
 	int err, err2;
 	struct msqid64_ds m64;
@@ -470,7 +470,7 @@ long compat_sys_msgctl(int first, int second, void __user *uptr)
 	return err;
 }
 
-long compat_sys_shmat(int first, int second, compat_uptr_t third, int version,
+long __global compat_sys_shmat(int first, int second, compat_uptr_t third, int version,
 			void __user *uptr)
 {
 	int err;
@@ -590,7 +590,7 @@ static inline int put_compat_shm_info(struct shm_info __user *ip,
 	return err;
 }
 
-long compat_sys_shmctl(int first, int second, void __user *uptr)
+long __global compat_sys_shmctl(int first, int second, void __user *uptr)
 {
 	void __user *p;
 	struct shmid64_ds s64;
@@ -671,7 +671,7 @@ long compat_sys_shmctl(int first, int second, void __user *uptr)
 	return err;
 }
 
-long compat_sys_semtimedop(int semid, struct sembuf __user *tsems,
+long __global compat_sys_semtimedop(int semid, struct sembuf __user *tsems,
 		unsigned nsops, const struct compat_timespec __user *timeout)
 {
 	struct timespec __user *ts64 = NULL;

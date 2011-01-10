@@ -1099,7 +1099,7 @@ EXPORT_SYMBOL(bio_map_user);
  *	Map the user space address into a bio suitable for io to a block
  *	device. Returns an error pointer in case of error.
  */
-struct bio *bio_map_user_iov(struct request_queue *q, struct block_device *bdev,
+struct bio * __global bio_map_user_iov(struct request_queue *q, struct block_device *bdev,
 			     struct sg_iovec *iov, int iov_count,
 			     int write_to_vm, gfp_t gfp_mask)
 {
@@ -1318,7 +1318,7 @@ EXPORT_SYMBOL(bio_copy_kern);
 /*
  * bio_set_pages_dirty() will mark all the bio's pages as dirty.
  */
-void bio_set_pages_dirty(struct bio *bio)
+void __global bio_set_pages_dirty(struct bio *bio)
 {
 	struct bio_vec *bvec = bio->bi_io_vec;
 	int i;

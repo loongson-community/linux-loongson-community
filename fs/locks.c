@@ -134,8 +134,8 @@
 #define IS_FLOCK(fl)	(fl->fl_flags & FL_FLOCK)
 #define IS_LEASE(fl)	(fl->fl_flags & FL_LEASE)
 
-int leases_enable = 1;
-int lease_break_time = 45;
+int __global leases_enable = 1;
+int __global lease_break_time = 45;
 
 #define for_each_lock(inode, lockp) \
 	for (lockp = &inode->i_flock; *lockp != NULL; lockp = &(*lockp)->fl_next)
@@ -1058,7 +1058,7 @@ EXPORT_SYMBOL(posix_lock_file_wait);
  * Searches the inode's list of locks to find any POSIX locks which conflict.
  * This function is called from locks_verify_locked() only.
  */
-int locks_mandatory_locked(struct inode *inode)
+int __global locks_mandatory_locked(struct inode *inode)
 {
 	fl_owner_t owner = current->files;
 	struct file_lock *fl;

@@ -96,7 +96,7 @@ static inline void mark_rodata_ro(void) { }
 extern void tc_init(void);
 #endif
 
-enum system_states system_state __read_mostly;
+enum system_states __global system_state __read_mostly;
 EXPORT_SYMBOL(system_state);
 
 /*
@@ -107,13 +107,13 @@ EXPORT_SYMBOL(system_state);
 
 extern void time_init(void);
 /* Default late time init is NULL. archs can override this later. */
-void (*__initdata late_time_init)(void);
+void __global (*__initdata late_time_init)(void);
 extern void softirq_init(void);
 
 /* Untouched command line saved by arch-specific code. */
-char __initdata boot_command_line[COMMAND_LINE_SIZE];
+char __global __initdata boot_command_line[COMMAND_LINE_SIZE];
 /* Untouched saved command line (eg. for /proc) */
-char *saved_command_line;
+char __global *saved_command_line;
 /* Command line for parameter parsing */
 static char *static_command_line;
 
@@ -236,7 +236,7 @@ static int __init obsolete_checksetup(char *line)
  * This should be approx 2 Bo*oMips to start (note initial shift), and will
  * still work even if initially too large, it will just take slightly longer
  */
-unsigned long loops_per_jiffy = (1<<12);
+unsigned long __global loops_per_jiffy = (1<<12);
 
 EXPORT_SYMBOL(loops_per_jiffy);
 
@@ -480,7 +480,7 @@ void __init parse_early_options(char *cmdline)
 }
 
 /* Arch code calls this early on, or if not, just before other parsing. */
-void __init parse_early_param(void)
+void __init __global parse_early_param(void)
 {
 	static __initdata int done = 0;
 	static __initdata char tmp_cmdline[COMMAND_LINE_SIZE];
@@ -533,7 +533,7 @@ static void __init mm_init(void)
 	vmalloc_init();
 }
 
-asmlinkage void __init start_kernel(void)
+asmlinkage void __init __global start_kernel(void)
 {
 	char * command_line;
 	extern const struct kernel_param __start___param[], __stop___param[];

@@ -66,7 +66,7 @@ static inline int major_to_index(int major)
 
 #ifdef CONFIG_PROC_FS
 
-void chrdev_show(struct seq_file *f, off_t offset)
+void __global chrdev_show(struct seq_file *f, off_t offset)
 {
 	struct char_device_struct *cd;
 

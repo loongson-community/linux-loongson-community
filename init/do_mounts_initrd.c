@@ -10,9 +10,10 @@
 
 #include "do_mounts.h"
 
-unsigned long initrd_start, initrd_end;
-int initrd_below_start_ok;
-unsigned int real_root_dev;	/* do_proc_dointvec cannot handle kdev_t */
+unsigned long __global initrd_start;
+unsigned long __global initrd_end;
+int __global initrd_below_start_ok;
+unsigned int __global real_root_dev;	/* do_proc_dointvec cannot handle kdev_t */
 static int __initdata old_fd, root_fd;
 static int __initdata mount_initrd = 1;
 

@@ -10,7 +10,7 @@
 #include <asm/branch.h>
 #include <asm/uaccess.h>
 
-int fixup_exception(struct pt_regs *regs)
+int __global fixup_exception(struct pt_regs *regs)
 {
 	const struct exception_table_entry *fixup;
 

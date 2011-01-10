@@ -34,7 +34,7 @@
 
 
 LIST_HEAD(super_blocks);
-DEFINE_SPINLOCK(sb_lock);
+__global DEFINE_SPINLOCK(sb_lock);
 
 /**
  *	alloc_super	-	create new superblock
@@ -379,7 +379,7 @@ EXPORT_SYMBOL(drop_super);
  * hold up the sync while mounting a device. (The newly
  * mounted device won't need syncing.)
  */
-void sync_supers(void)
+void __global sync_supers(void)
 {
 	struct super_block *sb, *p = NULL;
 

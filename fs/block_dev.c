@@ -554,7 +554,7 @@ struct block_device *bdgrab(struct block_device *bdev)
 	return bdev;
 }
 
-long nr_blockdev_pages(void)
+long __global nr_blockdev_pages(void)
 {
 	struct block_device *bdev;
 	long ret = 0;

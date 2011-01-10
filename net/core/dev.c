@@ -532,7 +532,7 @@ EXPORT_SYMBOL(netdev_boot_setup_check);
  *	later in the device probing.
  *	Returns 0 if no settings found.
  */
-unsigned long netdev_boot_base(const char *prefix, int unit)
+unsigned long __global netdev_boot_base(const char *prefix, int unit)
 {
 	const struct netdev_boot_setup *s = dev_boot_setup;
 	char name[IFNAMSIZ];
@@ -1935,7 +1935,7 @@ static inline int skb_needs_linearize(struct sk_buff *skb,
 					      illegal_highdma(dev, skb))));
 }
 
-int dev_hard_start_xmit(struct sk_buff *skb, struct net_device *dev,
+int __global dev_hard_start_xmit(struct sk_buff *skb, struct net_device *dev,
 			struct netdev_queue *txq)
 {
 	const struct net_device_ops *ops = dev->netdev_ops;
@@ -4593,7 +4593,7 @@ static int dev_ifsioc(struct net *net, struct ifreq *ifr, unsigned int cmd)
  *	positive or a negative errno code on error.
  */
 
-int dev_ioctl(struct net *net, unsigned int cmd, void __user *arg)
+int __global dev_ioctl(struct net *net, unsigned int cmd, void __user *arg)
 {
 	struct ifreq ifr;
 	int ret;

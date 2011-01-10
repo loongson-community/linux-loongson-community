@@ -333,7 +333,7 @@ int get_write_access(struct inode * inode)
 	return 0;
 }
 
-int deny_write_access(struct file * file)
+int __global deny_write_access(struct file * file)
 {
 	struct inode *inode = file->f_path.dentry->d_inode;
 

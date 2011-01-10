@@ -9,7 +9,7 @@
 #include <linux/nmi.h>
 #include <linux/quicklist.h>
 
-void show_mem(void)
+void __global show_mem(void)
 {
 	pg_data_t *pgdat;
 	unsigned long total = 0, reserved = 0, shared = 0,

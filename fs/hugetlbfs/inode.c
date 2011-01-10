@@ -46,7 +46,7 @@ static struct backing_dev_info hugetlbfs_backing_dev_info = {
 	.capabilities	= BDI_CAP_NO_ACCT_AND_WRITEBACK,
 };
 
-int sysctl_hugetlb_shm_group;
+int __global sysctl_hugetlb_shm_group;
 
 enum {
 	Opt_size, Opt_nr_inodes,
@@ -669,7 +669,7 @@ static void init_once(void *foo)
 	inode_init_once(&ei->vfs_inode);
 }
 
-const struct file_operations hugetlbfs_file_operations = {
+const struct file_operations __global hugetlbfs_file_operations = {
 	.read			= hugetlbfs_read,
 	.mmap			= hugetlbfs_file_mmap,
 	.fsync			= noop_fsync,
@@ -851,7 +851,7 @@ out_free:
 	return -ENOMEM;
 }
 
-int hugetlb_get_quota(struct address_space *mapping, long delta)
+int __global hugetlb_get_quota(struct address_space *mapping, long delta)
 {
 	int ret = 0;
 	struct hugetlbfs_sb_info *sbinfo = HUGETLBFS_SB(mapping->host->i_sb);
@@ -868,7 +868,7 @@ int hugetlb_get_quota(struct address_space *mapping, long delta)
 	return ret;
 }
 
-void hugetlb_put_quota(struct address_space *mapping, long delta)
+void __global hugetlb_put_quota(struct address_space *mapping, long delta)
 {
 	struct hugetlbfs_sb_info *sbinfo = HUGETLBFS_SB(mapping->host->i_sb);
 
@@ -898,7 +898,7 @@ static int can_do_hugetlb_shm(void)
 	return capable(CAP_IPC_LOCK) || in_group_p(sysctl_hugetlb_shm_group);
 }
 
-struct file *hugetlb_file_setup(const char *name, size_t size, int acctflag,
+struct file * __global hugetlb_file_setup(const char *name, size_t size, int acctflag,
 				struct user_struct **user, int creat_flags)
 {
 	int error = -ENOMEM;

@@ -2766,7 +2766,7 @@ done:
 }
 EXPORT_SYMBOL_GPL(skb_gro_receive);
 
-void __init skb_init(void)
+void __init __global skb_init(void)
 {
 	skbuff_head_cache = kmem_cache_create("skbuff_head_cache",
 					      sizeof(struct sk_buff),

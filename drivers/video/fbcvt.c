@@ -302,7 +302,7 @@ static void fb_cvt_convert_to_mode(struct fb_cvt_data *cvt,
  * DESCRIPTION:
  * Computes video timings using VESA(TM) Coordinated Video Timings
  */
-int fb_find_mode_cvt(struct fb_videomode *mode, int margins, int rb)
+int __global fb_find_mode_cvt(struct fb_videomode *mode, int margins, int rb)
 {
 	struct fb_cvt_data cvt;
 

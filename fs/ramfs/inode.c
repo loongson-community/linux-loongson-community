@@ -297,7 +297,7 @@ static void __exit exit_ramfs_fs(void)
 module_init(init_ramfs_fs)
 module_exit(exit_ramfs_fs)
 
-int __init init_rootfs(void)
+int __init __global init_rootfs(void)
 {
 	int err;
 

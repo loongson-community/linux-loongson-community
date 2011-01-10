@@ -84,18 +84,18 @@ __proc_device_tree_add_prop(struct proc_dir_entry *de, struct property *pp,
 }
 
 
-void proc_device_tree_add_prop(struct proc_dir_entry *pde, struct property *prop)
+void __global proc_device_tree_add_prop(struct proc_dir_entry *pde, struct property *prop)
 {
 	__proc_device_tree_add_prop(pde, prop, prop->name);
 }
 
-void proc_device_tree_remove_prop(struct proc_dir_entry *pde,
+void __global proc_device_tree_remove_prop(struct proc_dir_entry *pde,
 				  struct property *prop)
 {
 	remove_proc_entry(prop->name, pde);
 }
 
-void proc_device_tree_update_prop(struct proc_dir_entry *pde,
+void __global proc_device_tree_update_prop(struct proc_dir_entry *pde,
 				  struct property *newprop,
 				  struct property *oldprop)
 {
@@ -179,7 +179,7 @@ retry:
 /*
  * Process a node, adding entries for its children and its properties.
  */
-void proc_device_tree_add_node(struct device_node *np,
+void __global proc_device_tree_add_node(struct device_node *np,
 			       struct proc_dir_entry *de)
 {
 	struct property *pp;

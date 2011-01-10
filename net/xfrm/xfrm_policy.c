@@ -1124,7 +1124,7 @@ static struct xfrm_policy *clone_policy(struct xfrm_policy *old, int dir)
 	return newp;
 }
 
-int __xfrm_sk_clone_policy(struct sock *sk)
+int __global __xfrm_sk_clone_policy(struct sock *sk)
 {
 	struct xfrm_policy *p0 = sk->sk_policy[0],
 			   *p1 = sk->sk_policy[1];
@@ -2644,7 +2644,7 @@ static struct pernet_operations __net_initdata xfrm_net_ops = {
 	.exit = xfrm_net_exit,
 };
 
-void __init xfrm_init(void)
+void __init __global xfrm_init(void)
 {
 	register_pernet_subsys(&xfrm_net_ops);
 	xfrm_input_init();

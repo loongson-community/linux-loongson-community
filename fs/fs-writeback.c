@@ -64,7 +64,7 @@ int nr_pdflush_threads;
  * Determine whether there is writeback waiting to be handled against a
  * backing device.
  */
-int writeback_in_progress(struct backing_dev_info *bdi)
+int __global writeback_in_progress(struct backing_dev_info *bdi)
 {
 	return test_bit(BDI_writeback_running, &bdi->state);
 }
@@ -524,7 +524,7 @@ static int writeback_sb_inodes(struct super_block *sb, struct bdi_writeback *wb,
 	return 1;
 }
 
-void writeback_inodes_wb(struct bdi_writeback *wb,
+void __global writeback_inodes_wb(struct bdi_writeback *wb,
 		struct writeback_control *wbc)
 {
 	int ret = 0;

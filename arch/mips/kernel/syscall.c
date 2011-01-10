@@ -136,7 +136,7 @@ unsigned long arch_get_unmapped_area(struct file *filp, unsigned long addr,
 	}
 }
 
-void arch_pick_mmap_layout(struct mm_struct *mm)
+void __global arch_pick_mmap_layout(struct mm_struct *mm)
 {
 	unsigned long random_factor = 0UL;
 

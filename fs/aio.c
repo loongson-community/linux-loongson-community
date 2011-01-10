@@ -49,8 +49,8 @@
 
 /*------ sysctl variables----*/
 static DEFINE_SPINLOCK(aio_nr_lock);
-unsigned long aio_nr;		/* current system wide number of aio requests */
-unsigned long aio_max_nr = 0x10000; /* system wide maximum number of aio requests */
+unsigned long __global aio_nr;		/* current system wide number of aio requests */
+unsigned long __global aio_max_nr = 0x10000; /* system wide maximum number of aio requests */
 /*----end sysctl variables---*/
 
 static struct kmem_cache	*kiocb_cachep;
@@ -405,7 +405,7 @@ EXPORT_SYMBOL(wait_on_sync_kiocb);
  * go away, they will call put_ioctx and release any pinned memory
  * associated with the request (held via struct page * references).
  */
-void exit_aio(struct mm_struct *mm)
+void __global exit_aio(struct mm_struct *mm)
 {
 	struct kioctx *ctx;
 

@@ -503,7 +503,7 @@ void tcp_syn_ack_timeout(struct sock *sk, struct request_sock *req)
 }
 EXPORT_SYMBOL(tcp_syn_ack_timeout);
 
-void tcp_set_keepalive(struct sock *sk, int val)
+void __global tcp_set_keepalive(struct sock *sk, int val)
 {
 	if ((1 << sk->sk_state) & (TCPF_CLOSE | TCPF_LISTEN))
 		return;

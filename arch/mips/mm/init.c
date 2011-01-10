@@ -64,7 +64,7 @@
 
 #endif /* CONFIG_MIPS_MT_SMTC */
 
-DEFINE_PER_CPU(struct mmu_gather, mmu_gathers);
+__global DEFINE_PER_CPU(struct mmu_gather, mmu_gathers);
 
 /*
  * We have up to 8 empty zeroed pages so we can map one of the right colour
@@ -321,7 +321,7 @@ int page_is_ram(unsigned long pagenr)
 	return 0;
 }
 
-void __init paging_init(void)
+void __init __global paging_init(void)
 {
 	unsigned long max_zone_pfns[MAX_NR_ZONES];
 	unsigned long lastpfn;
@@ -429,7 +429,7 @@ void __init mem_init(void)
 }
 #endif /* !CONFIG_NEED_MULTIPLE_NODES */
 
-void free_init_pages(const char *what, unsigned long begin, unsigned long end)
+void __global free_init_pages(const char *what, unsigned long begin, unsigned long end)
 {
 	unsigned long pfn;
 
@@ -447,7 +447,7 @@ void free_init_pages(const char *what, unsigned long begin, unsigned long end)
 }
 
 #ifdef CONFIG_BLK_DEV_INITRD
-void free_initrd_mem(unsigned long start, unsigned long end)
+void __global free_initrd_mem(unsigned long start, unsigned long end)
 {
 	free_init_pages("initrd memory",
 			virt_to_phys((void *)start),
@@ -455,7 +455,7 @@ void free_initrd_mem(unsigned long start, unsigned long end)
 }
 #endif
 
-void __init_refok free_initmem(void)
+void __init_refok __global free_initmem(void)
 {
 	prom_free_prom_memory();
 	free_init_pages("unused kernel memory",

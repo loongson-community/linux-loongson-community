@@ -25,7 +25,7 @@
 #include <asm/siginfo.h>
 #include <asm/uaccess.h>
 
-void set_close_on_exec(unsigned int fd, int flag)
+void __global set_close_on_exec(unsigned int fd, int flag)
 {
 	struct files_struct *files = current->files;
 	struct fdtable *fdt;
@@ -555,7 +555,7 @@ static void send_sigio_to_task(struct task_struct *p,
 	}
 }
 
-void send_sigio(struct fown_struct *fown, int fd, int band)
+void __global send_sigio(struct fown_struct *fown, int fd, int band)
 {
 	struct task_struct *p;
 	enum pid_type type;
@@ -590,7 +590,7 @@ static void send_sigurg_to_task(struct task_struct *p,
 		do_send_sig_info(SIGURG, SEND_SIG_PRIV, p, group);
 }
 
-int send_sigurg(struct fown_struct *fown)
+int __global send_sigurg(struct fown_struct *fown)
 {
 	struct task_struct *p;
 	enum pid_type type;

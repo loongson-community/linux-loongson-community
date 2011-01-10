@@ -765,7 +765,7 @@ void cred_to_ucred(struct pid *pid, const struct cred *cred,
 }
 EXPORT_SYMBOL_GPL(cred_to_ucred);
 
-int sock_getsockopt(struct socket *sock, int level, int optname,
+int __global sock_getsockopt(struct socket *sock, int level, int optname,
 		    char __user *optval, int __user *optlen)
 {
 	struct sock *sk = sock->sk;
@@ -1296,7 +1296,7 @@ void sk_setup_caps(struct sock *sk, struct dst_entry *dst)
 }
 EXPORT_SYMBOL_GPL(sk_setup_caps);
 
-void __init sk_init(void)
+void __init __global sk_init(void)
 {
 	if (totalram_pages <= 4096) {
 		sysctl_wmem_max = 32767;
@@ -1396,7 +1396,7 @@ EXPORT_SYMBOL(sock_wmalloc);
 /*
  * Allocate a skb from the socket's receive buffer.
  */
-struct sk_buff *sock_rmalloc(struct sock *sk, unsigned long size, int force,
+struct sk_buff * __global sock_rmalloc(struct sock *sk, unsigned long size, int force,
 			     gfp_t priority)
 {
 	if (force || atomic_read(&sk->sk_rmem_alloc) < sk->sk_rcvbuf) {

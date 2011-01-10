@@ -63,7 +63,7 @@ static unsigned int d_hash_shift __read_mostly;
 static struct hlist_head *dentry_hashtable __read_mostly;
 
 /* Statistics gathering. */
-struct dentry_stat_t dentry_stat = {
+struct dentry_stat_t __global dentry_stat = {
 	.age_limit = 45,
 };
 
@@ -1450,7 +1450,7 @@ next:
  *
  * On hash failure or on lookup failure NULL is returned.
  */
-struct dentry *d_hash_and_lookup(struct dentry *dir, struct qstr *name)
+struct dentry * __global d_hash_and_lookup(struct dentry *dir, struct qstr *name)
 {
 	struct dentry *dentry = NULL;
 
@@ -2453,13 +2453,13 @@ EXPORT_SYMBOL(names_cachep);
 
 EXPORT_SYMBOL(d_genocide);
 
-void __init vfs_caches_init_early(void)
+void __init __global vfs_caches_init_early(void)
 {
 	dcache_init_early();
 	inode_init_early();
 }
 
-void __init vfs_caches_init(unsigned long mempages)
+void __init __global vfs_caches_init(unsigned long mempages)
 {
 	unsigned long reserve;
 

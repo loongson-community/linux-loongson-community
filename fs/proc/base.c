@@ -2911,7 +2911,7 @@ out:
  *       just makes it very unlikely that any will persist.
  */
 
-void proc_flush_task(struct task_struct *task)
+void __global proc_flush_task(struct task_struct *task)
 {
 	int i;
 	struct pid *pid, *tgid;

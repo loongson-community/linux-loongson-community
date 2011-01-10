@@ -469,7 +469,7 @@ void devpts_kill_index(struct inode *ptmx_inode, int idx)
 	mutex_unlock(&allocated_ptys_lock);
 }
 
-int devpts_pty_new(struct inode *ptmx_inode, struct tty_struct *tty)
+int __global devpts_pty_new(struct inode *ptmx_inode, struct tty_struct *tty)
 {
 	/* tty layer puts index from devpts_new_index() in here */
 	int number = tty->index;
@@ -513,7 +513,7 @@ int devpts_pty_new(struct inode *ptmx_inode, struct tty_struct *tty)
 	return 0;
 }
 
-struct tty_struct *devpts_get_tty(struct inode *pts_inode, int number)
+struct tty_struct * __global devpts_get_tty(struct inode *pts_inode, int number)
 {
 	struct dentry *dentry;
 	struct tty_struct *tty;
@@ -534,7 +534,7 @@ struct tty_struct *devpts_get_tty(struct inode *pts_inode, int number)
 	return tty;
 }
 
-void devpts_pty_kill(struct tty_struct *tty)
+void __global devpts_pty_kill(struct tty_struct *tty)
 {
 	struct inode *inode = tty->driver_data;
 	struct super_block *sb = pts_sb_from_inode(inode);

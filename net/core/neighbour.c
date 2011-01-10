@@ -557,7 +557,7 @@ out:
 EXPORT_SYMBOL(pneigh_lookup);
 
 
-int pneigh_delete(struct neigh_table *tbl, struct net *net, const void *pkey,
+int __global pneigh_delete(struct neigh_table *tbl, struct net *net, const void *pkey,
 		  struct net_device *dev)
 {
 	struct pneigh_entry *n, **np;

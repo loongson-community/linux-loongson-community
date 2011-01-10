@@ -117,7 +117,7 @@ static void do_sync_work(struct work_struct *work)
 	kfree(work);
 }
 
-void emergency_sync(void)
+void __global emergency_sync(void)
 {
 	struct work_struct *work;
 

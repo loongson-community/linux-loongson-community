@@ -3207,7 +3207,7 @@ static struct kmem_cache *bh_cachep;
  */
 static int max_buffer_heads;
 
-int buffer_heads_over_limit;
+int __global buffer_heads_over_limit;
 
 struct bh_accounting {
 	int nr;			/* Number of live bh's */
@@ -3318,7 +3318,7 @@ int bh_submit_read(struct buffer_head *bh)
 }
 EXPORT_SYMBOL(bh_submit_read);
 
-void __init buffer_init(void)
+void __init __global buffer_init(void)
 {
 	int nrpages;
 

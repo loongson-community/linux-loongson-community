@@ -23,14 +23,14 @@
 
 #include "do_mounts.h"
 
-int __initdata rd_doload;	/* 1 = load RAM disk, 0 = don't load */
+int __initdata __global rd_doload;	/* 1 = load RAM disk, 0 = don't load */
 
-int root_mountflags = MS_RDONLY | MS_SILENT;
+int __global root_mountflags = MS_RDONLY | MS_SILENT;
 static char * __initdata root_device_name;
 static char __initdata saved_root_name[64];
 static int __initdata root_wait;
 
-dev_t ROOT_DEV;
+dev_t __global ROOT_DEV;
 
 static int __init load_ramdisk(char *str)
 {
@@ -75,7 +75,7 @@ __setup("rw", readwrite);
  *	bangs.
  */
 
-dev_t name_to_dev_t(char *name)
+dev_t __global name_to_dev_t(char *name)
 {
 	char s[32];
 	char *p;
@@ -363,7 +363,7 @@ void __init mount_root(void)
 /*
  * Prepare the namespace - decide what/where to mount, load ramdisks, etc.
  */
-void __init prepare_namespace(void)
+void __init __global prepare_namespace(void)
 {
 	int is_floppy;
 

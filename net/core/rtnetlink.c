@@ -446,7 +446,7 @@ void __rta_fill(struct sk_buff *skb, int attrtype, int attrlen, const void *data
 }
 EXPORT_SYMBOL(__rta_fill);
 
-int rtnetlink_send(struct sk_buff *skb, struct net *net, u32 pid, unsigned group, int echo)
+int __global rtnetlink_send(struct sk_buff *skb, struct net *net, u32 pid, unsigned group, int echo)
 {
 	struct sock *rtnl = net->rtnl;
 	int err = 0;
@@ -1794,7 +1794,7 @@ static struct pernet_operations rtnetlink_net_ops = {
 	.exit = rtnetlink_net_exit,
 };
 
-void __init rtnetlink_init(void)
+void __init __global rtnetlink_init(void)
 {
 	int i;
 

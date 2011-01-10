@@ -32,7 +32,7 @@
  * (<=32Mb of memory) and to 1024 on normal or better ones (>=256Mb).
  * Note : Dont forget somaxconn that may limit backlog too.
  */
-int sysctl_max_syn_backlog = 256;
+int __global sysctl_max_syn_backlog = 256;
 
 int reqsk_queue_alloc(struct request_sock_queue *queue,
 		      unsigned int nr_table_entries)

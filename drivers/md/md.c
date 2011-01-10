@@ -4230,7 +4230,7 @@ static struct kobj_type md_ktype = {
 	.default_attrs	= md_default_attrs,
 };
 
-int mdp_major = 0;
+int __global mdp_major;
 
 static void mddev_delayed_delete(struct work_struct *ws)
 {
@@ -7312,7 +7312,7 @@ struct detected_devices_node {
 	dev_t dev;
 };
 
-void md_autodetect_dev(dev_t dev)
+void __global md_autodetect_dev(dev_t dev)
 {
 	struct detected_devices_node *node_detected_dev;
 

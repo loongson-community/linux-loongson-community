@@ -15,7 +15,7 @@
 #include <linux/decompress/generic.h>
 
 
-int __initdata rd_prompt = 1;/* 1 = prompt for RAM disk, 0 = don't prompt */
+int __initdata __global rd_prompt = 1;/* 1 = prompt for RAM disk, 0 = don't prompt */
 
 static int __init prompt_ramdisk(char *str)
 {
@@ -24,7 +24,7 @@ static int __init prompt_ramdisk(char *str)
 }
 __setup("prompt_ramdisk=", prompt_ramdisk);
 
-int __initdata rd_image_start;		/* starting block # of image */
+int __initdata __global rd_image_start;		/* starting block # of image */
 
 static int __init ramdisk_start_setup(char *str)
 {

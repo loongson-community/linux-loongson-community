@@ -189,7 +189,7 @@ static inline int qdisc_restart(struct Qdisc *q)
 	return sch_direct_xmit(skb, q, dev, txq, root_lock);
 }
 
-void __qdisc_run(struct Qdisc *q)
+void __global __qdisc_run(struct Qdisc *q)
 {
 	unsigned long start_time = jiffies;
 
@@ -734,7 +734,7 @@ static void transition_one_qdisc(struct net_device *dev,
 	}
 }
 
-void dev_activate(struct net_device *dev)
+void __global dev_activate(struct net_device *dev)
 {
 	int need_watchdog;
 
@@ -858,7 +858,7 @@ static void shutdown_scheduler_queue(struct net_device *dev,
 	}
 }
 
-void dev_shutdown(struct net_device *dev)
+void __global dev_shutdown(struct net_device *dev)
 {
 	netdev_for_each_tx_queue(dev, shutdown_scheduler_queue, &noop_qdisc);
 	shutdown_scheduler_queue(dev, &dev->rx_queue, &noop_qdisc);

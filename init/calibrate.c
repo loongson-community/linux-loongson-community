@@ -121,7 +121,7 @@ static unsigned long __cpuinit calibrate_delay_direct(void) {return 0;}
  */
 #define LPS_PREC 8
 
-void __cpuinit calibrate_delay(void)
+void __cpuinit __global calibrate_delay(void)
 {
 #ifndef ARCH_HAS_PREPARED_LPJ
 	unsigned long ticks, loopbit;

@@ -63,7 +63,7 @@ EXPORT_SYMBOL_GPL(fs_kobj);
  * It should be taken for write in all cases where the vfsmount
  * tree or hash is modified or when a vfsmount structure is modified.
  */
-DEFINE_BRLOCK(vfsmount_lock);
+__global DEFINE_BRLOCK(vfsmount_lock);
 
 static inline unsigned long hash(struct vfsmount *mnt, struct dentry *dentry)
 {
@@ -864,7 +864,7 @@ out:
 	return err;
 }
 
-const struct seq_operations mounts_op = {
+const struct seq_operations __global mounts_op = {
 	.start	= m_start,
 	.next	= m_next,
 	.stop	= m_stop,
@@ -964,7 +964,7 @@ static int show_vfsstat(struct seq_file *m, void *v)
 	return err;
 }
 
-const struct seq_operations mountstats_op = {
+const struct seq_operations __global mountstats_op = {
 	.start	= m_start,
 	.next	= m_next,
 	.stop	= m_stop,
@@ -2148,7 +2148,7 @@ static struct mnt_namespace *dup_mnt_ns(struct mnt_namespace *mnt_ns,
 	return new_ns;
 }
 
-struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+struct mnt_namespace * __global copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
 		struct fs_struct *new_fs)
 {
 	struct mnt_namespace *new_ns;
@@ -2403,7 +2403,7 @@ void __init mnt_init(void)
 	init_mount_tree();
 }
 
-void put_mnt_ns(struct mnt_namespace *ns)
+void __global put_mnt_ns(struct mnt_namespace *ns)
 {
 	LIST_HEAD(umount_list);
 

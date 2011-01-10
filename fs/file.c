@@ -80,7 +80,7 @@ static void free_fdtable_work(struct work_struct *work)
 	}
 }
 
-void free_fdtable_rcu(struct rcu_head *rcu)
+void __global free_fdtable_rcu(struct rcu_head *rcu)
 {
 	struct fdtable *fdt = container_of(rcu, struct fdtable, rcu);
 	struct fdtable_defer *fddef;
@@ -240,7 +240,7 @@ static int expand_fdtable(struct files_struct *files, int nr)
  * expanded and execution may have blocked.
  * The files->file_lock should be held on entry, and will be held on exit.
  */
-int expand_files(struct files_struct *files, int nr)
+int __global expand_files(struct files_struct *files, int nr)
 {
 	struct fdtable *fdt;
 
