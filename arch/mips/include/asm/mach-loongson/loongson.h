@@ -42,11 +42,8 @@ static inline void prom_init_uart_base(void)
 #endif
 }
 
-/*
- * Copy kernel command line from arcs_cmdline
- */
-#include <asm/setup.h>
-extern char loongson_cmdline[COMMAND_LINE_SIZE];
+/* This is initialized in arch/mips/loongson/common/cmdline.c */
+extern unsigned long ec_version;
 
 /* irq operation functions */
 extern void bonito_irqdispatch(void);

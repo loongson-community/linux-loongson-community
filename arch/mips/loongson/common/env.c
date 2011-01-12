@@ -19,58 +19,62 @@
  */
 #include <linux/module.h>
 
+#include <asm/addrspace.h>
 #include <asm/bootinfo.h>
 
 #include <loongson.h>
 
-unsigned long cpu_clock_freq;
+unsigned long cpu_clock_freq =
+	((CONFIG_CPU_CLOCK_FREQ_LEVEL * CONFIG_CPU_CLOCK_FREQ) >> 3) * 1000;
 EXPORT_SYMBOL(cpu_clock_freq);
-unsigned long memsize, highmemsize;
+unsigned long memsize = CONFIG_LOW_MEMSIZE;
+unsigned long highmemsize = CONFIG_MEMSIZE - CONFIG_LOW_MEMSIZE;
 
 #define parse_even_earlier(res, option, p)				\
 do {									\
 	if (strncmp(option, (char *)p, strlen(option)) == 0)		\
-			strict_strtol((char *)p + strlen(option"="),	\
-					10, &res);			\
+		strict_strtol((char *)p + strlen(option"="), 10, &res);	\
 } while (0)
 
 void __init prom_init_env(void)
 {
-	/* pmon passes arguments in 32bit pointers */
+#ifndef CONFIG_ENVVAR_OVERRIDE
+	/* PMON passes arguments in 32bit pointers */
 	int *_prom_envp;
-	unsigned long bus_clock;
 	long l;
-
-	/* firmware arguments are initialized in head.S */
-	_prom_envp = (int *)fw_arg2;
-
-	l = (long)*_prom_envp;
-	while (l != 0) {
-		parse_even_earlier(bus_clock, "busclock", l);
-		parse_even_earlier(cpu_clock_freq, "cpuclock", l);
-		parse_even_earlier(memsize, "memsize", l);
-		parse_even_earlier(highmemsize, "highmemsize", l);
-		_prom_envp++;
+	/* Who will put the env vars at address 0? */
+	if (fw_arg2 != 0) {
+		/* firmware arguments are initialized in head.S */
+		_prom_envp = (int *)fw_arg2;
 		l = (long)*_prom_envp;
-	}
-	if (memsize == 0)
-		memsize = 256;
-	if (bus_clock == 0)
-		bus_clock = 66000000;
-	if (cpu_clock_freq == 0) {
-		switch (cpu_prid_rev()) {
-		case PRID_REV_LOONGSON2E:
-			cpu_clock_freq = 533080000;
-			break;
-		case PRID_REV_LOONGSON2F:
-			cpu_clock_freq = 797000000;
-			break;
-		default:
-			cpu_clock_freq = 100000000;
-			break;
+		while (l != 0) {
+			parse_even_earlier(cpu_clock_freq, "cpuclock", l);
+			parse_even_earlier(memsize, "memsize", l);
+			parse_even_earlier(highmemsize, "highmemsize", l);
+			_prom_envp++;
+			l = (long)*_prom_envp;
 		}
 	}
 
-	pr_info("busclock=%ld, cpuclock=%ld, memsize=%ld, highmemsize=%ld\n",
-		bus_clock, cpu_clock_freq, memsize, highmemsize);
+	cpu_clock_freq = ((CONFIG_CPU_CLOCK_FREQ_LEVEL *
+				(cpu_clock_freq / 1000)) >> 3) * 1000;
+#endif	/* CONFIG_ENVVAR_OVERRIDE */
+
+	pr_info("cpuclock=%ld, memsize=%ld, highmemsize=%ld\n",
+			cpu_clock_freq, memsize, highmemsize);
 }
+
+static int __init init_cpu_freq(void)
+{
+	LOONGSON_SET_CPUFREQ(CONFIG_CPU_CLOCK_FREQ_LEVEL - 1);
+	return 0;
+}
+/*
+ * To get fastest booting, only set cpu freq in the last stage or delay this to
+ * the user-space.
+ */
+#if CONFIG_CPU_CLOCK_FREQ_LEVEL < 8
+late_initcall(init_cpu_freq);
+#else
+early_initcall(init_cpu_freq);
+#endif

@@ -59,11 +59,11 @@ config LEMOTE_MACH2F
 	  These family machines include fuloong2f mini PC, yeeloong2f notebook,
 	  LingLoong allinone PC and so forth.
 
-if LEMOTE_MACH2F
+endchoice # Machine type
 
 choice
-	prompt "Board Type"
-	depends on EMBEDDED
+	prompt "Board Type" if EMBEDDED
+	depends on LEMOTE_MACH2F
 
 config LEMOTE_YEELOONG
 	bool "Lemote YeeLoong laptop"
@@ -80,11 +80,56 @@ config LEMOTE_UNAS
 config LEMOTE_MENGLOONG
 	bool "Lemote MengLong laptop"
 
-endchoice
+endchoice	# Board Type
 
-endif # LEMOTE_MACH2F
+menuconfig ENVVAR_OVERRIDE
+	bool "Configure env vars(override the ones from bootloader)" if EMBEDDED
+	default n
+	help
+	  This allows users to set the memsize & cpu_clock_freq. it not only
+	  make the available memory size configurable, allow suitable cpu
+	  frequency settable, and also avoids the env var being probed from
+	  bootloader, as a result, reduce the kernel image size.
 
-endchoice # Machine type
+config MEMSIZE
+	int "memory size(MB)" if EMBEDDED && ENVVAR_OVERRIDE
+	default 256 if 32BIT
+	default 1024 if 64BIT
+	help
+	  Configure the memory size. It must be <= the max available memory
+	  size of your board.
+
+	  Please don't try to configure a value bigger than the max available
+	  memory size.
+
+config CPU_CLOCK_FREQ_LEVEL
+	int "CPU frequency level(1~8)" if EMBEDDED && ENVVAR_OVERRIDE && !CPU_FREQ
+	depends on CPU_LOONGSON2F
+	range 1 8
+	default 8
+	help
+	  Loongson2F support 8 different levels of cpu frequency, choose one
+	  for your requirement.
+
+	  This will scale down the cpu frequency to an indicated level. It may
+	  save some power but in the same time, it will make your system
+	  slower.
+
+config CPU_CLOCK_FREQ
+	int "Max CPU frequency(KHz)" if EMBEDDED && ENVVAR_OVERRIDE
+	default 533080 if CPU_LOONGSON2E
+	default 797000 if CPU_LOONGSON2F
+	default 1000000
+	help
+	  This allows you configure the Max CPU frequency for your processor.
+
+	  Except you have overclocked your board, otherwise, please don't
+	  change this value.
+
+config LOW_MEMSIZE
+	int
+	default MEMSIZE if 32BIT
+	default 256 if 64BIT
 
 config CS5536
 	select CS5536_IDE if (PATA_AMD || BLK_DEV_AMD74XX || PATA_CS5536)

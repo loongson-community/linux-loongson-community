@@ -24,27 +24,14 @@
 
 #include <cs5536/cs5536.h>
 
-#include <loongson.h>		/* for loongson_cmdline */
+#include <loongson.h>		/* for ec_version() */
 #include <ec_kb3310b.h>
 
 /* common function */
-#define EC_VER_LEN 64
 
-static int ec_version_before(char *version)
+static inline int ec_version_before(unsigned long ver)
 {
-	char *p, ec_ver[EC_VER_LEN];
-
-	p = strstr(loongson_cmdline, "EC_VER=");
-	if (!p)
-		memset(ec_ver, 0, EC_VER_LEN);
-	else {
-		strncpy(ec_ver, p, EC_VER_LEN);
-		p = strstr(ec_ver, " ");
-		if (p)
-			*p = '\0';
-	}
-
-	return (strncasecmp(ec_ver, version, 64) < 0);
+	return ec_version < ver;
 }
 
 /* backlight subdriver */
@@ -799,7 +786,7 @@ static int displaytoggle_handler(int status)
 {
 	/* EC(>=PQ1D26) does this job for us, we can not do it again,
 	 * otherwise, the brightness will not resume to the normal level! */
-	if (ec_version_before("EC_VER=PQ1D26"))
+	if (ec_version_before(26))
 		yeeloong_lcd_vo_set(status);
 
 	return status;
@@ -1117,7 +1104,7 @@ static void usb_ports_set(int status)
 static int yeeloong_suspend(struct device *dev)
 
 {
-	if (ec_version_before("EC_VER=PQ1D27"))
+	if (ec_version_before(27))
 		yeeloong_lcd_vo_set(OFF);
 	yeeloong_crt_vo_set(OFF);
 	usb_ports_set(OFF);
@@ -1129,7 +1116,7 @@ static int yeeloong_resume(struct device *dev)
 {
 	int ret;
 
-	if (ec_version_before("EC_VER=PQ1D27"))
+	if (ec_version_before(27))
 		yeeloong_lcd_vo_set(ON);
 	yeeloong_crt_vo_set(ON);
 	usb_ports_set(ON);

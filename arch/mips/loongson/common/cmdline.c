@@ -18,36 +18,58 @@
  * option) any later version.
  */
 #include <linux/module.h>
+#include <linux/kernel.h>
 #include <asm/bootinfo.h>
 
 #include <loongson.h>
 #include <machine.h>
 
-/* the kernel command line copied from arcs_cmdline */
-char loongson_cmdline[COMMAND_LINE_SIZE];
-EXPORT_SYMBOL(loongson_cmdline);
+/* Assume the avg. length of the argument is 15 */
+#define ARGV_MAX_ARGS (COMMAND_LINE_SIZE / 15)
+
+/* The popular version is PQ1D27 */
+#define EC_VER_STR "EC_VER=PQ1D"
+unsigned long ec_version = 27;
+
+#ifdef CONFIG_CMDLINE_OVERRIDE
+#define cmdline builtin_cmdline
+#else
+#define cmdline arcs_cmdline
+#endif
+
+static inline void get_ec_version(void)
+{
+	char *p, ret;
+
+	p = strstr(cmdline, EC_VER_STR);
+	if (p) {
+		p[strlen(EC_VER_STR) + 2] = '\0';
+		ret = strict_strtoul(p + strlen(EC_VER_STR), 10, &ec_version);
+	}
+}
 
 void __init prom_init_cmdline(void)
 {
+#ifndef CONFIG_CMDLINE_OVERRIDE
 	int prom_argc;
-	/* pmon passes arguments in 32bit pointers */
+	/* PMON passes arguments in 32bit pointers */
 	int *_prom_argv;
 	int i;
 	long l;
-
-	/* firmware arguments are initialized in head.S */
-	prom_argc = fw_arg0;
-	_prom_argv = (int *)fw_arg1;
-
-	/* arg[0] is "g", the rest is boot parameters */
-	arcs_cmdline[0] = '\0';
-	for (i = 1; i < prom_argc; i++) {
-		l = (long)_prom_argv[i];
-		if (strlen(arcs_cmdline) + strlen(((char *)l) + 1)
-		    >= sizeof(arcs_cmdline))
-			break;
-		strcat(arcs_cmdline, ((char *)l));
-		strcat(arcs_cmdline, " ");
+	if (fw_arg0 != 0 && fw_arg1 != 0) {
+		/* firmware arguments are initialized in head.S */
+		prom_argc = min(fw_arg0, (unsigned long)ARGV_MAX_ARGS);
+		_prom_argv = (int *)fw_arg1;
+		/* arg[0] is "g", the rest is boot parameters */
+		arcs_cmdline[0] = '\0';
+		for (i = 1; i < prom_argc; i++) {
+			l = (long)_prom_argv[i];
+			if (strlen(arcs_cmdline) + strlen(((char *)l) + 1)
+			    >= sizeof(arcs_cmdline))
+				break;
+			strcat(arcs_cmdline, ((char *)l));
+			strcat(arcs_cmdline, " ");
+		}
 	}
 
 	if ((strstr(arcs_cmdline, "console=")) == NULL)
@@ -75,7 +97,10 @@ void __init prom_init_cmdline(void)
 	default:
 		break;
 	}
+#endif	/* CONFIG_CMDLINE_OVERRIDE */
 
-	/* copy arcs_cmdline into loongson_cmdline */
-	strncpy(loongson_cmdline, arcs_cmdline, COMMAND_LINE_SIZE);
+#ifdef CONFIG_LEMOTE_YEELOONG2F
+	/* The EC version info will be used by the YeeLoong platform driver */
+	get_ec_version();
+#endif
 }
