@@ -21,6 +21,8 @@
  */
 #define DO_PRINTK 1
 
+#define DO_SETUP_PARAM
+
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/tty.h>
