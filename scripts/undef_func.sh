@@ -6,7 +6,7 @@
 #
 input=$1
 
-[ -z "$input" -a ! -f typescript ] && echo "Usage: %0 input_file" && exit -1
+[ -z "$input" -a ! -f typescript ] && echo "Usage: $0 input_file" && exit -1
 
 [ -z "$input" -a -f typescript ] && input=typescript
 
