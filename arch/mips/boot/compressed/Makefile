@@ -16,6 +16,7 @@
 # -Werror can be disabled for specific files using:
 # CFLAGS_<file.o> := -Wno-error
 subdir-ccflags-$(CONFIG_MIPS_WERROR) := -Werror
+GCOV_PROFILE := n
 
 LDFLAGS_vmlinuz += --gc-sections
 
