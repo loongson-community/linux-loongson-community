@@ -32,7 +32,7 @@
 unsigned long ec_version = 27;
 
 #ifdef CONFIG_CMDLINE_OVERRIDE
-#define cmdline builtin_cmdline
+#define cmdline CONFIG_CMDLINE
 #else
 #define cmdline arcs_cmdline
 #endif
