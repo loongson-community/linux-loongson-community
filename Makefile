@@ -535,11 +535,15 @@ endif # $(dot-config)
 # Defaults to vmlinux, but the arch makefile usually adds further targets
 all: vmlinux
 
+ifdef CONFIG_GCOV_KERNEL
+KBUILD_CFLAGS	+= -O0
+else
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
 KBUILD_CFLAGS	+= -Os
 else
 KBUILD_CFLAGS	+= -O3
 endif
+endif # CONFIG_GCOV_KERNEL
 
 include $(srctree)/arch/$(SRCARCH)/Makefile
 
