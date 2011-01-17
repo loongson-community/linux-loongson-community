@@ -12,6 +12,9 @@
 # CFLAGS_<file.o> := -Wno-error
 subdir-ccflags-$(CONFIG_MIPS_WERROR) := -Werror
 
+# Disable GCOV in odd or sensitive code
+GCOV_PROFILE := n
+
 #
 # Some DECstations need all possible sections of an ECOFF executable
 #
