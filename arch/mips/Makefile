@@ -291,6 +291,11 @@ vmlinuz vmlinuz.bin vmlinuz.ecoff vmlinuz.srec: $(vmlinux-32) FORCE
 	$(Q)$(MAKE) $(build)=arch/mips/boot/compressed \
 	   VMLINUX_LOAD_ADDRESS=$(load-y) 32bit-bfd=$(32bit-bfd) $@
 
+# u-boot
+uImage: vmlinux.bin FORCE
+	$(Q)$(MAKE) $(build)=arch/mips/boot/u-boot \
+	  VMLINUX=$(vmlinux-32) VMLINUXBIN=arch/mips/boot/vmlinux.bin \
+	  VMLINUX_LOAD_ADDRESS=$(load-y) arch/mips/boot/u-boot/$@
 
 CLEAN_FILES += vmlinux.32 vmlinux.64
 
@@ -324,6 +329,7 @@ define archhelp
 	echo '  vmlinuz.ecoff        - ECOFF zboot image'
 	echo '  vmlinuz.bin          - Raw binary zboot image'
 	echo '  vmlinuz.srec         - SREC zboot image'
+	echo '  uImage               - U-boot image (gzip)'
 	echo
 	echo '  These will be default as apropriate for a configured platform.'
 endef
