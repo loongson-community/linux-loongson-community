@@ -257,7 +257,7 @@ void prepare_ftrace_return(unsigned long *parent_ra_addr, unsigned long self_ra,
 	struct ftrace_graph_ent trace;
 	unsigned long return_hooker = (unsigned long)
 	    &return_to_handler;
-	int faulted, insns;
+	int faulted, insns, flags;
 
 	if (unlikely(atomic_read(&current->tracing_graph_pause)))
 		return;
@@ -298,9 +298,11 @@ void prepare_ftrace_return(unsigned long *parent_ra_addr, unsigned long self_ra,
 	if (unlikely(faulted))
 		goto out;
 
+	raw_local_irq_save(flags);
 	if (ftrace_push_return_trace(old_parent_ra, self_ra, &trace.depth, fp)
 	    == -EBUSY) {
 		*parent_ra_addr = old_parent_ra;
+		raw_local_irq_restore(flags);
 		return;
 	}
 
@@ -318,6 +320,7 @@ void prepare_ftrace_return(unsigned long *parent_ra_addr, unsigned long self_ra,
 		current->curr_ret_stack--;
 		*parent_ra_addr = old_parent_ra;
 	}
+	raw_local_irq_restore(flags);
 	return;
 out:
 	ftrace_graph_stop();
