@@ -257,7 +257,7 @@ void prepare_ftrace_return(unsigned long *parent_ra_addr, unsigned long self_ra,
 	struct ftrace_graph_ent trace;
 	unsigned long return_hooker = (unsigned long)
 	    &return_to_handler;
-	int faulted;
+	int faulted, insns;
 
 	if (unlikely(atomic_read(&current->tracing_graph_pause)))
 		return;
@@ -304,7 +304,14 @@ void prepare_ftrace_return(unsigned long *parent_ra_addr, unsigned long self_ra,
 		return;
 	}
 
-	trace.func = self_ra;
+	/*
+	 * Get the recorded ip in __mcount_loc section, which will be used to
+	 * match the input of set_graph_function to filter the entries of
+	 * function graph tracer.
+	 */
+	insns = (in_kernel_space(self_ra)) ? 1 : OFFSET_INSNS;
+	/* MIPS instructions has the same length of encoding */
+	trace.func = self_ra - (MCOUNT_INSN_SIZE * (insns + 1));
 
 	/* Only trace if the calling function expects to */
 	if (!ftrace_graph_entry(&trace)) {
