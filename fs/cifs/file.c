@@ -104,53 +104,6 @@ static inline int cifs_get_disposition(unsigned int flags)
 		return FILE_OPEN;
 }
 
-static inline int cifs_open_inode_helper(struct inode *inode,
-	struct cifsTconInfo *pTcon, __u32 oplock, FILE_ALL_INFO *buf,
-	char *full_path, int xid)
-{
-	struct cifsInodeInfo *pCifsInode = CIFS_I(inode);
-	struct timespec temp;
-	int rc;
-
-	if (pCifsInode->clientCanCacheRead) {
-		/* we have the inode open somewhere else
-		   no need to discard cache data */
-		goto client_can_cache;
-	}
-
-	/* BB need same check in cifs_create too? */
-	/* if not oplocked, invalidate inode pages if mtime or file
-	   size changed */
-	temp = cifs_NTtimeToUnix(buf->LastWriteTime);
-	if (timespec_equal(&inode->i_mtime, &temp) &&
-			   (inode->i_size ==
-			    (loff_t)le64_to_cpu(buf->EndOfFile))) {
-		cFYI(1, "inode unchanged on server");
-	} else {
-		if (inode->i_mapping) {
-			/* BB no need to lock inode until after invalidate
-			since namei code should already have it locked? */
-			rc = filemap_write_and_wait(inode->i_mapping);
-			mapping_set_error(inode->i_mapping, rc);
-		}
-		cFYI(1, "invalidating remote inode since open detected it "
-			 "changed");
-		invalidate_remote_inode(inode);
-	}
-
-client_can_cache:
-	if (pTcon->unix_ext)
-		rc = cifs_get_inode_info_unix(&inode, full_path, inode->i_sb,
-					      xid);
-	else
-		rc = cifs_get_inode_info(&inode, full_path, buf, inode->i_sb,
-					 xid, NULL);
-
-	cifs_set_oplock_level(pCifsInode, oplock);
-
-	return rc;
-}
-
 int cifs_posix_open(char *full_path, struct inode **pinode,
 			struct super_block *sb, int mode, unsigned int f_flags,
 			__u32 *poplock, __u16 *pnetfid, int xid)
@@ -210,6 +163,76 @@ int cifs_posix_open(char *full_path, struct inode **pinode,
 
 posix_open_ret:
 	kfree(presp_data);
+	return rc;
+}
+
+static int
+cifs_nt_open(char *full_path, struct inode *inode, struct cifs_sb_info *cifs_sb,
+	     struct cifsTconInfo *tcon, unsigned int f_flags, __u32 *poplock,
+	     __u16 *pnetfid, int xid)
+{
+	int rc;
+	int desiredAccess;
+	int disposition;
+	FILE_ALL_INFO *buf;
+
+	desiredAccess = cifs_convert_flags(f_flags);
+
+/*********************************************************************
+ *  open flag mapping table:
+ *
+ *	POSIX Flag            CIFS Disposition
+ *	----------            ----------------
+ *	O_CREAT               FILE_OPEN_IF
+ *	O_CREAT | O_EXCL      FILE_CREATE
+ *	O_CREAT | O_TRUNC     FILE_OVERWRITE_IF
+ *	O_TRUNC               FILE_OVERWRITE
+ *	none of the above     FILE_OPEN
+ *
+ *	Note that there is not a direct match between disposition
+ *	FILE_SUPERSEDE (ie create whether or not file exists although
+ *	O_CREAT | O_TRUNC is similar but truncates the existing
+ *	file rather than creating a new file as FILE_SUPERSEDE does
+ *	(which uses the attributes / metadata passed in on open call)
+ *?
+ *?  O_SYNC is a reasonable match to CIFS writethrough flag
+ *?  and the read write flags match reasonably.  O_LARGEFILE
+ *?  is irrelevant because largefile support is always used
+ *?  by this client. Flags O_APPEND, O_DIRECT, O_DIRECTORY,
+ *	 O_FASYNC, O_NOFOLLOW, O_NONBLOCK need further investigation
+ *********************************************************************/
+
+	disposition = cifs_get_disposition(f_flags);
+
+	/* BB pass O_SYNC flag through on file attributes .. BB */
+
+	buf = kmalloc(sizeof(FILE_ALL_INFO), GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	if (tcon->ses->capabilities & CAP_NT_SMBS)
+		rc = CIFSSMBOpen(xid, tcon, full_path, disposition,
+			 desiredAccess, CREATE_NOT_DIR, pnetfid, poplock, buf,
+			 cifs_sb->local_nls, cifs_sb->mnt_cifs_flags
+				 & CIFS_MOUNT_MAP_SPECIAL_CHR);
+	else
+		rc = SMBLegacyOpen(xid, tcon, full_path, disposition,
+			desiredAccess, CREATE_NOT_DIR, pnetfid, poplock, buf,
+			cifs_sb->local_nls, cifs_sb->mnt_cifs_flags
+				& CIFS_MOUNT_MAP_SPECIAL_CHR);
+
+	if (rc)
+		goto out;
+
+	if (tcon->unix_ext)
+		rc = cifs_get_inode_info_unix(&inode, full_path, inode->i_sb,
+					      xid);
+	else
+		rc = cifs_get_inode_info(&inode, full_path, buf, inode->i_sb,
+					 xid, pnetfid);
+
+out:
+	kfree(buf);
 	return rc;
 }
 
@@ -317,10 +340,8 @@ int cifs_open(struct inode *inode, struct file *file)
 	struct cifsFileInfo *pCifsFile = NULL;
 	struct cifsInodeInfo *pCifsInode;
 	char *full_path = NULL;
-	int desiredAccess;
-	int disposition;
+	bool posix_open_ok = false;
 	__u16 netfid;
-	FILE_ALL_INFO *buf = NULL;
 
 	xid = GetXid();
 
@@ -358,17 +379,7 @@ int cifs_open(struct inode *inode, struct file *file)
 				file->f_flags, &oplock, &netfid, xid);
 		if (rc == 0) {
 			cFYI(1, "posix open succeeded");
-
-			pCifsFile = cifs_new_fileinfo(netfid, file, tlink,
-						      oplock);
-			if (pCifsFile == NULL) {
-				CIFSSMBClose(xid, tcon, netfid);
-				rc = -ENOMEM;
-			}
-
-			cifs_fscache_set_inode_cookie(inode, file);
-
-			goto out;
+			posix_open_ok = true;
 		} else if ((rc == -EINVAL) || (rc == -EOPNOTSUPP)) {
 			if (tcon->ses->serverNOS)
 				cERROR(1, "server %s of type %s returned"
@@ -385,103 +396,39 @@ int cifs_open(struct inode *inode, struct file *file)
 		   or DFS errors */
 	}
 
-	desiredAccess = cifs_convert_flags(file->f_flags);
-
-/*********************************************************************
- *  open flag mapping table:
- *
- *	POSIX Flag            CIFS Disposition
- *	----------            ----------------
- *	O_CREAT               FILE_OPEN_IF
- *	O_CREAT | O_EXCL      FILE_CREATE
- *	O_CREAT | O_TRUNC     FILE_OVERWRITE_IF
- *	O_TRUNC               FILE_OVERWRITE
- *	none of the above     FILE_OPEN
- *
- *	Note that there is not a direct match between disposition
- *	FILE_SUPERSEDE (ie create whether or not file exists although
- *	O_CREAT | O_TRUNC is similar but truncates the existing
- *	file rather than creating a new file as FILE_SUPERSEDE does
- *	(which uses the attributes / metadata passed in on open call)
- *?
- *?  O_SYNC is a reasonable match to CIFS writethrough flag
- *?  and the read write flags match reasonably.  O_LARGEFILE
- *?  is irrelevant because largefile support is always used
- *?  by this client. Flags O_APPEND, O_DIRECT, O_DIRECTORY,
- *	 O_FASYNC, O_NOFOLLOW, O_NONBLOCK need further investigation
- *********************************************************************/
-
-	disposition = cifs_get_disposition(file->f_flags);
-
-	/* BB pass O_SYNC flag through on file attributes .. BB */
-
-	/* Also refresh inode by passing in file_info buf returned by SMBOpen
-	   and calling get_inode_info with returned buf (at least helps
-	   non-Unix server case) */
-
-	/* BB we can not do this if this is the second open of a file
-	   and the first handle has writebehind data, we might be
-	   able to simply do a filemap_fdatawrite/filemap_fdatawait first */
-	buf = kmalloc(sizeof(FILE_ALL_INFO), GFP_KERNEL);
-	if (!buf) {
-		rc = -ENOMEM;
-		goto out;
+	if (!posix_open_ok) {
+		rc = cifs_nt_open(full_path, inode, cifs_sb, tcon,
+				  file->f_flags, &oplock, &netfid, xid);
+		if (rc)
+			goto out;
 	}
-
-	if (tcon->ses->capabilities & CAP_NT_SMBS)
-		rc = CIFSSMBOpen(xid, tcon, full_path, disposition,
-			 desiredAccess, CREATE_NOT_DIR, &netfid, &oplock, buf,
-			 cifs_sb->local_nls, cifs_sb->mnt_cifs_flags
-				 & CIFS_MOUNT_MAP_SPECIAL_CHR);
-	else
-		rc = -EIO; /* no NT SMB support fall into legacy open below */
-
-	if (rc == -EIO) {
-		/* Old server, try legacy style OpenX */
-		rc = SMBLegacyOpen(xid, tcon, full_path, disposition,
-			desiredAccess, CREATE_NOT_DIR, &netfid, &oplock, buf,
-			cifs_sb->local_nls, cifs_sb->mnt_cifs_flags
-				& CIFS_MOUNT_MAP_SPECIAL_CHR);
-	}
-	if (rc) {
-		cFYI(1, "cifs_open returned 0x%x", rc);
-		goto out;
-	}
-
-	rc = cifs_open_inode_helper(inode, tcon, oplock, buf, full_path, xid);
-	if (rc != 0)
-		goto out;
 
 	pCifsFile = cifs_new_fileinfo(netfid, file, tlink, oplock);
 	if (pCifsFile == NULL) {
+		CIFSSMBClose(xid, tcon, netfid);
 		rc = -ENOMEM;
 		goto out;
 	}
 
 	cifs_fscache_set_inode_cookie(inode, file);
 
-	if (oplock & CIFS_CREATE_ACTION) {
+	if ((oplock & CIFS_CREATE_ACTION) && !posix_open_ok && tcon->unix_ext) {
 		/* time to set mode which we can not set earlier due to
 		   problems creating new read-only files */
-		if (tcon->unix_ext) {
-			struct cifs_unix_set_info_args args = {
-				.mode	= inode->i_mode,
-				.uid	= NO_CHANGE_64,
-				.gid	= NO_CHANGE_64,
-				.ctime	= NO_CHANGE_64,
-				.atime	= NO_CHANGE_64,
-				.mtime	= NO_CHANGE_64,
-				.device	= 0,
-			};
-			CIFSSMBUnixSetPathInfo(xid, tcon, full_path, &args,
-					       cifs_sb->local_nls,
-					       cifs_sb->mnt_cifs_flags &
-						CIFS_MOUNT_MAP_SPECIAL_CHR);
-		}
+		struct cifs_unix_set_info_args args = {
+			.mode	= inode->i_mode,
+			.uid	= NO_CHANGE_64,
+			.gid	= NO_CHANGE_64,
+			.ctime	= NO_CHANGE_64,
+			.atime	= NO_CHANGE_64,
+			.mtime	= NO_CHANGE_64,
+			.device	= 0,
+		};
+		CIFSSMBUnixSetFileInfo(xid, tcon, &args, netfid,
+					pCifsFile->pid);
 	}
 
 out:
-	kfree(buf);
 	kfree(full_path);
 	FreeXid(xid);
 	cifs_put_tlink(tlink);
@@ -779,12 +726,12 @@ int cifs_lock(struct file *file, int cmd, struct file_lock *pfLock)
 
 		/* BB we could chain these into one lock request BB */
 		rc = CIFSSMBLock(xid, tcon, netfid, length, pfLock->fl_start,
-				 0, 1, lockType, 0 /* wait flag */ );
+				 0, 1, lockType, 0 /* wait flag */, 0);
 		if (rc == 0) {
 			rc = CIFSSMBLock(xid, tcon, netfid, length,
 					 pfLock->fl_start, 1 /* numUnlock */ ,
 					 0 /* numLock */ , lockType,
-					 0 /* wait flag */ );
+					 0 /* wait flag */, 0);
 			pfLock->fl_type = F_UNLCK;
 			if (rc != 0)
 				cERROR(1, "Error unlocking previously locked "
@@ -801,13 +748,13 @@ int cifs_lock(struct file *file, int cmd, struct file_lock *pfLock)
 				rc = CIFSSMBLock(xid, tcon, netfid, length,
 					pfLock->fl_start, 0, 1,
 					lockType | LOCKING_ANDX_SHARED_LOCK,
-					0 /* wait flag */);
+					0 /* wait flag */, 0);
 				if (rc == 0) {
 					rc = CIFSSMBLock(xid, tcon, netfid,
 						length, pfLock->fl_start, 1, 0,
 						lockType |
 						LOCKING_ANDX_SHARED_LOCK,
-						0 /* wait flag */);
+						0 /* wait flag */, 0);
 					pfLock->fl_type = F_RDLCK;
 					if (rc != 0)
 						cERROR(1, "Error unlocking "
@@ -850,8 +797,8 @@ int cifs_lock(struct file *file, int cmd, struct file_lock *pfLock)
 
 		if (numLock) {
 			rc = CIFSSMBLock(xid, tcon, netfid, length,
-					pfLock->fl_start,
-					0, numLock, lockType, wait_flag);
+					 pfLock->fl_start, 0, numLock, lockType,
+					 wait_flag, 0);
 
 			if (rc == 0) {
 				/* For Windows locks we must store them. */
@@ -871,9 +818,9 @@ int cifs_lock(struct file *file, int cmd, struct file_lock *pfLock)
 						(pfLock->fl_start + length) >=
 						(li->offset + li->length)) {
 					stored_rc = CIFSSMBLock(xid, tcon,
-							netfid,
-							li->length, li->offset,
-							1, 0, li->type, false);
+							netfid, li->length,
+							li->offset, 1, 0,
+							li->type, false, 0);
 					if (stored_rc)
 						rc = stored_rc;
 					else {
@@ -890,29 +837,6 @@ int cifs_lock(struct file *file, int cmd, struct file_lock *pfLock)
 		posix_lock_file_wait(file, pfLock);
 	FreeXid(xid);
 	return rc;
-}
-
-/*
- * Set the timeout on write requests past EOF. For some servers (Windows)
- * these calls can be very long.
- *
- * If we're writing >10M past the EOF we give a 180s timeout. Anything less
- * than that gets a 45s timeout. Writes not past EOF get 15s timeouts.
- * The 10M cutoff is totally arbitrary. A better scheme for this would be
- * welcome if someone wants to suggest one.
- *
- * We may be able to do a better job with this if there were some way to
- * declare that a file should be sparse.
- */
-static int
-cifs_write_timeout(struct cifsInodeInfo *cifsi, loff_t offset)
-{
-	if (offset <= cifsi->server_eof)
-		return CIFS_STD_OP;
-	else if (offset > (cifsi->server_eof + (10 * 1024 * 1024)))
-		return CIFS_VLONG_OP;
-	else
-		return CIFS_LONG_OP;
 }
 
 /* update the file size (if needed) after a write */
@@ -935,7 +859,7 @@ ssize_t cifs_user_write(struct file *file, const char __user *write_data,
 	unsigned int total_written;
 	struct cifs_sb_info *cifs_sb;
 	struct cifsTconInfo *pTcon;
-	int xid, long_op;
+	int xid;
 	struct cifsFileInfo *open_file;
 	struct cifsInodeInfo *cifsi = CIFS_I(inode);
 
@@ -956,7 +880,6 @@ ssize_t cifs_user_write(struct file *file, const char __user *write_data,
 
 	xid = GetXid();
 
-	long_op = cifs_write_timeout(cifsi, *poffset);
 	for (total_written = 0; write_size > total_written;
 	     total_written += bytes_written) {
 		rc = -EAGAIN;
@@ -984,7 +907,7 @@ ssize_t cifs_user_write(struct file *file, const char __user *write_data,
 				min_t(const int, cifs_sb->wsize,
 				      write_size - total_written),
 				*poffset, &bytes_written,
-				NULL, write_data + total_written, long_op);
+				NULL, write_data + total_written, 0);
 		}
 		if (rc || (bytes_written == 0)) {
 			if (total_written)
@@ -997,8 +920,6 @@ ssize_t cifs_user_write(struct file *file, const char __user *write_data,
 			cifs_update_eof(cifsi, *poffset, bytes_written);
 			*poffset += bytes_written;
 		}
-		long_op = CIFS_STD_OP; /* subsequent writes fast -
-				    15 seconds is plenty */
 	}
 
 	cifs_stats_bytes_written(pTcon, total_written);
@@ -1027,7 +948,7 @@ static ssize_t cifs_write(struct cifsFileInfo *open_file,
 	unsigned int total_written;
 	struct cifs_sb_info *cifs_sb;
 	struct cifsTconInfo *pTcon;
-	int xid, long_op;
+	int xid;
 	struct dentry *dentry = open_file->dentry;
 	struct cifsInodeInfo *cifsi = CIFS_I(dentry->d_inode);
 
@@ -1040,7 +961,6 @@ static ssize_t cifs_write(struct cifsFileInfo *open_file,
 
 	xid = GetXid();
 
-	long_op = cifs_write_timeout(cifsi, *poffset);
 	for (total_written = 0; write_size > total_written;
 	     total_written += bytes_written) {
 		rc = -EAGAIN;
@@ -1070,7 +990,7 @@ static ssize_t cifs_write(struct cifsFileInfo *open_file,
 				rc = CIFSSMBWrite2(xid, pTcon,
 						open_file->netfid, len,
 						*poffset, &bytes_written,
-						iov, 1, long_op);
+						iov, 1, 0);
 			} else
 				rc = CIFSSMBWrite(xid, pTcon,
 					 open_file->netfid,
@@ -1078,7 +998,7 @@ static ssize_t cifs_write(struct cifsFileInfo *open_file,
 					       write_size - total_written),
 					 *poffset, &bytes_written,
 					 write_data + total_written,
-					 NULL, long_op);
+					 NULL, 0);
 		}
 		if (rc || (bytes_written == 0)) {
 			if (total_written)
@@ -1091,8 +1011,6 @@ static ssize_t cifs_write(struct cifsFileInfo *open_file,
 			cifs_update_eof(cifsi, *poffset, bytes_written);
 			*poffset += bytes_written;
 		}
-		long_op = CIFS_STD_OP; /* subsequent writes fast -
-				    15 seconds is plenty */
 	}
 
 	cifs_stats_bytes_written(pTcon, total_written);
@@ -1292,7 +1210,7 @@ static int cifs_writepages(struct address_space *mapping,
 	struct pagevec pvec;
 	int rc = 0;
 	int scanned = 0;
-	int xid, long_op;
+	int xid;
 
 	cifs_sb = CIFS_SB(mapping->host->i_sb);
 
@@ -1430,43 +1348,67 @@ retry:
 				break;
 		}
 		if (n_iov) {
+retry_write:
 			open_file = find_writable_file(CIFS_I(mapping->host),
 							false);
 			if (!open_file) {
 				cERROR(1, "No writable handles for inode");
 				rc = -EBADF;
 			} else {
-				long_op = cifs_write_timeout(cifsi, offset);
 				rc = CIFSSMBWrite2(xid, tcon, open_file->netfid,
 						   bytes_to_write, offset,
 						   &bytes_written, iov, n_iov,
-						   long_op);
+						   0);
 				cifsFileInfo_put(open_file);
-				cifs_update_eof(cifsi, offset, bytes_written);
 			}
 
-			if (rc || bytes_written < bytes_to_write) {
-				cERROR(1, "Write2 ret %d, wrote %d",
-					  rc, bytes_written);
-				mapping_set_error(mapping, rc);
-			} else {
+			cFYI(1, "Write2 rc=%d, wrote=%u", rc, bytes_written);
+
+			/*
+			 * For now, treat a short write as if nothing got
+			 * written. A zero length write however indicates
+			 * ENOSPC or EFBIG. We have no way to know which
+			 * though, so call it ENOSPC for now. EFBIG would
+			 * get translated to AS_EIO anyway.
+			 *
+			 * FIXME: make it take into account the data that did
+			 *	  get written
+			 */
+			if (rc == 0) {
+				if (bytes_written == 0)
+					rc = -ENOSPC;
+				else if (bytes_written < bytes_to_write)
+					rc = -EAGAIN;
+			}
+
+			/* retry on data-integrity flush */
+			if (wbc->sync_mode == WB_SYNC_ALL && rc == -EAGAIN)
+				goto retry_write;
+
+			/* fix the stats and EOF */
+			if (bytes_written > 0) {
 				cifs_stats_bytes_written(tcon, bytes_written);
+				cifs_update_eof(cifsi, offset, bytes_written);
 			}
 
 			for (i = 0; i < n_iov; i++) {
 				page = pvec.pages[first + i];
-				/* Should we also set page error on
-				success rc but too little data written? */
-				/* BB investigate retry logic on temporary
-				server crash cases and how recovery works
-				when page marked as error */
-				if (rc)
+				/* on retryable write error, redirty page */
+				if (rc == -EAGAIN)
+					redirty_page_for_writepage(wbc, page);
+				else if (rc != 0)
 					SetPageError(page);
 				kunmap(page);
 				unlock_page(page);
 				end_page_writeback(page);
 				page_cache_release(page);
 			}
+
+			if (rc != -EAGAIN)
+				mapping_set_error(mapping, rc);
+			else
+				rc = 0;
+
 			if ((wbc->nr_to_write -= n_iov) <= 0)
 				done = 1;
 			index = next;
@@ -2245,7 +2187,8 @@ void cifs_oplock_break(struct work_struct *work)
 	 */
 	if (!cfile->oplock_break_cancelled) {
 		rc = CIFSSMBLock(0, tlink_tcon(cfile->tlink), cfile->netfid, 0,
-				 0, 0, 0, LOCKING_ANDX_OPLOCK_RELEASE, false);
+				 0, 0, 0, LOCKING_ANDX_OPLOCK_RELEASE, false,
+				 cinode->clientCanCacheRead ? 1 : 0);
 		cFYI(1, "Oplock release rc = %d", rc);
 	}
 

@@ -227,7 +227,7 @@ sub_cmd_record_mcount = set -e ; perl $(srctree)/scripts/recordmcount.pl "$(ARCH
 	"$(if $(part-of-module),1,0)" "$(@)";
 endif
 cmd_record_mcount = 						\
-	if [ "$(findstring -pg,$(_c_flags))" == "-pg" ]; then	\
+	if [ "$(findstring -pg,$(_c_flags))" = "-pg" ]; then	\
 		$(sub_cmd_record_mcount)			\
 	fi;
 endif
