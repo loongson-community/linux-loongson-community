@@ -6,6 +6,8 @@
  *  Copyright (C) 2010  Linus Torvalds
  */
 
+#include <linux/pagemap.h>
+
 #include <asm/tlb.h>
 #include <asm-generic/pgtable.h>
 
