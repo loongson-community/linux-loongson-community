@@ -109,6 +109,7 @@ static bool scratchpad_available(void)
 static int scratchpad_offset(int i)
 {
 	BUG();
+	return 0;
 }
 #endif
 /*
