@@ -127,11 +127,6 @@ config LOONGSON_SUSPEND
 	default y
 	depends on CPU_SUPPORTS_CPUFREQ && SUSPEND
 
-config LOONGSON_UART_BASE
-	bool
-	default y
-	depends on EARLY_PRINTK || SERIAL_8250
-
 config LOONGSON_MC146818
 	bool
 	default n

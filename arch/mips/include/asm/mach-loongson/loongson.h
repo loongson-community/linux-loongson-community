@@ -31,17 +31,7 @@ extern void __init prom_init_memory(void);
 extern void __init prom_init_cmdline(void);
 extern void __init prom_init_machtype(void);
 extern void __init prom_init_env(void);
-#ifdef CONFIG_LOONGSON_UART_BASE
-extern unsigned long _loongson_uart_base, loongson_uart_base;
-extern void prom_init_loongson_uart_base(void);
-#endif
-
-static inline void prom_init_uart_base(void)
-{
-#ifdef CONFIG_LOONGSON_UART_BASE
-	prom_init_loongson_uart_base();
-#endif
-}
+extern void __init prom_init_uart_base(void);
 
 /*
  * Copy kernel command line from arcs_cmdline
