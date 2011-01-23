@@ -1026,6 +1026,7 @@ asmlinkage void do_mdmx(struct pt_regs *regs)
 	force_sig(SIGILL, current);
 }
 
+#ifdef CONFIG_WATCH
 /*
  * Called with interrupts disabled.
  */
@@ -1055,6 +1056,7 @@ asmlinkage void do_watch(struct pt_regs *regs)
 		local_irq_enable();
 	}
 }
+#endif /* CONFIG_WATCH */
 
 asmlinkage void do_mcheck(struct pt_regs *regs)
 {
@@ -1677,9 +1679,10 @@ void __init trap_init(void)
 	/*
 	 * Only some CPUs have the watch exceptions.
 	 */
+#ifdef CONFIG_WATCH
 	if (cpu_has_watch)
 		set_except_vector(23, handle_watch);
-
+#endif
 	/*
 	 * Initialise interrupt handlers
 	 */

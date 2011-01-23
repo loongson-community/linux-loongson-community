@@ -10,7 +10,7 @@ extra-y		:= head.o init_task.o vmlinux.lds
 
 obj-y		+= cpu-probe.o branch.o entry.o genex.o irq.o process.o \
 		   reset.o setup.o signal.o syscall.o \
-		   time.o topology.o traps.o unaligned.o watch.o vdso.o
+		   time.o topology.o traps.o unaligned.o vdso.o
 
 ifdef CONFIG_FUNCTION_TRACER
 CFLAGS_REMOVE_ftrace.o = -pg
@@ -22,6 +22,7 @@ GCOV_PROFILE_ftrace.o := n
 GCOV_PROFILE_machine_kexec.o := n
 GCOV_PROFILE_kprobes.o := n
 
+obj-$(CONFIG_WATCH)		+= watch.o
 obj-$(CONFIG_PTRACE)		+= ptrace.o
 obj-$(CONFIG_CEVT_BCM1480)	+= cevt-bcm1480.o
 obj-$(CONFIG_CEVT_R4K_LIB)	+= cevt-r4k.o

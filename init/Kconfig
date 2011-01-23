@@ -1036,6 +1036,14 @@ config FUTEX
 	  support for "fast userspace mutexes".  The resulting kernel may not
 	  run glibc-based applications correctly.
 
+config WATCH
+	bool "Enable watch register support" if EMBEDDED
+	default y if PTRACE
+	depends on MIPS
+	help
+	  Disabling this option will cause the kernel to be built without
+	  watchpoint support.
+
 config PTRACE
 	bool "Enable ptrace support" if EMBEDDED
 	default y
