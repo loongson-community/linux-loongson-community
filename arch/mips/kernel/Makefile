@@ -9,7 +9,7 @@ subdir-ccflags-$(CONFIG_MIPS_WERROR) := -Werror
 extra-y		:= head.o init_task.o vmlinux.lds
 
 obj-y		+= cpu-probe.o branch.o entry.o genex.o irq.o process.o \
-		   ptrace.o reset.o setup.o signal.o syscall.o \
+		   reset.o setup.o signal.o syscall.o \
 		   time.o topology.o traps.o unaligned.o watch.o vdso.o
 
 ifdef CONFIG_FUNCTION_TRACER
@@ -22,6 +22,7 @@ GCOV_PROFILE_ftrace.o := n
 GCOV_PROFILE_machine_kexec.o := n
 GCOV_PROFILE_kprobes.o := n
 
+obj-$(CONFIG_PTRACE)		+= ptrace.o
 obj-$(CONFIG_CEVT_BCM1480)	+= cevt-bcm1480.o
 obj-$(CONFIG_CEVT_R4K_LIB)	+= cevt-r4k.o
 obj-$(CONFIG_MIPS_MT_SMTC)	+= cevt-smtc.o
@@ -92,7 +93,10 @@ obj-$(CONFIG_IRQ_GIC)		+= irq-gic.o
 obj-$(CONFIG_KPROBES)		+= kprobes.o
 obj-$(CONFIG_32BIT)		+= scall32-o32.o
 obj-$(CONFIG_64BIT)		+= scall64-64.o
-obj-$(CONFIG_MIPS32_COMPAT)	+= linux32.o ptrace32.o signal32.o
+obj-$(CONFIG_MIPS32_COMPAT)	+= linux32.o signal32.o
+ifdef CONFIG_MIPS32_COMPAT
+obj-$(CONFIG_PTRACE)		+= ptrace32.o
+endif
 obj-$(CONFIG_MIPS32_N32)	+= binfmt_elfn32.o scall64-n32.o signal_n32.o
 obj-$(CONFIG_MIPS32_O32)	+= binfmt_elfo32.o scall64-o32.o
 
