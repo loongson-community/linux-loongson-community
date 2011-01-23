@@ -40,6 +40,7 @@
 #include <asm/system.h>
 #include <asm/sections.h>
 
+#ifdef CONFIG_KEXEC_CRASH
 /* Per cpu memory for storing cpu states in case of system crash. */
 note_buf_t __percpu *crash_notes;
 
@@ -103,6 +104,8 @@ int kexec_should_crash(struct task_struct *p)
  *    mapped, to simplify machine_kexec and make kexec_on_panic more
  *    reliable.
  */
+
+#endif /* CONFIG_KEXEC_CRASH */
 
 /*
  * KIMAGE_NO_DEST is an impossible destination address..., for
@@ -269,6 +272,8 @@ static int kimage_normal_alloc(struct kimage **rimage, unsigned long entry,
 	return result;
 }
 
+#ifdef CONFIG_KEXEC_CRASH
+
 static int kimage_crash_alloc(struct kimage **rimage, unsigned long entry,
 				unsigned long nr_segments,
 				struct kexec_segment __user *segments)
@@ -337,6 +342,8 @@ out:
 
 	return result;
 }
+
+#endif /* CONFIG_KEXEC_CRASH */
 
 static int kimage_is_destination_range(struct kimage *image,
 					unsigned long start,
@@ -463,6 +470,8 @@ static struct page *kimage_alloc_normal_control_pages(struct kimage *image,
 	return pages;
 }
 
+#ifdef CONFIG_KEXEC_CRASH
+
 static struct page *kimage_alloc_crash_control_pages(struct kimage *image,
 						      unsigned int order)
 {
@@ -526,6 +535,7 @@ static struct page *kimage_alloc_crash_control_pages(struct kimage *image,
 	return pages;
 }
 
+#endif /* CONFIG_KEXEC_CRASH */
 
 struct page *kimage_alloc_control_pages(struct kimage *image,
 					 unsigned int order)
@@ -536,9 +546,11 @@ struct page *kimage_alloc_control_pages(struct kimage *image,
 	case KEXEC_TYPE_DEFAULT:
 		pages = kimage_alloc_normal_control_pages(image, order);
 		break;
+#ifdef CONFIG_KEXEC_CRASH
 	case KEXEC_TYPE_CRASH:
 		pages = kimage_alloc_crash_control_pages(image, order);
 		break;
+#endif
 	}
 
 	return pages;
@@ -841,6 +853,8 @@ out:
 	return result;
 }
 
+#ifdef CONFIG_KEXEC_CRASH
+
 static int kimage_load_crash_segment(struct kimage *image,
 					struct kexec_segment *segment)
 {
@@ -896,6 +910,8 @@ out:
 	return result;
 }
 
+#endif /* CONFIG_KEXEC_CRASH */
+
 static int kimage_load_segment(struct kimage *image,
 				struct kexec_segment *segment)
 {
@@ -905,9 +921,11 @@ static int kimage_load_segment(struct kimage *image,
 	case KEXEC_TYPE_DEFAULT:
 		result = kimage_load_normal_segment(image, segment);
 		break;
+#ifdef CONFIG_KEXEC_CRASH
 	case KEXEC_TYPE_CRASH:
 		result = kimage_load_crash_segment(image, segment);
 		break;
+#endif
 	}
 
 	return result;
@@ -990,6 +1008,7 @@ SYSCALL_DEFINE4(kexec_load, unsigned long, entry, unsigned long, nr_segments,
 		if ((flags & KEXEC_ON_CRASH) == 0)
 			result = kimage_normal_alloc(&image, entry,
 							nr_segments, segments);
+#ifdef CONFIG_KEXEC_CRASH
 		/* Loading another kernel to switch to if this one crashes */
 		else if (flags & KEXEC_ON_CRASH) {
 			/* Free any current crash dump kernel before
@@ -999,6 +1018,7 @@ SYSCALL_DEFINE4(kexec_load, unsigned long, entry, unsigned long, nr_segments,
 			result = kimage_crash_alloc(&image, entry,
 						     nr_segments, segments);
 		}
+#endif
 		if (result)
 			goto out;
 
@@ -1063,6 +1083,8 @@ asmlinkage long compat_sys_kexec_load(unsigned long entry,
 	return sys_kexec_load(entry, nr_segments, ksegments, flags);
 }
 #endif
+
+#ifdef CONFIG_KEXEC_CRASH
 
 void crash_kexec(struct pt_regs *regs)
 {
@@ -1212,7 +1234,6 @@ static int __init crash_notes_memory_init(void)
 	return 0;
 }
 module_init(crash_notes_memory_init)
-
 
 /*
  * parsing the "crashkernel" commandline
@@ -1486,6 +1507,8 @@ static int __init crash_save_vmcoreinfo_init(void)
 }
 
 module_init(crash_save_vmcoreinfo_init)
+
+#endif /* CONFIG_KEXEC_CRASH */
 
 /*
  * Move into place and start executing a preloaded standalone

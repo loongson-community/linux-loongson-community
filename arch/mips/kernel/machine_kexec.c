@@ -91,11 +91,13 @@ int machine_kexec_pass_args(struct kimage *image)
 static int machine_use_builtin_args(void)
 {
 	int i, argc = 0;
-	int *kexec_argv = (int *)kexec_args[1];
+	unsigned long *kexec_argv;
 	char cmd_buf[COMMAND_LINE_SIZE];
-	char *kbuf = (char *)kexec_argv[0];
 	char *str = cmd_buf;
-	char *ptr;
+	char *kbuf, *ptr;
+
+	kexec_argv = (unsigned long *)kexec_args[1];
+	kbuf = (char *)kexec_argv[0];
 
 	/* Copy saved_command_line to cmd_buf */
 	memcpy(cmd_buf, saved_command_line, strlen(saved_command_line) + 1);
@@ -107,8 +109,8 @@ static int machine_use_builtin_args(void)
 	while (ptr && (ARGV_MAX_ARGS > argc)) {
 		*ptr = '\0';
 		if (ptr[1] != ' ' && ptr[1] != '\0') {
-			int offt = (int)(ptr - str + 1);
-			kexec_argv[argc] = (int)kbuf + offt;
+			int offt = ptr - str + 1;
+			kexec_argv[argc] = (unsigned long)kbuf + offt;
 			argc++;
 		}
 		ptr = strchr(ptr + 1, ' ');
@@ -160,6 +162,7 @@ machine_shutdown(void)
 		_machine_kexec_shutdown();
 }
 
+#ifdef CONFIG_KEXEC_CRASH
 void
 machine_crash_shutdown(struct pt_regs *regs)
 {
@@ -168,6 +171,7 @@ machine_crash_shutdown(struct pt_regs *regs)
 	else
 		default_machine_crash_shutdown(regs);
 }
+#endif
 
 typedef void (*noretfun_t)(void) __attribute__((noreturn));
 
