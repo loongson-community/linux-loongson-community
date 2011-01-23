@@ -1102,6 +1102,18 @@ config SERIAL_PCI
 	  this feature if you are only need legacy serial support.  Saves about
 	  9K.
 
+config FB_MODEDB
+	default n
+	bool "Configure a preferrable framebuffer mode" if EMBEDDED
+	depends on FB
+	help
+	  For a specific board, there should be a preferrable framebuffer mode,
+	  which may be not good to allow the users to change it. So, we can
+	  make this hardcoded and reduce the size of the modedb. But after
+	  enabling this, you must fill the modeb yourself.
+
+	  If unsure, save N.
+
 config NR_IRQS
 	int "Configure max number of IRQS" if EMBEDDED
 	range 8 256
