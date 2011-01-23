@@ -36,7 +36,11 @@ struct scsi_dev_info_list_table {
 static const char spaces[] = "                "; /* 16 of them */
 static unsigned scsi_default_dev_flags;
 static LIST_HEAD(scsi_dev_info_list);
+#ifndef CONFIG_MODULE_PARAM
 static char scsi_dev_flags[256];
+#else
+static char scsi_dev_flags[0];
+#endif
 
 /*
  * scsi_static_device_list: deprecated list of devices that require
@@ -53,6 +57,7 @@ static struct {
 	char *revision;	/* revision known to be bad, unused */
 	unsigned flags;
 } scsi_static_device_list[] __initdata = {
+#ifndef CONFIG_EMBEDDED
 	/*
 	 * The following devices are known not to tolerate a lun != 0 scan
 	 * for one reason or another. Some will respond to all luns,
@@ -252,6 +257,7 @@ static struct {
 	{"Zzyzx", "RocketStor 500S", NULL, BLIST_SPARSELUN},
 	{"Zzyzx", "RocketStor 2000", NULL, BLIST_SPARSELUN},
 	{ NULL, NULL, NULL, 0 },
+#endif /* CONFIG_EMBEDDED */
 };
 
 static struct scsi_dev_info_list_table *scsi_devinfo_lookup_by_key(int key)
