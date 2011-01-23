@@ -27,6 +27,7 @@ CONFIG_PARAM_LIST="console root init"
 # CONFIG_BASE_FULL is not set
 CONFIG_NET_SMALL=y
 # CONFIG_FUTEX is not set
+# CONFIG_PTRACE is not set
 # CONFIG_EPOLL is not set
 # CONFIG_SIGNALFD is not set
 # CONFIG_TIMERFD is not set
