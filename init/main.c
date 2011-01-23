@@ -536,7 +536,9 @@ static void __init mm_init(void)
 asmlinkage void __init __global start_kernel(void)
 {
 	char * command_line;
+#ifdef CONFIG_MODULE_PARAM
 	extern const struct kernel_param __start___param[], __stop___param[];
+#endif
 
 	smp_setup_processor_id();
 
@@ -578,9 +580,13 @@ asmlinkage void __init __global start_kernel(void)
 
 	printk(KERN_NOTICE "Kernel command line: %s\n", boot_command_line);
 	parse_early_param();
+#ifdef CONFIG_MODULE_PARAM
 	parse_args("Booting kernel", static_command_line, __start___param,
 		   __stop___param - __start___param,
 		   &unknown_bootoption);
+#else
+	parse_args("Booting kernel", static_command_line, NULL, 0, &unknown_bootoption);
+#endif
 	/*
 	 * These use large bootmem allocations and must precede
 	 * kmem_cache_init()
