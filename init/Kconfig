@@ -1102,6 +1102,15 @@ config SERIAL_PCI
 	  this feature if you are only need legacy serial support.  Saves about
 	  9K.
 
+config NR_IRQS
+	int "Configure max number of IRQS" if EMBEDDED
+	range 8 256
+	default 128
+	help
+	  Configure the max number of IRQS available on your board.
+
+	  If unsure, do touch it.
+
 config IDE_HWIFS
 	depends on IDE
 	int "Number of IDE hardware interfaces (0 for default)" if EMBEDDED
