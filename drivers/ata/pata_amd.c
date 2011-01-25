@@ -627,7 +627,7 @@ static struct pci_driver amd_pci_driver = {
 	.name 		= DRV_NAME,
 	.id_table	= amd,
 	.probe 		= amd_init_one,
-	.remove		= ata_pci_remove_one,
+	.remove		= __devexit_p(ata_pci_remove_one),
 #ifdef CONFIG_PM
 	.suspend	= ata_pci_device_suspend,
 	.resume		= amd_reinit_one,

@@ -280,7 +280,7 @@ static struct pci_driver cs5536_pci_driver = {
 	.name		= DRV_NAME,
 	.id_table	= cs5536,
 	.probe		= cs5536_init_one,
-	.remove		= ata_pci_remove_one,
+	.remove		= __devexit_p(ata_pci_remove_one),
 #ifdef CONFIG_PM
 	.suspend	= ata_pci_device_suspend,
 	.resume		= ata_pci_device_resume,

@@ -6271,7 +6271,7 @@ void ata_host_detach(struct ata_host *host)
  *	LOCKING:
  *	Inherited from PCI layer (may sleep).
  */
-void ata_pci_remove_one(struct pci_dev *pdev)
+void __devexit ata_pci_remove_one(struct pci_dev *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct ata_host *host = dev_get_drvdata(dev);

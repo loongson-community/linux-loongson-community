@@ -173,7 +173,7 @@ static struct usb_driver rtl8187_usb_driver = {
 	.name		= RTL8187_MODULE_NAME,	          /* Driver name   */
 	.id_table	= rtl8187_usb_id_tbl,	          /* PCI_ID table  */
 	.probe		= rtl8187_usb_probe,	          /* probe fn      */
-	.disconnect	= rtl8187_usb_disconnect,	  /* remove fn     */
+	.disconnect	= __devexit_p(rtl8187_usb_disconnect),	  /* remove fn     */
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 5, 0)
 #ifdef CONFIG_RTL8180_PM
 	.suspend	= rtl8187_suspend,	          /* PM suspend fn */
