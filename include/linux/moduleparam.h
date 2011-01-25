@@ -96,8 +96,12 @@ struct kparam_array
  *	bool: a bool, values 0/1, y/n, Y/N.
  *	invbool: the above, only sense-reversed (N = true).
  */
+#ifdef CONFIG_MODULE_PARAM
 #define module_param(name, type, perm)				\
 	module_param_named(name, name, type, perm)
+#else
+#define module_param(name, type, perm)
+#endif
 
 /**
  * module_param_named - typesafe helper for a renamed module/cmdline parameter
@@ -110,10 +114,15 @@ struct kparam_array
  * same, but that's harder if the variable must be non-static or is inside a
  * structure.  This allows exposure under a different name.
  */
+#ifdef CONFIG_MODULE_PARAM
 #define module_param_named(name, value, type, perm)			   \
 	param_check_##type(name, &(value));				   \
 	module_param_cb(name, &param_ops_##type, &value, perm);		   \
 	__MODULE_PARM_TYPE(name, #type)
+#else
+#define module_param_named(name, value, type, perm)
+#endif
+
 
 /**
  * module_param_cb - general callback for a module/cmdline parameter
@@ -139,6 +148,7 @@ struct kparam_array
 
 /* This is the fundamental function for registering boot/module
    parameters. */
+#ifdef CONFIG_MODULE_PARAM
 #define __module_param_call(prefix, name, ops, arg, isbool, perm)	\
 	/* Default value instead of permissions? */			\
 	static int __param_perm_check_##name __attribute__((unused)) =	\
@@ -150,8 +160,12 @@ struct kparam_array
     __attribute__ ((unused,__section__ ("__param"),aligned(sizeof(void *)))) \
 	= { __param_str_##name, ops, perm, isbool ? KPARAM_ISBOOL : 0,	\
 	    { arg } }
+#else
+#define __module_param_call(prefix, name, ops, arg, isbool, perm)
+#endif
 
 /* Obsolete - use module_param_cb() */
+#ifdef CONFIG_MODULE_PARAM
 #define module_param_call(name, set, get, arg, perm)			\
 	static struct kernel_param_ops __param_ops_##name =		\
 		 { (void *)set, (void *)get };				\
@@ -159,6 +173,9 @@ struct kparam_array
 			    name, &__param_ops_##name, arg,		\
 			    __same_type(arg, bool *),			\
 			    (perm) + sizeof(__check_old_set_param(set))*0)
+#else
+#define module_param_call(name, set, get, arg, perm)
+#endif
 
 /* We don't get oldget: it's often a new-style param_get_uint, etc. */
 static inline int
@@ -236,10 +253,14 @@ static inline void __kernel_param_unlock(void)
  * with __setup(), and it makes sense as truly core parameters aren't
  * tied to the particular file they're in.
  */
+#ifdef CONFIG_MODULE_PARAM
 #define core_param(name, var, type, perm)				\
 	param_check_##type(name, &(var));				\
 	__module_param_call("", name, &param_ops_##type,		\
 			    &var, __same_type(var, bool), perm)
+#else
+#define core_param(name, var, type, perm)
+#endif
 #endif /* !MODULE */
 
 /**
@@ -252,6 +273,7 @@ static inline void __kernel_param_unlock(void)
  * This actually copies the string when it's set (unlike type charp).
  * @len is usually just sizeof(string).
  */
+#ifdef CONFIG_MODULE_PARAM
 #define module_param_string(name, string, len, perm)			\
 	static const struct kparam_string __param_string_##name		\
 		= { len, string };					\
@@ -259,6 +281,9 @@ static inline void __kernel_param_unlock(void)
 			    &param_ops_string,				\
 			    .str = &__param_string_##name, 0, perm);	\
 	__MODULE_PARM_TYPE(name, "string")
+#else
+#define module_param_string(name, string, len, perm)
+#endif
 
 /* Called on module insert or kernel boot */
 extern int parse_args(const char *name,
@@ -353,8 +378,12 @@ extern int param_get_invbool(char *buffer, const struct kernel_param *kp);
  * ARRAY_SIZE(@name) is used to determine the number of elements in the
  * array, so the definition must be visible.
  */
+#ifdef CONFIG_MODULE_PARAM
 #define module_param_array(name, type, nump, perm)		\
 	module_param_array_named(name, name, type, nump, perm)
+#else
+#define module_param_array(name, type, nump, perm)
+#endif
 
 /**
  * module_param_array_named - renamed parameter which is an array of some type
@@ -367,6 +396,7 @@ extern int param_get_invbool(char *buffer, const struct kernel_param *kp);
  * This exposes a different name than the actual variable name.  See
  * module_param_named() for why this might be necessary.
  */
+#ifdef CONFIG_MODULE_PARAM
 #define module_param_array_named(name, array, type, nump, perm)		\
 	static const struct kparam_array __param_arr_##name		\
 	= { ARRAY_SIZE(array), nump, &param_ops_##type,			\
@@ -376,6 +406,9 @@ extern int param_get_invbool(char *buffer, const struct kernel_param *kp);
 			    .arr = &__param_arr_##name,			\
 			    __same_type(array[0], bool), perm);		\
 	__MODULE_PARM_TYPE(name, "array of " #type)
+#else
+#define module_param_array_named(name, array, type, nump, perm)
+#endif
 
 extern struct kernel_param_ops param_array_ops;
 
