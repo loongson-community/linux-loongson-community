@@ -926,6 +926,15 @@ config COMMAND_LINE_SIZE
 	  otherwise, you may be impossible to make kernel recognize your
 	  arguments.
 
+config MAX_CMDLINECONSOLES
+	int "Set the max number of console command line options" if EMBEDDED
+	range 1 8
+	default 2 if EMBEDDED
+	default 8
+	help
+	  This allows users to set the max number of console command line
+	  options. Smaller number smaller image.
+
 config SETUP_PARAM
 	default y
 	bool "Enable kernel parameters setup" if EMBEDDED
