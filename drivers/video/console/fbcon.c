@@ -3461,7 +3461,7 @@ static int fbcon_init_device(void)
 	fbcon_has_sysfs = 1;
 
 	for (i = 0; i < ARRAY_SIZE(device_attrs); i++) {
-		error = device_create_file(fbcon_device, &device_attrs[i]);
+		error = device_create_file(fbcon_device, __sysfs_p(&device_attrs[i]));
 
 		if (error)
 			break;
@@ -3469,7 +3469,7 @@ static int fbcon_init_device(void)
 
 	if (error) {
 		while (--i >= 0)
-			device_remove_file(fbcon_device, &device_attrs[i]);
+			device_remove_file(fbcon_device, __sysfs_p(&device_attrs[i]));
 
 		fbcon_has_sysfs = 0;
 	}
@@ -3583,7 +3583,7 @@ static void __exit fbcon_deinit_device(void)
 
 	if (fbcon_has_sysfs) {
 		for (i = 0; i < ARRAY_SIZE(device_attrs); i++)
-			device_remove_file(fbcon_device, &device_attrs[i]);
+			device_remove_file(fbcon_device, __sysfs_p(&device_attrs[i]));
 
 		fbcon_has_sysfs = 0;
 	}

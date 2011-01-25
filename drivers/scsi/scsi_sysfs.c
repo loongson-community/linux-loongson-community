@@ -380,7 +380,7 @@ static int scsi_bus_uevent(struct device *dev, struct kobj_uevent_env *env)
 struct bus_type scsi_bus_type = {
         .name		= "scsi",
         .match		= scsi_bus_match,
-	.uevent		= scsi_bus_uevent,
+	.uevent		= __sysfs_p(scsi_bus_uevent),
 #ifdef CONFIG_PM_OPS
 	.pm		= &scsi_bus_pm_ops,
 #endif
@@ -700,11 +700,11 @@ static struct attribute *scsi_sdev_attrs[] __maybe_unused = {
 };
 
 static struct attribute_group scsi_sdev_attr_group __maybe_unused = {
-	.attrs =	scsi_sdev_attrs,
+	.attrs =	__sysfs_p(scsi_sdev_attrs),
 };
 
 static const struct attribute_group *scsi_sdev_attr_groups[] __maybe_unused = {
-	&scsi_sdev_attr_group,
+	__sysfs_p(&scsi_sdev_attr_group),
 	NULL
 };
 
