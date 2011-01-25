@@ -287,7 +287,11 @@ void __init parse_early_options(char *cmdline);
  * compiled into the kernel, module_exit() has no effect.
  * There can only be one per module.
  */
+#ifdef CONFIG_MODULE_EXIT
 #define module_exit(x)	__exitcall(x);
+#else
+#define module_exit(x)
+#endif
 
 #else /* MODULE */
 
