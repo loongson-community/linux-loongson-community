@@ -2966,7 +2966,7 @@ static const struct tty_operations con_ops = {
 	.throttle = con_throttle,
 	.unthrottle = con_unthrottle,
 	.resize = vt_resize,
-	.shutdown = con_shutdown
+	.shutdown = __sysfs_p(con_shutdown)
 };
 
 static struct cdev vc0_cdev;

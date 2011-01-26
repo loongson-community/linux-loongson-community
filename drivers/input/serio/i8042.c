@@ -1450,7 +1450,7 @@ static struct platform_driver i8042_driver = {
 #endif
 	},
 	.remove		= __devexit_p(i8042_remove),
-	.shutdown	= i8042_shutdown,
+	.shutdown	= __sysfs_p(i8042_shutdown),
 };
 
 static int __init i8042_init(void)

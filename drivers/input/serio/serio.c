@@ -987,7 +987,7 @@ static struct bus_type serio_bus = {
 	.uevent		= __sysfs_p(serio_uevent),
 	.probe		= serio_driver_probe,
 	.remove		= __devexit_p(serio_driver_remove),
-	.shutdown	= serio_shutdown,
+	.shutdown	= __sysfs_p(serio_shutdown),
 #ifdef CONFIG_PM
 	.pm		= &serio_pm_ops,
 #endif

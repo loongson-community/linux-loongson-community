@@ -241,7 +241,7 @@ static int i8259A_shutdown(struct sys_device *dev)
 static struct sysdev_class i8259_sysdev_class = {
 	.name = "i8259",
 	.resume = i8259A_resume,
-	.shutdown = i8259A_shutdown,
+	.shutdown = __sysfs_p(i8259A_shutdown),
 };
 
 static struct sys_device device_i8259A = {

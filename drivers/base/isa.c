@@ -90,7 +90,7 @@ static struct bus_type isa_bus_type = {
 	.match		= isa_bus_match,
 	.probe		= isa_bus_probe,
 	.remove		= __devexit_p(isa_bus_remove),
-	.shutdown	= isa_bus_shutdown,
+	.shutdown	= __sysfs_p(isa_bus_shutdown),
 #ifdef CONFIG_PM
 	.suspend	= isa_bus_suspend,
 	.resume		= isa_bus_resume

@@ -437,7 +437,7 @@ int platform_driver_register(struct platform_driver *drv)
 	if (drv->remove)
 		drv->driver.remove = __devexit_p(platform_drv_remove);
 	if (drv->shutdown)
-		drv->driver.shutdown = platform_drv_shutdown;
+		drv->driver.shutdown = __sysfs_p(platform_drv_shutdown);
 
 	return driver_register(&drv->driver);
 }

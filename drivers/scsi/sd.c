@@ -307,7 +307,7 @@ static struct scsi_driver sd_template = {
 		.suspend	= sd_suspend,
 		.resume		= sd_resume,
 #endif
-		.shutdown	= sd_shutdown,
+		.shutdown	= __sysfs_p(sd_shutdown),
 	},
 	.rescan			= sd_rescan,
 	.done			= sd_done,

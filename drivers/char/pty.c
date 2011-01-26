@@ -618,7 +618,7 @@ static const struct tty_operations ptm_unix98_ops = {
 	.unthrottle = pty_unthrottle,
 	.set_termios = pty_set_termios,
 	.ioctl = pty_unix98_ioctl,
-	.shutdown = pty_unix98_shutdown,
+	.shutdown = __sysfs_p(pty_unix98_shutdown),
 	.resize = pty_resize
 };
 
@@ -634,7 +634,7 @@ static const struct tty_operations pty_unix98_ops = {
 	.chars_in_buffer = pty_chars_in_buffer,
 	.unthrottle = pty_unthrottle,
 	.set_termios = pty_set_termios,
-	.shutdown = pty_unix98_shutdown
+	.shutdown = __sysfs_p(pty_unix98_shutdown)
 };
 
 /**
