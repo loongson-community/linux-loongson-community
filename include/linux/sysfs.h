@@ -185,161 +185,36 @@ int __must_check sysfs_init(void);
 
 #define __sysfs_p(x) NULL
 
-static inline int sysfs_schedule_callback(struct kobject *kobj,
-		void (*func)(void *), void *data, struct module *owner)
-{
-	return -ENOSYS;
-}
-
-static inline int sysfs_create_dir(struct kobject *kobj)
-{
-	return 0;
-}
-
-static inline void sysfs_remove_dir(struct kobject *kobj)
-{
-}
-
-static inline int sysfs_rename_dir(struct kobject *kobj, const char *new_name)
-{
-	return 0;
-}
-
-static inline int sysfs_move_dir(struct kobject *kobj,
-				 struct kobject *new_parent_kobj)
-{
-	return 0;
-}
-
-static inline int sysfs_create_file(struct kobject *kobj,
-				    const struct attribute *attr)
-{
-	return 0;
-}
-
-static inline int sysfs_create_files(struct kobject *kobj,
-				    const struct attribute **attr)
-{
-	return 0;
-}
-
-static inline int sysfs_chmod_file(struct kobject *kobj,
-				   const struct attribute *attr, mode_t mode)
-{
-	return 0;
-}
-
-static inline void sysfs_remove_file(struct kobject *kobj,
-				     const struct attribute *attr)
-{
-}
-
-static inline void sysfs_remove_files(struct kobject *kobj,
-				     const struct attribute **attr)
-{
-}
-
-static inline int sysfs_create_bin_file(struct kobject *kobj,
-					const struct bin_attribute *attr)
-{
-	return 0;
-}
-
-static inline void sysfs_remove_bin_file(struct kobject *kobj,
-					 const struct bin_attribute *attr)
-{
-}
-
-static inline int sysfs_create_link(struct kobject *kobj,
-				    struct kobject *target, const char *name)
-{
-	return 0;
-}
-
-static inline int sysfs_create_link_nowarn(struct kobject *kobj,
-					   struct kobject *target,
-					   const char *name)
-{
-	return 0;
-}
-
-static inline void sysfs_remove_link(struct kobject *kobj, const char *name)
-{
-}
-
-static inline int sysfs_rename_link(struct kobject *k, struct kobject *t,
-				    const char *old_name, const char *new_name)
-{
-	return 0;
-}
-
-static inline void sysfs_delete_link(struct kobject *k, struct kobject *t,
-				     const char *name)
-{
-}
-
-static inline int sysfs_create_group(struct kobject *kobj,
-				     const struct attribute_group *grp)
-{
-	return 0;
-}
-
-static inline int sysfs_update_group(struct kobject *kobj,
-				const struct attribute_group *grp)
-{
-	return 0;
-}
-
-static inline void sysfs_remove_group(struct kobject *kobj,
-				      const struct attribute_group *grp)
-{
-}
-
-static inline int sysfs_add_file_to_group(struct kobject *kobj,
-		const struct attribute *attr, const char *group)
-{
-	return 0;
-}
-
-static inline void sysfs_remove_file_from_group(struct kobject *kobj,
-		const struct attribute *attr, const char *group)
-{
-}
-
-static inline void sysfs_notify(struct kobject *kobj, const char *dir,
-				const char *attr)
-{
-}
-static inline void sysfs_notify_dirent(struct sysfs_dirent *sd)
-{
-}
-static inline
-struct sysfs_dirent *sysfs_get_dirent(struct sysfs_dirent *parent_sd,
-				      const void *ns,
-				      const unsigned char *name)
-{
-	return NULL;
-}
-static inline struct sysfs_dirent *sysfs_get(struct sysfs_dirent *sd)
-{
-	return NULL;
-}
-static inline void sysfs_put(struct sysfs_dirent *sd)
-{
-}
-
-static inline void sysfs_exit_ns(int type, const void *tag)
-{
-}
-
-static inline int __must_check sysfs_init(void)
-{
-	return 0;
-}
-
-static inline void sysfs_printk_last_file(void)
-{
-}
+#define sysfs_schedule_callback(kobj, func, dev, owner) (-ENOSYS)
+#define sysfs_create_dir(kobj) (0)
+#define sysfs_remove_dir(kobj) (0)
+#define sysfs_rename_dir(kobj, new_name) (0)
+#define sysfs_move_dir(kobj, new_parent_kobj) (0)
+#define sysfs_create_file(kobj, attr) (0)
+#define sysfs_create_files(kobj, attr) (0)
+#define sysfs_chmod_file(kobj, attr, mode) (0)
+#define sysfs_remove_file(kobj, attr) (0)
+#define sysfs_remove_files(kobj, attr) (void)(0)
+#define sysfs_create_bin_file(kobj, attr) (0)
+#define sysfs_remove_bin_file(kobj, attr) do { } while (0)
+#define sysfs_create_link(kobj, target, name) (0)
+#define sysfs_create_link_nowarn(kobj, target, name) (0)
+#define sysfs_remove_link(kobj, name) do { } while (0)
+#define sysfs_rename_link(k, t, old_name, new_name) (0)
+#define sysfs_delete_link(k, t, name) do { } while (0)
+#define sysfs_create_group(kobj, grp) (0)
+#define sysfs_update_group(kobj, grp) do { } while (0)
+#define sysfs_remove_group(kobj, grp) do { } while (0)
+#define sysfs_add_file_to_group(kobj, attr, group) (0)
+#define sysfs_remove_file_from_group(kobj, attr, group) do { } while (0)
+#define sysfs_notify(kobj, dir, attr) do { } while (0)
+#define sysfs_notify_dirent(sd) do { } while (0)
+#define sysfs_get_dirent(parent_sd, ns, name) (NULL)
+#define sysfs_get(sd) (NULL)
+#define sysfs_put(sd) do { } while (0)
+#define sysfs_exit_ns(type, tag) do { } while (0)
+#define sysfs_init() (0)
+#define sysfs_printk_last_file() do { } while (0)
 
 #endif /* CONFIG_SYSFS */
 
