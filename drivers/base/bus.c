@@ -1051,10 +1051,12 @@ void bus_sort_breadthfirst(struct bus_type *bus,
 }
 EXPORT_SYMBOL_GPL(bus_sort_breadthfirst);
 
+#ifdef CONFIG_SYSFS
 int __init buses_init(void)
 {
-	bus_kset = kset_create_and_add("bus", &bus_uevent_ops, NULL);
+	bus_kset = kset_create_and_add("bus", __sysfs_p(&bus_uevent_ops), NULL);
 	if (!bus_kset)
 		return -ENOMEM;
 	return 0;
 }
+#endif

@@ -96,7 +96,11 @@ extern int device_private_init(struct device *dev);
 
 /* initialisation functions */
 extern int devices_init(void);
+#ifdef CONFIG_SYSFS
 extern int buses_init(void);
+#else
+#define buses_init()
+#endif
 extern int classes_init(void);
 #ifdef CONFIG_PREVENT_FIRMWARE_BUILD
 static inline int firmware_init(void) { return 0; }
