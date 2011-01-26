@@ -875,6 +875,8 @@ void elv_completed_request(struct request_queue *q, struct request *rq)
 	}
 }
 
+#ifdef CONFIG_SYSFS
+
 #define to_elv(atr) container_of((atr), struct elv_fs_entry, attr)
 
 static ssize_t
@@ -957,6 +959,10 @@ void elv_unregister_queue(struct request_queue *q)
 		__elv_unregister_queue(q->elevator);
 }
 EXPORT_SYMBOL(elv_unregister_queue);
+
+#else /* !CONFIG_SYSFS */
+#define __elv_unregister_queue(e)
+#endif /* CONFIG_SYSFS */
 
 void elv_register(struct elevator_type *e)
 {
