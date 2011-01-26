@@ -9,8 +9,14 @@
 /* Functions internal to the PCI core code */
 
 extern int pci_uevent(struct device *dev, struct kobj_uevent_env *env);
+#ifdef CONFIG_SYSFS
 extern int pci_create_sysfs_dev_files(struct pci_dev *pdev);
 extern void pci_remove_sysfs_dev_files(struct pci_dev *pdev);
+#else
+#define pci_create_sysfs_dev_files(pdev) (0)
+#define pci_remove_sysfs_dev_files(pdev) do { } while (0)
+#endif
+
 #ifndef CONFIG_DMI
 static inline void pci_create_firmware_label_files(struct pci_dev *pdev)
 { return; }
