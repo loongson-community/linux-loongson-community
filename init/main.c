@@ -117,7 +117,11 @@ char __global *saved_command_line;
 /* Command line for parameter parsing */
 static char *static_command_line;
 
+#ifdef CONFIG_PARAM
 static char *execute_command;
+#else
+static char *execute_command = CONFIG_INIT;
+#endif
 static char *ramdisk_execute_command;
 
 #ifdef CONFIG_SMP
@@ -404,6 +408,7 @@ static void __init smp_init(void)
  * parsing is performed in place, and we should allow a component to
  * store reference of name/value for future reference.
  */
+#ifdef CONFIG_PARAM
 static void __init setup_command_line(char *command_line)
 {
 	saved_command_line = alloc_bootmem(strlen (boot_command_line)+1);
@@ -411,6 +416,9 @@ static void __init setup_command_line(char *command_line)
 	strcpy (saved_command_line, boot_command_line);
 	strcpy (static_command_line, command_line);
 }
+#else
+#define setup_command_line(cmdline)
+#endif
 
 /*
  * We need to finalize in a non-__init function or else race conditions
@@ -474,6 +482,7 @@ static int __init do_early_param(char *param, char *val)
 	return 0;
 }
 
+#ifdef CONFIG_PARAM
 void __init parse_early_options(char *cmdline)
 {
 	parse_args("early options", cmdline, NULL, 0, do_early_param);
@@ -493,6 +502,7 @@ void __init __global parse_early_param(void)
 	parse_early_options(tmp_cmdline);
 	done = 1;
 }
+#endif /* CONFIG_PARAM */
 
 /*
  *	Activate the first processor.
@@ -578,6 +588,7 @@ asmlinkage void __init __global start_kernel(void)
 	build_all_zonelists(NULL);
 	page_alloc_init();
 
+#ifdef CONFIG_PARAM
 	printk(KERN_NOTICE "Kernel command line: %s\n", boot_command_line);
 	parse_early_param();
 #ifdef CONFIG_MODULE_PARAM
@@ -587,6 +598,7 @@ asmlinkage void __init __global start_kernel(void)
 #else
 	parse_args("Booting kernel", static_command_line, NULL, 0, &unknown_bootoption);
 #endif
+#endif /* CONFIG_PARAM */
 	/*
 	 * These use large bootmem allocations and must precede
 	 * kmem_cache_init()

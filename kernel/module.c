@@ -2631,9 +2631,11 @@ static struct module *load_module(void __user *umod,
 	mutex_unlock(&module_mutex);
 
 	/* Module is ready to execute: parsing args may do that. */
+#ifdef CONFIG_MODULE_PARAM
 	err = parse_args(mod->name, mod->args, mod->kp, mod->num_kp, NULL);
 	if (err < 0)
 		goto unlink;
+#endif
 
 	/* Link in to syfs. */
 	err = mod_sysfs_setup(mod, &info, mod->kp, mod->num_kp);

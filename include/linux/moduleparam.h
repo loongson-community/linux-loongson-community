@@ -285,12 +285,20 @@ static inline void __kernel_param_unlock(void)
 #define module_param_string(name, string, len, perm)
 #endif
 
+#ifdef CONFIG_PARAM
 /* Called on module insert or kernel boot */
 extern int parse_args(const char *name,
 		      char *args,
 		      const struct kernel_param *params,
 		      unsigned num,
 		      int (*unknown)(char *param, char *val));
+#else
+static inline int parse_args(const char *name,
+		      char *args,
+		      const struct kernel_param *params,
+		      unsigned num,
+		      int (*unknown)(char *param, char *val)) { return 0; }
+#endif /* CONFIG_PARAM */
 
 /* Called by module remove. */
 #ifdef CONFIG_SYSFS

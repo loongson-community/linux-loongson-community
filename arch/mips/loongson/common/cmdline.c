@@ -48,6 +48,7 @@ static inline void get_ec_version(void)
 	}
 }
 
+#ifdef CONFIG_PARAM
 void __init prom_init_cmdline(void)
 {
 #ifndef CONFIG_CMDLINE_OVERRIDE
@@ -103,3 +104,4 @@ void __init prom_init_cmdline(void)
 	get_ec_version();
 #endif
 }
+#endif /* CONFIG_PARAM */
