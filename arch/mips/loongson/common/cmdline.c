@@ -24,9 +24,6 @@
 #include <loongson.h>
 #include <machine.h>
 
-/* Assume the avg. length of the argument is 15 */
-#define ARGV_MAX_ARGS (COMMAND_LINE_SIZE / 15)
-
 /* The popular version is PQ1D27 */
 #define EC_VER_STR "EC_VER=PQ1D"
 unsigned long ec_version = 27;
@@ -53,23 +50,24 @@ void __init prom_init_cmdline(void)
 {
 #ifndef CONFIG_CMDLINE_OVERRIDE
 	int prom_argc;
-	/* PMON passes arguments in 32bit pointers */
+	/* pmon passes arguments in 32bit pointers */
 	int *_prom_argv;
 	int i;
 	long l;
-	if (fw_arg0 != 0 && fw_arg1 != 0) {
-		/* firmware arguments are initialized in head.S */
-		prom_argc = min(fw_arg0, (unsigned long)ARGV_MAX_ARGS);
-		_prom_argv = (int *)fw_arg1;
-		arcs_cmdline[0] = '\0';
-		for (i = 0; i < prom_argc; i++) {
-			l = (long)_prom_argv[i];
-			if (strlen(arcs_cmdline) + strlen(((char *)l) + 1)
-			    >= sizeof(arcs_cmdline))
-				break;
-			strcat(arcs_cmdline, ((char *)l));
-			strcat(arcs_cmdline, " ");
-		}
+
+	/* firmware arguments are initialized in head.S */
+	prom_argc = fw_arg0;
+	_prom_argv = (int *)fw_arg1;
+
+	/* arg[0] is "g", the rest is boot parameters */
+	arcs_cmdline[0] = '\0';
+	for (i = 1; i < prom_argc; i++) {
+		l = (long)_prom_argv[i];
+		if (strlen(arcs_cmdline) + strlen(((char *)l) + 1)
+		    >= sizeof(arcs_cmdline))
+			break;
+		strcat(arcs_cmdline, ((char *)l));
+		strcat(arcs_cmdline, " ");
 	}
 
 	if ((strstr(arcs_cmdline, "console=")) == NULL)
