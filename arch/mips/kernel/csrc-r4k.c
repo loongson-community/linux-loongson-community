@@ -72,6 +72,13 @@ cycle_t notrace c0_hpt_read(struct clocksource *cs)
 	return hpt_read();
 }
 
+#ifdef CONFIG_R4K_FOR_CPUFREQ
+#define hpt_read64() read_virtual_count()
+#else
+#define hpt_read64() cnt32_to_63(read_c0_count())
+#endif
+
+#ifdef CONFIG_HR_SCHED_CLOCK
 /*
  * MIPS sched_clock implementation.
  *
@@ -85,14 +92,27 @@ cycle_t notrace c0_hpt_read(struct clocksource *cs)
 
 static unsigned long clock2ns_scale __read_mostly;
 
-#ifdef CONFIG_R4K_FOR_CPUFREQ
-#define hpt_read64() read_virtual_count()
-#else
-#define hpt_read64() cnt32_to_63(read_c0_count())
-#endif
+#define __cyc2ns(cyc) (((cyc) * clock2ns_scale) >> CLOCK2NS_SCALE_FACTOR)
+
+unsigned long long mips_cyc2ns(cycle_t cyc)
+{
+	/*
+	 * This can not be called before clock2ns_scale is initialized To get
+	 * the timestamp information before this is called, hpt_read64() can
+	 * be called and later use this to convert the timestamp to ns.
+	 */
+	if (!clock2ns_scale)
+		BUG();
+	return __cyc2ns(cyc);
+}
+EXPORT_SYMBOL(mips_cyc2ns);
+
 unsigned long long notrace sched_clock(void)
 {
-	return (hpt_read64() * clock2ns_scale) >> CLOCK2NS_SCALE_FACTOR;
+	/*
+	 * If called before clock2ns_scale is intilialized, we simply return 0.
+	 */
+	return (!clock2ns_scale) ? 0 : __cyc2ns(hpt_read64());
 }
 
 #ifndef CONFIG_R4K_TIMER_FOR_CPUFREQ
@@ -105,8 +125,11 @@ static void cnt32_to_63_keepwarm(unsigned long data)
 }
 #endif
 
+#endif /* CONFIG_HR_SCHED_CLOCK */
+
 static inline void setup_hres_sched_clock(unsigned long clock)
 {
+#ifdef CONFIG_HR_SCHED_CLOCK
 	unsigned long long v;
 #ifndef CONFIG_R4K_TIMER_FOR_CPUFREQ
 	unsigned long data;
@@ -129,6 +152,9 @@ static inline void setup_hres_sched_clock(unsigned long clock)
 	setup_timer(&cnt32_to_63_keepwarm_timer, cnt32_to_63_keepwarm, data);
 	mod_timer(&cnt32_to_63_keepwarm_timer, round_jiffies(jiffies + data));
 #endif
+	/* Call for sync ... */
+	hpt_read64();
+#endif /* CONFIG_HR_SCHED_CLOCK */
 }
 
 static struct clocksource clocksource_mips = {

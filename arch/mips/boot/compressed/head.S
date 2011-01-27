@@ -14,11 +14,20 @@
 
 #include <asm/asm.h>
 #include <asm/regdef.h>
+#include <asm/mipsregs.h>
 #include "boot.h"
 
 	.set noreorder
 	.cprestore
 LEAF(__start)
+
+	/*
+	 * Init c0 count register as earlier as we can, Assume the time of
+	 * booting to the first call of sched_clock() is smaller than the max
+	 * value the register call be recorded.
+	 */
+	mtc0	zero, CP0_COUNT
+
 	/* Save boot rom start args */
 	move	s0, a0
 	move	s1, a1

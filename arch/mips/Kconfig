@@ -2038,6 +2038,19 @@ config NR_CPUS
 source "kernel/time/Kconfig"
 
 #
+# High resolution sched_clock() support
+#
+config HR_SCHED_CLOCK
+	bool "High Resolution sched_clock() support" if EMBEDDED
+	default y
+	help
+	  Disable this to save some bytes if you only need the jiffies
+	  precision of the timestamp but for some kernel tools, like Ftrace, it
+	  need this high resolution sched_clock().
+
+	  If unsure, say Y.
+
+#
 # Timer Interrupt Frequency Configuration
 #
 

@@ -145,6 +145,15 @@ FEXPORT(__kernel_entry)
 
 NESTED(kernel_entry, 16, sp)			# kernel entry point
 
+#ifndef CONFIG_SYS_SUPPORTS_ZBOOT
+	/*
+	 * Init c0 count register as earlier as we can, Assume the time of
+	 * booting to the first call of sched_clock() is smaller than the max
+	 * value the register call be recorded.
+	 */
+	mtc0	zero, CP0_COUNT
+#endif
+
 	kernel_entry_setup			# cpu specific setup
 
 	setup_c0_status_pri
