@@ -1482,6 +1482,8 @@ void set_binfmt(struct linux_binfmt *new)
 
 EXPORT_SYMBOL(set_binfmt);
 
+#ifdef CONFIG_CORE_DUMP
+
 /* format_corename will inspect the pattern parameter, and output a
  * name into corename, which must have space for at least
  * CORENAME_MAX_SIZE bytes plus one byte for the zero terminator.
@@ -2082,3 +2084,5 @@ int dump_seek(struct file *file, loff_t off)
 	return ret;
 }
 EXPORT_SYMBOL(dump_seek);
+
+#endif /* CONFIG_CORE_DUMP */
