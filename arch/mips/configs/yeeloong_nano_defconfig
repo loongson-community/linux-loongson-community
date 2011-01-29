@@ -71,9 +71,12 @@ CONFIG_PATA_CS5536=y
 # CONFIG_SERIO_SERPORT is not set
 # CONFIG_CONSOLE_TRANSLATIONS is not set
 # CONFIG_DEVKMEM is not set
+# CONFIG_RANDOM is not set
 # CONFIG_UNIX98_PTYS is not set
-CONFIG_LEGACY_PTY_COUNT=5
+# CONFIG_LEGACY_PTYS is not set
 # CONFIG_HW_RANDOM is not set
+# CONFIG_DEVPORT is not set
+# CONFIG_KSMG is not set
 # CONFIG_HWMON is not set
 # CONFIG_MFD_SUPPORT is not set
 # CONFIG_VGA_ARB is not set
