@@ -208,3 +208,10 @@ cond_syscall(sys_fanotify_mark);
 /* ptrace */
 cond_syscall(sys_ptrace);
 cond_syscall(compat_sys_ptrace);
+
+/* itimer */
+cond_syscall(sys_alarm);
+cond_syscall(sys_setitimer);
+cond_syscall(compat_sys_setitimer);
+cond_syscall(sys_getitimer);
+cond_syscall(compat_sys_getitimer);
