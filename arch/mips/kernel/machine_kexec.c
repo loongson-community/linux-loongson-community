@@ -44,7 +44,7 @@ int machine_kexec_pass_args(struct kimage *image)
 {
 	int i, argc = 0;
 	char *bootloader = "kexec";
-	int *kexec_argv = (int *)kexec_args[1];
+	unsigned long *kexec_argv = (unsigned long *)kexec_args[1];
 
 	for (i = 0; i < image->nr_segments; i++) {
 		if (!strncmp(bootloader, (char *)image->segment[i].buf,
@@ -66,8 +66,8 @@ int machine_kexec_pass_args(struct kimage *image)
 			while (ptr && (ARGV_MAX_ARGS > argc)) {
 				*ptr = '\0';
 				if (ptr[1] != ' ' && ptr[1] != '\0') {
-					int offt = (int)(ptr - str + 1);
-					kexec_argv[argc] = (int)kbuf + offt;
+					int offt = (ptr - str + 1);
+					kexec_argv[argc] = (unsigned long)kbuf + offt;
 					argc++;
 				}
 				ptr = strchr(ptr + 1, ' ');
