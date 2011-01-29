@@ -808,6 +808,7 @@ static const struct file_operations oldmem_fops = {
 };
 #endif
 
+#ifdef CONFIG_KMSG
 static ssize_t kmsg_write(struct file *file, const char __user *buf,
 			  size_t count, loff_t *ppos)
 {
@@ -832,6 +833,7 @@ static ssize_t kmsg_write(struct file *file, const char __user *buf,
 static const struct file_operations kmsg_fops = {
 	.write = kmsg_write,
 };
+#endif /* CONFIG_KMSG */
 
 static const struct memdev {
 	const char *name;
@@ -853,7 +855,9 @@ static const struct memdev {
 	 [8] = { "random", 0666, &random_fops, NULL },
 	 [9] = { "urandom", 0666, &urandom_fops, NULL },
 #endif
+#ifdef CONFIG_KMSG
 	[11] = { "kmsg", 0, &kmsg_fops, NULL },
+#endif
 #ifdef CONFIG_CRASH_DUMP
 	[12] = { "oldmem", 0, &oldmem_fops, NULL },
 #endif

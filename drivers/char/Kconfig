@@ -1125,6 +1125,12 @@ config DEVPORT
 	depends on ISA || PCI
 	default y
 
+config KSMG
+	bool "/dev/kmsg virtual device support" if EMBEDDED
+	default y
+	help
+	  This enables the /dev/kmsg device support.
+
 source "drivers/s390/char/Kconfig"
 
 config RAMOOPS
