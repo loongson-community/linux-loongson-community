@@ -52,7 +52,7 @@ cycle_t notrace read_virtual_count(void)
 		hpt_last_cnt = hpt_last_read = now;
 
 	/* Get diff and Check for counter overflow */
-	diff = now - hpt_last_read - (now < hpt_last_read);
+	diff = (now - hpt_last_read) & CLOCKSOURCE_MASK(32);
 	/* Calculate the real cycles */
 	hpt_last_cnt += hpt_scale_up(diff);
 	/* Save for the next access */
