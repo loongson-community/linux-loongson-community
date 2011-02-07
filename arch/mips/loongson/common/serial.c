@@ -74,3 +74,5 @@ static int __init serial_init(void)
 }
 
 device_initcall(serial_init);
+
+MODULE_LICENSE("GPL");
