@@ -74,3 +74,7 @@ static int __init serial_init(void)
 }
 
 device_initcall(serial_init);
+
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("liu shiwei <liushiwei@anheng.com.cn>");
+MODULE_DESCRIPTION("loongson serial");
