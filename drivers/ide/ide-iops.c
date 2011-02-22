@@ -27,7 +27,9 @@
 #include <asm/uaccess.h>
 #include <asm/io.h>
 
+#ifdef CONFIG_LEMOTE_MACH2F
 #include <asm/bootinfo.h>
+#endif
 
 void SELECT_MASK(ide_drive_t *drive, int mask)
 {
@@ -302,8 +304,10 @@ void ide_check_nien_quirk_list(ide_drive_t *drive)
 {
 	const char **list, *m = (char *)&drive->id[ATA_ID_PROD];
 
+#ifdef CONFIG_LEMOTE_MACH2F
 	if (mips_machtype != MACH_LEMOTE_YL2F89)
 		return;
+#endif
 
 	for (list = nien_quirk_list; *list != NULL; list++)
 		if (strstr(m, *list) != NULL) {
