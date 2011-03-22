@@ -1,6 +1,7 @@
+if MACH_LOONGSON
+
 choice
 	prompt "Machine Type"
-	depends on MACH_LOONGSON
 
 config LEMOTE_FULOONG2E
 	bool "Lemote Fuloong(2e) mini-PC"
@@ -148,3 +149,4 @@ config GDIUM_VERSION
 	  I have no information about how to determine which version your board
 	  is, If the default config doesn't work for it, please change it to
 	  smaller ones.
+endif # MACH_LOONGSON
