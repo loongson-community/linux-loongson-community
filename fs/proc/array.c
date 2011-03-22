@@ -177,7 +177,7 @@ static inline void task_state(struct seq_file *m, struct pid_namespace *ns,
 		if (tracer)
 			tpid = task_pid_nr_ns(tracer, ns);
 	}
-	cred = get_cred((struct cred *) __task_cred(p));
+	cred = get_task_cred(p);
 	seq_printf(m,
 		"State:\t%s\n"
 		"Tgid:\t%d\n"
@@ -352,9 +352,6 @@ int proc_pid_status(struct seq_file *m, struct pid_namespace *ns,
 	task_cap(m, task);
 	task_cpus_allowed(m, task);
 	cpuset_task_status_allowed(m, task);
-#if defined(CONFIG_S390)
-	task_show_regs(m, task);
-#endif
 	task_context_switch_counts(m, task);
 	return 0;
 }
