@@ -102,11 +102,6 @@ config HEADERS_CHECK
 
 config DEBUG_SECTION_MISMATCH
 	bool "Enable full Section mismatch analysis"
-	depends on UNDEFINED || (BLACKFIN)
-	default y
-	# This option is on purpose disabled for now.
-	# It will be enabled when we are down to a reasonable number
-	# of section mismatch warnings (< 10 for an allyesconfig build)
 	help
 	  The section mismatch analysis checks if there are illegal
 	  references from one section to another section.
@@ -469,15 +464,6 @@ config DEBUG_MUTEXES
 	help
 	 This feature allows mutex semantics violations to be detected and
 	 reported.
-
-config BKL
-	bool "Big Kernel Lock" if (SMP || PREEMPT)
-	default y
-	help
-	  This is the traditional lock that is used in old code instead
-	  of proper locking. All drivers that use the BKL should depend
-	  on this symbol.
-	  Say Y here unless you are working on removing the BKL.
 
 config DEBUG_LOCK_ALLOC
 	bool "Lock debugging: detect incorrect freeing of live locks"
