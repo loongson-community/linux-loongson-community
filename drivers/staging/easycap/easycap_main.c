@@ -28,7 +28,6 @@
 */
 /*****************************************************************************/
 
-#include <linux/smp_lock.h>
 #include "easycap.h"
 #include <linux/usb/audio.h>
 
