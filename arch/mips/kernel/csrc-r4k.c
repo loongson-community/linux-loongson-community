@@ -90,8 +90,8 @@ static void r4k_resume(struct clocksource *cs)
 #else
 #define setup_r4k_for_cpufreq(clock)
 #define hpt_read() read_c0_count()
-#define r4k_suspend() NULL
-#define r4k_resume() NULL
+#define r4k_suspend NULL
+#define r4k_resume NULL
 #endif	/* CONFIG_R4K_TIMER_FOR_CPUFREQ */
 
 cycle_t notrace c0_hpt_read(struct clocksource *cs)
