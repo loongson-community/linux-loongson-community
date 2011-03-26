@@ -1007,6 +1007,9 @@ static void rtl8187_stop(struct ieee80211_hw *dev)
 	u32 reg;
 
 	mutex_lock(&priv->conf_mutex);
+
+	priv->vif = NULL;
+
 	rtl818x_iowrite16(priv, &priv->map->INT_MASK, 0);
 
 	reg = rtl818x_ioread8(priv, &priv->map->CMD);
@@ -1067,10 +1070,7 @@ exit:
 static void rtl8187_remove_interface(struct ieee80211_hw *dev,
 				     struct ieee80211_vif *vif)
 {
-	struct rtl8187_priv *priv = dev->priv;
-	mutex_lock(&priv->conf_mutex);
-	priv->vif = NULL;
-	mutex_unlock(&priv->conf_mutex);
+	/* Nothing to do */
 }
 
 static int rtl8187_config(struct ieee80211_hw *dev, u32 changed)
