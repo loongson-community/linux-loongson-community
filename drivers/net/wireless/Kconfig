@@ -275,7 +275,7 @@ config RTL8180
 
 config RTL8187
 	tristate "Realtek 8187 and 8187B USB support"
-	depends on MAC80211 && USB && !LEMOTE_MACH2F
+	depends on MAC80211 && USB
 	select EEPROM_93CX6
 	---help---
 	  This is a driver for RTL8187 and RTL8187B based cards.
@@ -305,7 +305,7 @@ config RTL8187_LEDS
 source "drivers/net/wireless/rtl818x/Kconfig"
 
 config RTL8187B
-	tristate "Realtek 8187B wifi support for yeeloong2f laptop"
+	tristate "Realtek 8187B wifi support for yeeloong2f laptop (BROKEN)"
 	depends on MAC80211 && USB && LEMOTE_MACH2F
 	depends on RFKILL || !RFKILL
 	select CRYPTO
@@ -314,6 +314,11 @@ config RTL8187B
 	---help---
 	  This is a driver for RTL8187B based cards, this driver is especially
 	  for yeeloon2f laptop.
+
+	  Note: Seems this only work with WPA & WPA 2 personal from 2.6.38? So,
+	  please use mainline RTL8187 driver instead if you need the other
+	  security support. But for WPA & WPA2 personal, this may be a better
+	  choice for its link quality is better.
 
 	  Thanks to Realtek for their support!
 
