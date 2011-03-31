@@ -131,6 +131,7 @@ static int lynloong_backlight_init(void)
 
 	memset(&props, 0, sizeof(struct backlight_properties));
 	props.max_brightness = MAX_BRIGHTNESS;
+	props.type = BACKLIGHT_PLATFORM;
 	lynloong_backlight_dev = backlight_device_register("backlight0", NULL,
 			NULL, &backlight_ops, &props);
 
