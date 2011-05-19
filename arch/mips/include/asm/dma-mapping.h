@@ -13,9 +13,11 @@ extern struct dma_map_ops *mips_dma_map_ops;
 
 static inline struct dma_map_ops *get_dma_ops(struct device *dev)
 {
+#ifndef CONFIG_MACH_LOONGSON
 	if (dev && dev->archdata.dma_ops)
 		return dev->archdata.dma_ops;
 	else
+#endif
 		return mips_dma_map_ops;
 }
 
