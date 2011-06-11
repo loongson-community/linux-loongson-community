@@ -1179,10 +1179,9 @@ static inline int sm501_gpio_isregistered(struct sm501_devdata *sm)
 	return 0;
 }
 
-int sm501_configure_gpio(struct device *dev, unsigned int gpio,
+void sm501_configure_gpio(struct device *dev, unsigned int gpio,
 			 unsigned char mode)
 {
-	return -1;
 }
 #endif	/* CONFIG_MFD_SM501_GPIO */
 EXPORT_SYMBOL_GPL(sm501_configure_gpio);
