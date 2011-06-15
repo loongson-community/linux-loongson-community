@@ -112,7 +112,7 @@ cycle_t notrace c0_hpt_read(struct clocksource *cs)
 
 static unsigned long clock2ns_scale __read_mostly;
 
-#ifdef CONFIG_R4K_FOR_CPUFREQ
+#ifdef CONFIG_R4K_TIMER_FOR_CPUFREQ
 #define hpt_read64() read_virtual_count()
 #else
 #define hpt_read64() cnt32_to_63(read_c0_count())
@@ -161,8 +161,8 @@ static inline void setup_hres_sched_clock(unsigned long clock)
 static struct clocksource clocksource_mips = {
 	.name		= "MIPS",
 	.read		= c0_hpt_read,
-#ifdef CONFIG_R4K_FOR_CPUFREQ
-	.mask		= CLOCKSOURCE_MASK(64);
+#ifdef CONFIG_R4K_TIMER_FOR_CPUFREQ
+	.mask		= CLOCKSOURCE_MASK(64),
 	.flags		= CLOCK_SOURCE_IS_CONTINUOUS | CLOCK_SOURCE_MUST_VERIFY,
 #else
 	.mask		= CLOCKSOURCE_MASK(32),
