@@ -108,7 +108,6 @@ static unsigned long __cpuinit calibrate_delay_direct(void)
 #else
 static unsigned long __cpuinit calibrate_delay_direct(void) {return 0;}
 #endif
-#endif	/* ARCH_HAS_PREPARED_LPJ */
 
 /*
  * This is the number of bits of precision for the loops_per_jiffy.  Each
@@ -184,42 +183,42 @@ recalibrate:
 
 	return lpj;
 }
+#endif	/* ARCH_HAS_PREPARED_LPJ */
 
 void __cpuinit calibrate_delay(void)
 {
-#ifndef ARCH_HAS_PREPARED_LPJ
-	unsigned long ticks, loopbit;
-	int lps_precision = LPS_PREC;
-#endif
+	unsigned long lpj;
 	static bool printed;
 
 	if (preset_lpj) {
-		loops_per_jiffy = preset_lpj;
+		lpj = preset_lpj;
 		if (!printed)
 			pr_info("Calibrating delay loop (skipped) "
 				"preset value.. ");
 	} else if ((!printed) && lpj_fine) {
-		loops_per_jiffy = lpj_fine;
+		lpj = lpj_fine;
 		pr_info("Calibrating delay loop (skipped), "
 			"value calculated using timer frequency.. ");
-	}
-
 #ifndef ARCH_HAS_PREPARED_LPJ
-	else if ((loops_per_jiffy = calibrate_delay_direct()) != 0) {
+	} else if ((lpj = calibrate_delay_direct()) != 0) {
 		if (!printed)
 			pr_info("Calibrating delay using timer "
 				"specific routine.. ");
 	} else {
 		if (!printed)
 			pr_info("Calibrating delay loop... ");
-		loops_per_jiffy = calibrate_delay_converge();
-	}
+		lpj = calibrate_delay_converge();
+#else
+	} else {
+		lpj = loops_per_jiffy;
 #endif	/* ARCH_HAS_PREPARED_LPJ */
+	}
 
 	if (!printed)
 		pr_cont("%lu.%02lu BogoMIPS (lpj=%lu)\n",
-			loops_per_jiffy/(500000/HZ),
-			(loops_per_jiffy/(5000/HZ)) % 100, loops_per_jiffy);
+			lpj/(500000/HZ),
+			(lpj/(5000/HZ)) % 100, lpj);
 
+	loops_per_jiffy = lpj;
 	printed = true;
 }
