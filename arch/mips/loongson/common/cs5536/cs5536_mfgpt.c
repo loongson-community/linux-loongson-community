@@ -202,12 +202,9 @@ int __init init_mfgpt1_clocksource(void)
 	if (num_possible_cpus() > 1)	/* MFGPT does not scale! */
 		return 0;
 
-	mfgpt1_clocksource.shift = 6;
-	mfgpt1_clocksource.mult = clocksource_hz2mult(MFGPT_TICK_RATE(0, 1), 6);
 	enable_mfgpt1_counter();
 
-	return clocksource_register(&mfgpt1_clocksource);
+	return clocksource_register_hz(&mfgpt1_clocksource, MFGPT_TICK_RATE(0, 1));
 }
 
 arch_initcall(init_mfgpt1_clocksource);
-

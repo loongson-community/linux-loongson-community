@@ -892,6 +892,6 @@ static inline void usb_free_descriptors(struct usb_descriptor_header **v)
 extern struct usb_ep *usb_ep_autoconfig(struct usb_gadget *,
 			struct usb_endpoint_descriptor *);
 
-extern void usb_ep_autoconfig_reset(struct usb_gadget *) __devinit;
+extern void usb_ep_autoconfig_reset(struct usb_gadget *);
 
 #endif /* __LINUX_USB_GADGET_H */
