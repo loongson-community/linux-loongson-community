@@ -22,6 +22,8 @@ config MIPS
 	select GENERIC_IRQ_PROBE
 	select GENERIC_IRQ_SHOW
 	select HAVE_ARCH_JUMP_LABEL
+	select HAVE_DMA_ATTRS
+	select HAVE_DMA_API_DEBUG
 
 menu "Machine selection"
 
