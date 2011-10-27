@@ -199,7 +199,6 @@ static __cpuinit void probe_spram(char *type,
 }
 void __cpuinit spram_config(void)
 {
-	struct cpuinfo_mips *c = &current_cpu_data;
 	unsigned int config0;
 
 	switch (current_cpu_type()) {
