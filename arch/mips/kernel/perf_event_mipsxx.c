@@ -1062,6 +1062,12 @@ init_hw_perf_events(void)
 		mipsxxcore_pmu.irq = irq;
 		mipspmu = &mipsxxcore_pmu;
 		break;
+	case CPU_LOONGSON1:
+		mipsxxcore_pmu.name = "mips/loongson1";
+		mipsxxcore_pmu.num_counters = counters;
+		mipsxxcore_pmu.irq = irq;
+		mipspmu = &mipsxxcore_pmu;
+		break;
 	default:
 		pr_cont("Either hardware does not support performance "
 			"counters, or not yet implemented.\n");
