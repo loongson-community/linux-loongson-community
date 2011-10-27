@@ -15,7 +15,9 @@
 #include <asm/cpu-features.h>
 #include <asm/time.h>
 
+#ifdef CONFIG_CPU_LOONGSON2
 #include <loongson.h>
+#endif
 
 /*
  * Some MIPS cpu can change their frequency, meaning that read_c0_count doesn't
