@@ -912,7 +912,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 		case fmov_op:
 			/* an easy one */
 			SPFROMREG(rv.s, MIPSInst_FS(ir));
-			goto copcsr;
+			break;
 
 			/* binary op on handler */
 		      scopbop:
@@ -1099,7 +1099,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 		case fmov_op:
 			/* an easy one */
 			DPFROMREG(rv.d, MIPSInst_FS(ir));
-			goto copcsr;
+			break;
 
 			/* binary op on handler */
 		      dcopbop:{
