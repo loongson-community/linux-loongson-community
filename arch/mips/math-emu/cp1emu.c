@@ -7,6 +7,9 @@
  * Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
  * Copyright (C) 2000  MIPS Technologies, Inc.
  *
+ * Loongson instruction support
+ * Copyright (C) 2011  Mark H Weaver <mhw@netris.org>
+ *
  *  This program is free software; you can distribute it and/or modify it
  *  under the terms of the GNU General Public License (Version 2) as
  *  published by the Free Software Foundation.
@@ -57,6 +60,14 @@
 #endif
 #define __mips 4
 
+#ifdef __loongson_fp
+#undef __loongson_fp
+#endif
+#if __mips >= 4 && __mips != 32
+/* Include support for Loongson floating point instructions */
+#define __loongson_fp 1
+#endif
+
 /* Function which emulates a floating point instruction. */
 
 static int fpu_emu(struct pt_regs *, struct mips_fpu_struct *,
@@ -64,6 +75,10 @@ static int fpu_emu(struct pt_regs *, struct mips_fpu_struct *,
 
 #if __mips >= 4 && __mips != 32
 static int fpux_emu(struct pt_regs *,
+	struct mips_fpu_struct *, mips_instruction, void *__user *);
+#endif
+#ifdef __loongson_fp
+static int loongson_spec2_emu(struct pt_regs *,
 	struct mips_fpu_struct *, mips_instruction, void *__user *);
 #endif
 
@@ -202,6 +217,14 @@ static inline int cop1_64bit(struct pt_regs *xcp)
 #define SPTOREG(sp, x)	SITOREG((sp).bits, x)
 #define DPFROMREG(dp, x)	DIFROMREG((dp).bits, x)
 #define DPTOREG(dp, x)	DITOREG((dp).bits, x)
+
+/* Support for Loongson paired single floating-point format */
+#define PSIFROMREG(si1, si2, x) ({ u64 di; DIFROMREG(di, x);		\
+			(si1) = (u32)di; (si2) = (u32)(di >> 32); })
+#define PSITOREG(si1, si2, x) DITOREG((si1) | ((u64)(si2) << 32), x)
+
+#define PSPFROMREG(sp1, sp2, x) PSIFROMREG((sp1).bits, (sp2).bits, x)
+#define PSPTOREG(sp1, sp2, x)	PSITOREG((sp1).bits, (sp2).bits, x)
 
 /*
  * Emulate the single floating point instruction pointed at by EPC.
@@ -569,6 +592,15 @@ static int cop1Emulate(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 		break;
 #endif
 
+#ifdef __loongson_fp
+	case spec2_op:{
+		int sig = loongson_spec2_emu(xcp, ctx, ir, fault_addr);
+		if (sig)
+			return sig;
+		break;
+	}
+#endif
+
 	default:
 		return SIGILL;
 	}
@@ -646,6 +678,172 @@ DEF3OP(madd, dp, ieee754dp_mul, ieee754dp_add, );
 DEF3OP(msub, dp, ieee754dp_mul, ieee754dp_sub, );
 DEF3OP(nmadd, dp, ieee754dp_mul, ieee754dp_add, ieee754dp_neg);
 DEF3OP(nmsub, dp, ieee754dp_mul, ieee754dp_sub, ieee754dp_neg);
+
+#ifdef __loongson_fp
+static int loongson_spec2_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
+	mips_instruction ir, void *__user *fault_addr)
+{
+	int rfmt;		/* resulting format */
+	unsigned rcsr = 0;	/* resulting csr */
+	union {
+		ieee754dp d;
+		struct {
+			ieee754sp s;
+			ieee754sp s2;
+		};
+	} rv;			/* resulting value */
+
+	/* XXX maybe add a counter for loongson spec2 fp instructions? */
+	/* MIPS_FPU_EMU_INC_STATS(cp1xops); */
+
+	switch (rfmt = (MIPSInst_FFMT(ir) & 0xf)) {
+	case s_fmt:{
+		ieee754sp(*handler) (ieee754sp, ieee754sp, ieee754sp);
+		ieee754sp fd, fs, ft;
+
+		switch (MIPSInst_FUNC(ir)) {
+		case loongson_madd_op:
+			handler = fpemu_sp_madd;
+			goto scoptop;
+		case loongson_msub_op:
+			handler = fpemu_sp_msub;
+			goto scoptop;
+		case loongson_nmadd_op:
+			handler = fpemu_sp_nmadd;
+			goto scoptop;
+		case loongson_nmsub_op:
+			handler = fpemu_sp_nmsub;
+			goto scoptop;
+
+		      scoptop:
+			SPFROMREG(fd, MIPSInst_FD(ir));
+			SPFROMREG(fs, MIPSInst_FS(ir));
+			SPFROMREG(ft, MIPSInst_FT(ir));
+			rv.s = (*handler) (fd, fs, ft);
+
+		      copcsr:
+			if (ieee754_cxtest(IEEE754_INEXACT))
+				rcsr |= FPU_CSR_INE_X | FPU_CSR_INE_S;
+			if (ieee754_cxtest(IEEE754_UNDERFLOW))
+				rcsr |= FPU_CSR_UDF_X | FPU_CSR_UDF_S;
+			if (ieee754_cxtest(IEEE754_OVERFLOW))
+				rcsr |= FPU_CSR_OVF_X | FPU_CSR_OVF_S;
+			if (ieee754_cxtest(IEEE754_INVALID_OPERATION))
+				rcsr |= FPU_CSR_INV_X | FPU_CSR_INV_S;
+
+			break;
+
+		default:
+			return SIGILL;
+		}
+		break;
+	}
+
+	case d_fmt:{
+		ieee754dp(*handler) (ieee754dp, ieee754dp, ieee754dp);
+		ieee754dp fd, fs, ft;
+
+		switch (MIPSInst_FUNC(ir)) {
+		case loongson_madd_op:
+			handler = fpemu_dp_madd;
+			goto dcoptop;
+		case loongson_msub_op:
+			handler = fpemu_dp_msub;
+			goto dcoptop;
+		case loongson_nmadd_op:
+			handler = fpemu_dp_nmadd;
+			goto dcoptop;
+		case loongson_nmsub_op:
+			handler = fpemu_dp_nmsub;
+			goto dcoptop;
+
+		      dcoptop:
+			DPFROMREG(fd, MIPSInst_FD(ir));
+			DPFROMREG(fs, MIPSInst_FS(ir));
+			DPFROMREG(ft, MIPSInst_FT(ir));
+			rv.d = (*handler) (fd, fs, ft);
+			goto copcsr;
+
+		default:
+			return SIGILL;
+		}
+		break;
+	}
+
+	case ps_fmt:{
+		ieee754sp(*handler) (ieee754sp, ieee754sp, ieee754sp);
+		struct _ieee754_csr ieee754_csr_save;
+		ieee754sp fd1, fs1, ft1;
+		ieee754sp fd2, fs2, ft2;
+
+		switch (MIPSInst_FUNC(ir)) {
+		case loongson_madd_op:
+			handler = fpemu_sp_madd;
+			goto pscoptop;
+		case loongson_msub_op:
+			handler = fpemu_sp_msub;
+			goto pscoptop;
+		case loongson_nmadd_op:
+			handler = fpemu_sp_nmadd;
+			goto pscoptop;
+		case loongson_nmsub_op:
+			handler = fpemu_sp_nmsub;
+			goto pscoptop;
+
+		      pscoptop:
+			PSPFROMREG(fd1, fd2, MIPSInst_FD(ir));
+			PSPFROMREG(fs1, fs2, MIPSInst_FS(ir));
+			PSPFROMREG(ft1, ft2, MIPSInst_FT(ir));
+			rv.s = (*handler) (fd1, fs1, ft1);
+			ieee754_csr_save = ieee754_csr;
+			rv.s2 = (*handler) (fd2, fs2, ft2);
+			ieee754_csr.cx |= ieee754_csr_save.cx;
+			ieee754_csr.sx |= ieee754_csr_save.sx;
+			goto copcsr;
+
+		default:
+			return SIGILL;
+		}
+		break;
+	}
+
+	default:
+		return SIGILL;
+	}
+
+	/*
+	 * Update the fpu CSR register for this operation.
+	 * If an exception is required, generate a tidy SIGFPE exception,
+	 * without updating the result register.
+	 * Note: cause exception bits do not accumulate, they are rewritten
+	 * for each op; only the flag/sticky bits accumulate.
+	 */
+	ctx->fcr31 = (ctx->fcr31 & ~FPU_CSR_ALL_X) | rcsr;
+	if ((ctx->fcr31 >> 5) & ctx->fcr31 & FPU_CSR_ALL_E) {
+		/*printk ("SIGFPE: fpu csr = %08x\n",ctx->fcr31); */
+		return SIGFPE;
+	}
+
+	/*
+	 * Now we can safely write the result back to the register file.
+	 */
+	switch (rfmt) {
+	case d_fmt:
+		DPTOREG(rv.d, MIPSInst_FD(ir));
+		break;
+	case s_fmt:
+		SPTOREG(rv.s, MIPSInst_FD(ir));
+		break;
+	case ps_fmt:
+		PSPTOREG(rv.s, rv.s2, MIPSInst_FD(ir));
+		break;
+	default:
+		return SIGILL;
+	}
+
+	return 0;
+}
+#endif
 
 static int fpux_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 	mips_instruction ir, void *__user *fault_addr)
@@ -841,7 +1039,12 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 	unsigned cond;
 	union {
 		ieee754dp d;
-		ieee754sp s;
+		struct {
+			ieee754sp s;
+#ifdef __loongson_fp
+			ieee754sp s2; /* for Loongson paired singles */
+#endif
+		};
 		int w;
 #ifdef __mips64
 		s64 l;
@@ -1211,6 +1414,83 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 		break;
 	}
 
+#ifdef __loongson_fp
+	case ps_fmt:{		/* 6 */
+		/* Support for Loongson paired single fp instructions */
+		union {
+			ieee754sp(*b) (ieee754sp, ieee754sp);
+			ieee754sp(*u) (ieee754sp);
+		} handler;
+
+		switch (MIPSInst_FUNC(ir)) {
+			/* binary ops */
+		case fadd_op:
+			handler.b = ieee754sp_add;
+			goto pscopbop;
+		case fsub_op:
+			handler.b = ieee754sp_sub;
+			goto pscopbop;
+		case fmul_op:
+			handler.b = ieee754sp_mul;
+			goto pscopbop;
+
+			/* unary  ops */
+		case fabs_op:
+			handler.u = ieee754sp_abs;
+			goto pscopuop;
+		case fneg_op:
+			handler.u = ieee754sp_neg;
+			goto pscopuop;
+		case fmov_op:
+			/* an easy one */
+			PSPFROMREG(rv.s, rv.s2, MIPSInst_FS(ir));
+			break;
+
+		      pscopbop: /* paired binary op handler */
+			{
+				struct _ieee754_csr ieee754_csr_save;
+				ieee754sp fs1, ft1;
+				ieee754sp fs2, ft2;
+
+				PSPFROMREG(fs1, fs2, MIPSInst_FS(ir));
+				PSPFROMREG(ft1, ft2, MIPSInst_FT(ir));
+				rv.s  = (*handler.b) (fs1, ft1);
+				ieee754_csr_save = ieee754_csr;
+				rv.s2 = (*handler.b) (fs2, ft2);
+				ieee754_csr.cx |= ieee754_csr_save.cx;
+				ieee754_csr.sx |= ieee754_csr_save.sx;
+				goto copcsr;
+			}
+		      pscopuop: /* paired unary op handler */
+			{
+				struct _ieee754_csr ieee754_csr_save;
+				ieee754sp fs1;
+				ieee754sp fs2;
+
+				PSPFROMREG(fs1, fs2, MIPSInst_FS(ir));
+				rv.s  = (*handler.u) (fs1);
+				ieee754_csr_save = ieee754_csr;
+				rv.s2 = (*handler.u) (fs2);
+				ieee754_csr.cx |= ieee754_csr_save.cx;
+				ieee754_csr.sx |= ieee754_csr_save.sx;
+				goto copcsr;
+			}
+			break;
+
+		default:
+			if (MIPSInst_FUNC(ir) >= fcmp_op) {
+				/* Loongson fp hardware handles all
+				   cases of fp compare insns, so we
+				   shouldn't have to */
+				printk ("Loongson paired-single fp compare"
+					" unimplemented in cp1emu.c\n");
+			}
+			return SIGILL;
+		}
+		break;
+	}
+#endif
+
 	case w_fmt:{
 		ieee754sp fs;
 
@@ -1298,6 +1578,11 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 #if defined(__mips64)
 	case l_fmt:
 		DITOREG(rv.l, MIPSInst_FD(ir));
+		break;
+#endif
+#ifdef __loongson_fp
+	case ps_fmt:
+		PSPTOREG(rv.s, rv.s2, MIPSInst_FD(ir));
 		break;
 #endif
 	default:
