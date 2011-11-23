@@ -681,7 +681,7 @@ static int fpux_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 			break;
 
 		default:
-			return SIGILL;
+			goto SIGILL_unless_prefx_op;
 		}
 		break;
 	}
@@ -739,19 +739,17 @@ static int fpux_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 			goto copcsr;
 
 		default:
-			return SIGILL;
+			goto SIGILL_unless_prefx_op;
 		}
 		break;
 	}
 
-	case 0x7:		/* 7 */
-		if (MIPSInst_FUNC(ir) != pfetch_op) {
-			return SIGILL;
-		}
-		/* ignore prefx operation */
-		break;
-
 	default:
+	      SIGILL_unless_prefx_op:
+		if (MIPSInst_FUNC(ir) == prefx_op) {
+			/* ignore prefx operation */
+			break;
+		}
 		return SIGILL;
 	}
 
