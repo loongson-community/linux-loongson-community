@@ -61,6 +61,8 @@ enum spec_op {
 enum spec2_op {
 	madd_op, maddu_op, mul_op, spec2_3_unused_op,
 	msub_op, msubu_op, /* more unused ops */
+	loongson_madd_op = 0x18, loongson_msub_op,
+	loongson_nmadd_op, loongson_nmsub_op,
 	clz_op = 0x20, clo_op,
 	dclz_op = 0x24, dclo_op,
 	sdbpp_op = 0x3f
@@ -132,7 +134,7 @@ enum cop0_com_func {
  */
 enum cop1_fmt {
 	s_fmt, d_fmt, e_fmt, q_fmt,
-	w_fmt, l_fmt
+	w_fmt, l_fmt, ps_fmt
 };
 
 /*
