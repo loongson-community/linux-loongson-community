@@ -12,7 +12,7 @@ config R4K_TIMER_FOR_CPUFREQ
 	depends on CSRC_R4K && CEVT_R4K
 	depends on CPU_LOONGSON2F
 	select TIMER_SUPPORTS_CPUFREQ
-	default n
+	default y
 	help
 	  This option ensures the R4K Timer works normally with the CPUFreq
 	  driver. Currently, It is only designed for Loongson2F with specific
