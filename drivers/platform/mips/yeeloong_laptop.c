@@ -1148,26 +1148,26 @@ static int yeeloong_hotkey_init(void)
 
 	ret = register_reboot_notifier(&reboot_notifier);
 	if (ret) {
-		pr_err("can't register reboot notifier\n");
+		pr_err("Can't register reboot notifier\n");
 		goto end;
 	}
 
 	ret = register_pm_notifier(&pm_notifier);
 	if (ret) {
-		pr_err("can't register pm notifier\n");
+		pr_err("Can't register pm notifier\n");
 		goto free_reboot_notifier;
 	}
 
 	ret = sci_irq_init();
 	if (ret) {
-		pr_err("can't init SCI interrupt\n");
+		pr_err("Can't init SCI interrupt\n");
 		goto free_pm_notifier;
 	}
 
 	ret = request_threaded_irq(SCI_IRQ_NUM, NULL, &sci_irq_handler,
 			IRQF_ONESHOT, "sci", NULL);
 	if (ret) {
-		pr_err("can't thread SCI interrupt handler\n");
+		pr_err("Can't thread SCI interrupt handler\n");
 		goto free_pm_notifier;
 	}
 
@@ -1185,7 +1185,7 @@ static int yeeloong_hotkey_init(void)
 
 	ret = sparse_keymap_setup(yeeloong_hotkey_dev, yeeloong_keymap, NULL);
 	if (ret) {
-		pr_err("Fail to setup input device keymap\n");
+		pr_err("Failed to setup input device keymap\n");
 		goto free_dev;
 	}
 
@@ -1299,20 +1299,20 @@ static int __init yeeloong_init(void)
 {
 	int ret;
 
-	pr_info("Load YeeLoong Laptop Platform Specific Driver.\n");
+	pr_info("YeeLoong Laptop platform specific driver loaded.\n");
 
 	/* Register platform stuff */
 	ret = platform_driver_register(&platform_driver);
 	if (ret) {
-		pr_err("Fail to register yeeloong platform driver.\n");
+		pr_err("Failed to register YeeLoong platform driver.\n");
 		return ret;
 	}
 
 #define yeeloong_init_drv(drv, alias) do {			\
-	pr_info("Register yeeloong " alias " driver.\n");	\
+	pr_info("Registered YeeLoong " alias " driver.\n");	\
 	ret = yeeloong_ ## drv ## _init();			\
 	if (ret) {						\
-		pr_err("Fail to register yeeloong " alias " driver.\n");	\
+		pr_err("Failed to register YeeLoong " alias " driver.\n");	\
 		yeeloong_ ## drv ## _exit();			\
 		return ret;					\
 	}							\
@@ -1338,7 +1338,7 @@ static void __exit yeeloong_exit(void)
 	yeeloong_backlight_exit();
 	platform_driver_unregister(&platform_driver);
 
-	pr_info("Unload YeeLoong Platform Specific Driver.\n");
+	pr_info("YeeLoong platform specific driver unloaded.\n");
 }
 
 module_init(yeeloong_init);
