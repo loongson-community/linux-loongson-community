@@ -472,24 +472,24 @@ static int __init lynloong_init(void)
 {
 	int ret;
 
-	pr_info("Load LynLoong Platform Specific Driver.\n");
+	pr_info("LynLoong platform specific driver loaded.\n");
 
 	/* Register platform stuff */
 	ret = platform_driver_register(&platform_driver);
 	if (ret) {
-		pr_err("Fail to register lynloong platform driver.\n");
+		pr_err("Failed to register LynLoong platform driver.\n");
 		return ret;
 	}
 
 	ret = lynloong_backlight_init();
 	if (ret) {
-		pr_err("Fail to register lynloong backlight driver.\n");
+		pr_err("Failed to register LynLoong backlight driver.\n");
 		return ret;
 	}
 
 	ret = lynloong_vo_init();
 	if (ret) {
-		pr_err("Fail to register lynloong backlight driver.\n");
+		pr_err("Failed to register LynLoong backlight driver.\n");
 		lynloong_vo_exit();
 		return ret;
 	}
@@ -503,7 +503,7 @@ static void __exit lynloong_exit(void)
 	lynloong_backlight_exit();
 	platform_driver_unregister(&platform_driver);
 
-	pr_info("Unload LynLoong Platform Specific Driver.\n");
+	pr_info("LynLoong platform specific driver unloaded.\n");
 }
 
 module_init(lynloong_init);
