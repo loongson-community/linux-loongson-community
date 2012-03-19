@@ -304,19 +304,6 @@ config RTL8187_LEDS
 
 source "drivers/net/wireless/rtl818x/Kconfig"
 
-config RTL8187B
-	tristate "Realtek 8187B wifi support for yeeloong2f laptop"
-	depends on MAC80211 && USB && LEMOTE_MACH2F
-	depends on RFKILL || !RFKILL
-	select CRYPTO
-	select WIRELESS_EXT
-	select WEXT_PRIV
-	---help---
-	  This is a driver for RTL8187B based cards, this driver is especially
-	  for yeeloon2f laptop.
-
-	  Thanks to Realtek for their support!
-
 config ADM8211
 	tristate "ADMtek ADM8211 support"
 	depends on MAC80211 && PCI && EXPERIMENTAL
