@@ -1389,7 +1389,6 @@ static void __cpuinit r4k_cache_error_setup(void)
 {
 	extern char __weak except_vec2_generic;
 	extern char __weak except_vec2_sb1;
-	struct cpuinfo_mips *c = &current_cpu_data;
 
 	switch (current_cpu_type()) {
 	case CPU_SB1:

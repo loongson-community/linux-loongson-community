@@ -8,6 +8,7 @@
  * 	The EC resources accessing and programming are supported.
  */
 
+#include <linux/module.h>
 #include <linux/proc_fs.h>
 #include <linux/miscdevice.h>
 #include <linux/init.h>

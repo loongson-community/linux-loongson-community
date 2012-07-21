@@ -10,6 +10,7 @@
  * Author: Wu Zhangjin (wuzhangjin@gmail.com)
  */
 
+#include <linux/module.h>
 #include <linux/io.h>
 #include <linux/init.h>
 #include <linux/serial_8250.h>
