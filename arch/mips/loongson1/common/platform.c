@@ -8,6 +8,7 @@
  */
 
 #include <linux/clk.h>
+#include <linux/dma-mapping.h>
 #include <linux/err.h>
 #include <linux/phy.h>
 #include <linux/serial_8250.h>
@@ -77,9 +78,8 @@ static struct plat_stmmacenet_data ls1x_eth_data = {
 	.bus_id		= 0,
 	.phy_addr	= -1,
 	.mdio_bus_data	= &ls1x_mdio_bus_data,
-	.pbl		= 32,
 	.has_gmac	= 1,
-	/*.tx_coe		= 1,*/
+	.tx_coe		= 1,
 };
 
 struct platform_device ls1x_eth0_device = {
@@ -90,4 +90,35 @@ struct platform_device ls1x_eth0_device = {
 	.dev		= {
 		.platform_data = &ls1x_eth_data,
 	},
+};
+
+/* USB EHCI */
+static u64 ls1x_ehci_dmamask = DMA_BIT_MASK(32);
+
+static struct resource ls1x_ehci_resources[] = {
+	[0] = {
+		.start	= LS1X_EHCI_BASE,
+		.end	= LS1X_EHCI_BASE + SZ_32K - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start	= LS1X_EHCI_IRQ,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device ls1x_ehci_device = {
+	.name		= "ls1x-ehci",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(ls1x_ehci_resources),
+	.resource	= ls1x_ehci_resources,
+	.dev		= {
+		.dma_mask = &ls1x_ehci_dmamask,
+	},
+};
+
+/* Real Time Clock */
+struct platform_device ls1x_rtc_device = {
+	.name		= "ls1x-rtc",
+	.id		= -1,
 };

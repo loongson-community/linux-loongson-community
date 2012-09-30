@@ -13,7 +13,7 @@
 #include <linux/platform_device.h>
 #include <linux/sched.h>
 
-#include <loongson.h>
+#include <asm/mach-loongson/loongson.h>
 
 #define DC_RESV	0
 
@@ -163,39 +163,7 @@ static void l2_cpufreq_set(unsigned int newstate)
 	local_irq_restore(flags);
 }
 
-static void notrace loongson2_cpu_wait(void)
-{
-	u32 cpufreq;
-	ktime_t kt1, kt2;
-	s64 idle_time_ns;
-	unsigned long flags;
-
-	local_irq_save(flags);
-	kt1 = ktime_get_real();
-	sched_clock_idle_sleep_event();
-
-	/* Record the cpu frequency */
-	cpufreq = LOONGSON_CHIPCFG0;
-
-	/*
-	 * Currently, there is no wait instruction in Loongson platform,
-	 * herein, we emulate the wait mode via setting the cpu frequency to
-	 * the lowest level to put it into the standby mode, which can be waked
-	 * up by external interrupts
-	 */
-	LOONGSON_SET_CPUFREQ(0);
-
-	/* Resotore it */
-	LOONGSON_CHIPCFG0 = cpufreq;
-
-	/*
-	 * report back to the scheduler how long we deep-idled
-	 */
-	kt2 = ktime_get_real();
-	idle_time_ns = ktime_to_ns(ktime_sub(kt2, kt1));
-	sched_clock_idle_wakeup_event(idle_time_ns);
-	local_irq_restore(flags);
-}
+static void notrace loongson2_cpu_wait(void);
 
 #endif /* CONFIG_R4K_TIMER_FOR_CPUFREQ */
 
@@ -299,6 +267,25 @@ static struct platform_driver platform_driver = {
 	},
 	.id_table = platform_device_ids,
 };
+
+/*
+ * This is the simple version of Loongson-2 wait, Maybe we need do this in
+ * interrupt disabled context.
+ */
+
+static DEFINE_SPINLOCK(loongson2_wait_lock);
+
+static void loongson2_cpu_wait(void)
+{
+	unsigned long flags;
+	u32 cpu_freq;
+
+	spin_lock_irqsave(&loongson2_wait_lock, flags);
+	cpu_freq = LOONGSON_CHIPCFG0;
+	LOONGSON_CHIPCFG0 &= ~0x7;      /* Put CPU into wait mode */
+	LOONGSON_CHIPCFG0 = cpu_freq;   /* Restore CPU state */
+	spin_unlock_irqrestore(&loongson2_wait_lock, flags);
+}
 
 static int __init l2_cpufreq_init(void)
 {

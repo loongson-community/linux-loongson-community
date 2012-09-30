@@ -14,6 +14,16 @@
 #include <loongson1.h>
 #include <irq.h>
 
+#define LS1X_INTC_REG(n, x) \
+		((void __iomem *)KSEG1ADDR(LS1X_INTC_BASE + (n * 0x18) + (x)))
+
+#define LS1X_INTC_INTISR(n)		LS1X_INTC_REG(n, 0x0)
+#define LS1X_INTC_INTIEN(n)		LS1X_INTC_REG(n, 0x4)
+#define LS1X_INTC_INTSET(n)		LS1X_INTC_REG(n, 0x8)
+#define LS1X_INTC_INTCLR(n)		LS1X_INTC_REG(n, 0xc)
+#define LS1X_INTC_INTPOL(n)		LS1X_INTC_REG(n, 0x10)
+#define LS1X_INTC_INTEDGE(n)		LS1X_INTC_REG(n, 0x14)
+
 static void ls1x_irq_ack(struct irq_data *d)
 {
 	unsigned int bit = (d->irq - LS1X_IRQ_BASE) & 0x1f;
@@ -114,11 +124,12 @@ static void __init ls1x_irq_init(int base)
 		__raw_writel(0x0, LS1X_INTC_INTIEN(n));
 		__raw_writel(0xffffffff, LS1X_INTC_INTCLR(n));
 		__raw_writel(0xffffffff, LS1X_INTC_INTPOL(n));
-		__raw_writel(0x0, LS1X_INTC_INTEDGE(n));
+		/* set DMA0, DMA1 and DMA2 to edge trigger */
+		__raw_writel(n ? 0x0 : 0xe000, LS1X_INTC_INTEDGE(n));
 	}
 
 
-	for (n = base; n < NR_IRQS; n++) {
+	for (n = base; n < LS1X_IRQS; n++) {
 		irq_set_chip_and_handler(n, &ls1x_irq_chip,
 					 handle_level_irq);
 	}

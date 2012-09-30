@@ -15,6 +15,8 @@
 
 extern struct platform_device ls1x_uart_device;
 extern struct platform_device ls1x_eth0_device;
+extern struct platform_device ls1x_ehci_device;
+extern struct platform_device ls1x_rtc_device;
 
 void ls1x_serial_setup(void);
 

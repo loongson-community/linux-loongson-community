@@ -1,5 +1,5 @@
 #
-# Common code for all Loongson1 based systems
+# Common code for all Loongson 1 based systems
 #
 
 obj-$(CONFIG_MACH_LOONGSON1) += common/

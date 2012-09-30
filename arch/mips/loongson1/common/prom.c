@@ -71,8 +71,7 @@ void __init prom_free_prom_memory(void)
 {
 }
 
-#define UART_BASE		LS1X_UART0_BASE
-#define PORT(base, offset)	(u8 *)ioremap(base + offset, 1)
+#define PORT(offset)	(u8 *)(KSEG1ADDR(LS1X_UART0_BASE + offset))
 
 void __init prom_putchar(char c)
 {
@@ -80,9 +79,9 @@ void __init prom_putchar(char c)
 
 	timeout = 1024;
 
-	while (((readb(PORT(UART_BASE, UART_LSR)) & UART_LSR_THRE) == 0)
+	while (((readb(PORT(UART_LSR)) & UART_LSR_THRE) == 0)
 			&& (timeout-- > 0))
 		;
 
-	writeb(c, PORT(UART_BASE, UART_TX));
+	writeb(c, PORT(UART_TX));
 }

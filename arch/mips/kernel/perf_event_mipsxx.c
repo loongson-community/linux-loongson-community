@@ -1559,6 +1559,11 @@ init_hw_perf_events(void)
 		mipspmu.general_event_map = &mipsxxcore_event_map;
 		mipspmu.cache_event_map = &mipsxxcore_cache_map;
 		break;
+	case CPU_LOONGSON1:
+		mipspmu.name = "mips/loongson1";
+		mipspmu.general_event_map = &mipsxxcore_event_map;
+		mipspmu.cache_event_map = &mipsxxcore_cache_map;
+		break;
 	case CPU_CAVIUM_OCTEON:
 	case CPU_CAVIUM_OCTEON_PLUS:
 	case CPU_CAVIUM_OCTEON2:
@@ -1566,12 +1571,6 @@ init_hw_perf_events(void)
 		mipspmu.general_event_map = &octeon_event_map;
 		mipspmu.cache_event_map = &octeon_cache_map;
 		mipspmu.map_raw_event = octeon_pmu_map_raw_event;
-		break;
-	case CPU_LOONGSON1:
-		mipsxxcore_pmu.name = "mips/loongson1";
-		mipsxxcore_pmu.num_counters = counters;
-		mipsxxcore_pmu.irq = irq;
-		mipspmu = &mipsxxcore_pmu;
 		break;
 	default:
 		pr_cont("Either hardware does not support performance "

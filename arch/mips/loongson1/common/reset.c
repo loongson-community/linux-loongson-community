@@ -22,7 +22,6 @@ static void ls1x_restart(char *command)
 
 static void ls1x_halt(void)
 {
-	pr_notice("\n\n** You can safely turn off the power now **\n\n");
 	while (1) {
 		if (cpu_wait)
 			cpu_wait();

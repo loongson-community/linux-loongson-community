@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2011 Zhang, Keguang <keguang.zhang@gmail.com>
  *
- * Loongson1 Clock Register Definitions.
+ * Loongson 1 Clock Register Definitions.
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -12,7 +12,8 @@
 #ifndef __ASM_MACH_LOONGSON1_REGS_CLK_H
 #define __ASM_MACH_LOONGSON1_REGS_CLK_H
 
-#define LS1X_CLK_REG(x)		(ioremap(LS1X_CLK_BASE + (x), 4))
+#define LS1X_CLK_REG(x) \
+		((void __iomem *)KSEG1ADDR(LS1X_CLK_BASE + (x)))
 
 #define LS1X_CLK_PLL_FREQ		LS1X_CLK_REG(0x0)
 #define LS1X_CLK_PLL_DIV		LS1X_CLK_REG(0x4)
