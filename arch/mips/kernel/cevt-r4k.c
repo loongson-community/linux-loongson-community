@@ -71,7 +71,7 @@ EXPORT_SYMBOL(update_virtual_count);
 #endif	/* CONFIG_R4K_TIMER_FOR_CPUFREQ */
 
 static int mips_next_event(unsigned long delta,
-                           struct clock_event_device *evt)
+			   struct clock_event_device *evt)
 {
 	unsigned int cnt;
 	int res;
@@ -116,7 +116,7 @@ irqreturn_t c0_compare_interrupt(int irq, void *dev_id)
 		goto out;
 
 	/*
-	 * The same applies to performance counter interrupts.  But with the
+	 * The same applies to performance counter interrupts.	But with the
 	 * above we now know that the reason we got here must be a timer
 	 * interrupt.  Being the paranoiacs we are we check anyway.
 	 */
@@ -169,7 +169,7 @@ int c0_compare_int_usable(void)
 	unsigned int cnt;
 
 	/*
-	 * IP7 already pending?  Try to clear it by acking the timer.
+	 * IP7 already pending?	 Try to clear it by acking the timer.
 	 */
 	if (c0_compare_int_pending()) {
 		cnt = read_c0_count();

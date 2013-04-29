@@ -10,8 +10,8 @@
  * (at your option) any later version.
  */
 
-#ifndef	__STLS2F_GPIO_H
-#define	__STLS2F_GPIO_H
+#ifndef __STLS2F_GPIO_H
+#define __STLS2F_GPIO_H
 
 #ifdef CONFIG_GENERIC_GPIO
 #define ARCH_NR_GPIOS 4

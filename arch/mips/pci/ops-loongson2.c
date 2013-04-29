@@ -25,7 +25,7 @@
 #include <linux/export.h>
 #endif
 
-#define PCI_ACCESS_READ  0
+#define PCI_ACCESS_READ	 0
 #define PCI_ACCESS_WRITE 1
 
 #define CFG_SPACE_REG(offset) \

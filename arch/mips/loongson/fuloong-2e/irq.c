@@ -2,9 +2,9 @@
  * Copyright (C) 2007 Lemote Inc. & Insititute of Computing Technology
  * Author: Fuxin Zhang, zhangfx@lemote.com
  *
- *  This program is free software; you can redistribute  it and/or modify it
- *  under  the terms of  the GNU General  Public License as published by the
- *  Free Software Foundation;  either version 2 of the  License, or (at your
+ *  This program is free software; you can redistribute	 it and/or modify it
+ *  under  the terms of	 the GNU General  Public License as published by the
+ *  Free Software Foundation;  either version 2 of the	License, or (at your
  *  option) any later version.
  */
 #include <linux/interrupt.h>
@@ -46,6 +46,12 @@ static struct irqaction cascade_irqaction = {
 
 void __init mach_init_irq(void)
 {
+	/* init all controller
+	 *   0-15	  ------> i8259 interrupt
+	 *   16-23	  ------> mips cpu interrupt
+	 *   32-63	  ------> bonito irq
+	 */
+
 	/* most bonito irq should be level triggered */
 	LOONGSON_INTEDGE = LOONGSON_ICU_SYSTEMERR | LOONGSON_ICU_MASTERERR |
 	    LOONGSON_ICU_RETRYERR | LOONGSON_ICU_MBOXES;
