@@ -64,7 +64,7 @@ static int yeeloong_set_brightness(struct backlight_device *bd)
 		 bd->props.power == FB_BLANK_UNBLANK) ?
 	    bd->props.brightness : 0;
 
-	level = SENSORS_LIMIT(level, MIN_BRIGHTNESS, MAX_BRIGHTNESS);
+	level = clamp_val(level, MIN_BRIGHTNESS, MAX_BRIGHTNESS);
 
 	/* Avoid to modify the brightness when EC is tuning it */
 	if (old_level != level) {
@@ -413,7 +413,7 @@ static void set_fan_pwm(int value)
 	if (get_fan_mode() != BIT_FAN_MANUAL)
 		return;
 
-	value = SENSORS_LIMIT(value, MIN_FAN_SPEED, MAX_FAN_SPEED);
+	value = clamp_val(value, MIN_FAN_SPEED, MAX_FAN_SPEED);
 
 	/* We must ensure the fan is on */
 	if (value > 0)
