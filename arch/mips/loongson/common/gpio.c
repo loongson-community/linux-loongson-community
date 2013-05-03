@@ -128,7 +128,7 @@ static struct gpio_chip ls2f_chip = {
 	.direction_output	= ls2f_gpio_direction_output,
 	.set			= ls2f_gpio_set_value,
 	.base			= 0,
-	.ngpio			= STLS2F_N_GPIO,
+	.ngpio			= ARCH_NR_GPIOS,
 };
 
 static int __init ls2f_gpio_setup(void)
