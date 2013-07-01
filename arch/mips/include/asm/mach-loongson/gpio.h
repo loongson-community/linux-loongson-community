@@ -13,7 +13,7 @@
 #ifndef __STLS2F_GPIO_H
 #define __STLS2F_GPIO_H
 
-#ifdef CONFIG_GENERIC_GPIO
+#ifdef CONFIG_GPIOLIB
 #define ARCH_NR_GPIOS 4
 #include <asm-generic/gpio.h>
 
