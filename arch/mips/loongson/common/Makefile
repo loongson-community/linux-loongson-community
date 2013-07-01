@@ -3,11 +3,9 @@
 #
 
 obj-y += setup.o init.o cmdline.o env.o time.o reset.o irq.o \
-    bonito-irq.o mem.o machtype.o platform.o
+    pci.o bonito-irq.o mem.o machtype.o platform.o
 
-obj-$(CONFIG_PCI)	+= pci.o
-
-obj-$(CONFIG_GENERIC_GPIO) += gpio.o
+obj-$(CONFIG_GPIOLIB) += gpio.o
 
 #
 # Serial port support
