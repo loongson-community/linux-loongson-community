@@ -186,14 +186,14 @@ static inline int __pure __get_cpu_type(const int cpu_type)
 	return cpu_type;
 }
 
-static inline int __pure (current_cpu_type)(void)
+static inline int __pure current_cpu_type(void)
 {
 	const int cpu_type = current_cpu_data.cputype;
 
 	return __get_cpu_type(cpu_type);
 }
 
-static inline int __pure (boot_cpu_type)(void)
+static inline int __pure boot_cpu_type(void)
 {
 	const int cpu_type = cpu_data[0].cputype;
 
