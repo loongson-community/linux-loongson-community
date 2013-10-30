@@ -20,6 +20,7 @@
 
 #include <asm/bugs.h>
 #include <asm/cpu.h>
+#include <asm/cpu-type.h>
 #include <asm/fpu.h>
 #include <asm/mipsregs.h>
 #include <asm/watch.h>
@@ -120,7 +121,7 @@ static inline unsigned long cpu_get_fpu_id(void)
  */
 static inline int __cpu_has_fpu(void)
 {
-	return ((cpu_get_fpu_id() & 0xff00) != FPIR_IMP_NONE);
+	return ((cpu_get_fpu_id() & FPIR_IMP_MASK) != FPIR_IMP_NONE);
 }
 
 static inline void cpu_probe_vmbits(struct cpuinfo_mips *c)
@@ -288,6 +289,17 @@ static inline unsigned int decode_config4(struct cpuinfo_mips *c)
 	return config4 & MIPS_CONF_M;
 }
 
+static inline unsigned int decode_config5(struct cpuinfo_mips *c)
+{
+	unsigned int config5;
+
+	config5 = read_c0_config5();
+	config5 &= ~MIPS_CONF5_UFR;
+	write_c0_config5(config5);
+
+	return config5 & MIPS_CONF_M;
+}
+
 static void decode_configs(struct cpuinfo_mips *c)
 {
 	int ok;
@@ -308,6 +320,8 @@ static void decode_configs(struct cpuinfo_mips *c)
 		ok = decode_config3(c);
 	if (ok)
 		ok = decode_config4(c);
+	if (ok)
+		ok = decode_config5(c);
 
 	mips_probe_watch_registers(c);
 
@@ -850,9 +864,16 @@ platform:
 	case PRID_IMP_CAVIUM_CN63XX:
 	case PRID_IMP_CAVIUM_CN66XX:
 	case PRID_IMP_CAVIUM_CN68XX:
+	case PRID_IMP_CAVIUM_CNF71XX:
 		c->cputype = CPU_CAVIUM_OCTEON2;
 		__cpu_name[cpu] = "Cavium Octeon II";
 		set_elf_platform(cpu, "octeon2");
+		break;
+	case PRID_IMP_CAVIUM_CN70XX:
+	case PRID_IMP_CAVIUM_CN78XX:
+		c->cputype = CPU_CAVIUM_OCTEON3;
+		__cpu_name[cpu] = "Cavium Octeon III";
+		set_elf_platform(cpu, "octeon3");
 		break;
 	default:
 		printk(KERN_INFO "Unknown Octeon chip!\n");
@@ -881,7 +902,7 @@ static inline void cpu_probe_netlogic(struct cpuinfo_mips *c, int cpu)
 {
 	decode_configs(c);
 
-	if ((c->processor_id & 0xff00) == PRID_IMP_NETLOGIC_AU13XX) {
+	if ((c->processor_id & PRID_IMP_MASK) == PRID_IMP_NETLOGIC_AU13XX) {
 		c->cputype = CPU_ALCHEMY;
 		__cpu_name[cpu] = "Au1300";
 		/* following stuff is not for Alchemy */
@@ -896,7 +917,12 @@ static inline void cpu_probe_netlogic(struct cpuinfo_mips *c, int cpu)
 			MIPS_CPU_EJTAG	 |
 			MIPS_CPU_LLSC);
 
-	switch (c->processor_id & 0xff00) {
+	switch (c->processor_id & PRID_IMP_MASK) {
+	case PRID_IMP_NETLOGIC_XLP2XX:
+		c->cputype = CPU_XLP;
+		__cpu_name[cpu] = "Broadcom XLPII";
+		break;
+
 	case PRID_IMP_NETLOGIC_XLP8XX:
 	case PRID_IMP_NETLOGIC_XLP3XX:
 		c->cputype = CPU_XLP;
