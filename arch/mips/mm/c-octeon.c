@@ -190,7 +190,7 @@ static void probe_octeon(void)
 	int cputype = current_cpu_type();
 
 	config1 = read_c0_config1();
-	switch (current_cpu_type()) {
+	switch (cputype) {
 	case CPU_CAVIUM_OCTEON:
 	case CPU_CAVIUM_OCTEON_PLUS:
 		c->icache.linesz = 2 << ((config1 >> 19) & 7);

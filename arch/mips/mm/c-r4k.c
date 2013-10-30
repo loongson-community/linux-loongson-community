@@ -915,10 +915,10 @@ static void probe_pcache(void)
 		write_c0_config(config & ~VR41_CONF_P4K);
 	case CPU_VR4131:
 		/* Workaround for cache instruction bug of VR4131 */
-		if (current_cpu_prid() == 0x0c80U || current_cpu_prid() == 0x0c81U ||
-		    current_cpu_prid() == 0x0c82U) {
+		if (c->processor_id == 0x0c80U || c->processor_id == 0x0c81U ||
+		    c->processor_id == 0x0c82U) {
 			config |= 0x00400000U;
-			if (current_cpu_prid() == 0x0c80U)
+			if (c->processor_id == 0x0c80U)
 				config |= VR41_CONF_BP;
 			write_c0_config(config);
 		} else

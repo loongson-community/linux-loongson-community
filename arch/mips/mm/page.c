@@ -165,7 +165,7 @@ static void set_prefetch_parameters(void)
 			 * hints are broken.
 			 */
 			if (current_cpu_type() == CPU_SB1 &&
-			    cpu_prid_rev() < 0x02) {
+			    (current_cpu_data.processor_id & 0xff) < 0x02) {
 				pref_src_mode = Pref_Load;
 				pref_dst_mode = Pref_Store;
 			} else {

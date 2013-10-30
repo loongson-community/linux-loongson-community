@@ -40,6 +40,7 @@ void __init prom_init_env(void)
 	/* pmon passes arguments in 32bit pointers */
 	int *_prom_envp;
 	unsigned long bus_clock;
+	unsigned int processor_id;
 	long l;
 
 	/* firmware arguments are initialized in head.S */
@@ -59,7 +60,8 @@ void __init prom_init_env(void)
 	if (bus_clock == 0)
 		bus_clock = 66000000;
 	if (cpu_clock_freq == 0) {
-		switch (cpu_prid_rev()) {
+		processor_id = (&current_cpu_data)->processor_id;
+		switch (processor_id & PRID_REV_MASK) {
 		case PRID_REV_LOONGSON2E:
 			cpu_clock_freq = 533080000;
 			break;

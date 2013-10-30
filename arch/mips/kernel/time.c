@@ -106,7 +106,7 @@ static __init int cpu_has_mfc0_count_bug(void)
 		 * The published errata for the R4400 up to 3.0 say the CPU
 		 * has the mfc0 from count bug.
 		 */
-		if (cpu_prid_rev() <= 0x30)
+		if ((current_cpu_data.processor_id & 0xff) <= 0x30)
 			return 1;
 
 		/*

@@ -54,6 +54,8 @@ __setup("nodsp", dsp_disable);
 
 static inline void check_errata(void)
 {
+	struct cpuinfo_mips *c = &current_cpu_data;
+
 	switch (current_cpu_type()) {
 	case CPU_34K:
 		/*
@@ -61,7 +63,7 @@ static inline void check_errata(void)
 		 * This code only handles VPE0, any SMP/SMTC/RTOS code
 		 * making use of VPE1 will be responsable for that VPE.
 		 */
-		if (cpu_prid_rev() <= PRID_REV_34K_V1_0_2)
+		if ((c->processor_id & PRID_REV_MASK) <= PRID_REV_34K_V1_0_2)
 			write_c0_config7(read_c0_config7() | MIPS_CONF7_RPS);
 		break;
 	default:
@@ -334,7 +336,7 @@ static void decode_configs(struct cpuinfo_mips *c)
 
 static inline void cpu_probe_legacy(struct cpuinfo_mips *c, unsigned int cpu)
 {
-	switch (cpu_prid_imp()) {
+	switch (c->processor_id & PRID_IMP_MASK) {
 	case PRID_IMP_R2000:
 		c->cputype = CPU_R2000;
 		__cpu_name[cpu] = "R2000";
@@ -345,7 +347,7 @@ static inline void cpu_probe_legacy(struct cpuinfo_mips *c, unsigned int cpu)
 		c->tlbsize = 64;
 		break;
 	case PRID_IMP_R3000:
-		if (cpu_prid_rev() == PRID_REV_R3000A) {
+		if ((c->processor_id & PRID_REV_MASK) == PRID_REV_R3000A) {
 			if (cpu_has_confreg()) {
 				c->cputype = CPU_R3081E;
 				__cpu_name[cpu] = "R3081";
@@ -365,7 +367,8 @@ static inline void cpu_probe_legacy(struct cpuinfo_mips *c, unsigned int cpu)
 		break;
 	case PRID_IMP_R4000:
 		if (read_c0_config() & CONF_SC) {
-			if (cpu_prid_rev() >= PRID_REV_R4400) {
+			if ((c->processor_id & PRID_REV_MASK) >=
+			    PRID_REV_R4400) {
 				c->cputype = CPU_R4400PC;
 				__cpu_name[cpu] = "R4400PC";
 			} else {
@@ -373,7 +376,8 @@ static inline void cpu_probe_legacy(struct cpuinfo_mips *c, unsigned int cpu)
 				__cpu_name[cpu] = "R4000PC";
 			}
 		} else {
-			if (cpu_prid_rev() >= PRID_REV_R4400) {
+			if ((c->processor_id & PRID_REV_MASK) >=
+			    PRID_REV_R4400) {
 				c->cputype = CPU_R4400SC;
 				__cpu_name[cpu] = "R4400SC";
 			} else {
@@ -402,7 +406,7 @@ static inline void cpu_probe_legacy(struct cpuinfo_mips *c, unsigned int cpu)
 			__cpu_name[cpu] = "NEC VR4121";
 			break;
 		case PRID_REV_VR4122:
-			if ((current_cpu_prid() & 0xf) < 0x3) {
+			if ((c->processor_id & 0xf) < 0x3) {
 				c->cputype = CPU_VR4122;
 				__cpu_name[cpu] = "NEC VR4122";
 			} else {
@@ -411,7 +415,7 @@ static inline void cpu_probe_legacy(struct cpuinfo_mips *c, unsigned int cpu)
 			}
 			break;
 		case PRID_REV_VR4130:
-			if ((current_cpu_prid() & 0xf) < 0x4) {
+			if ((c->processor_id & 0xf) < 0x4) {
 				c->cputype = CPU_VR4131;
 				__cpu_name[cpu] = "NEC VR4131";
 			} else {
@@ -461,12 +465,12 @@ static inline void cpu_probe_legacy(struct cpuinfo_mips *c, unsigned int cpu)
 	case PRID_IMP_TX39:
 		c->options = MIPS_CPU_TLB | MIPS_CPU_TX39_CACHE;
 
-		if ((current_cpu_prid() & 0xf0) == (PRID_REV_TX3927 & 0xf0)) {
+		if ((c->processor_id & 0xf0) == (PRID_REV_TX3927 & 0xf0)) {
 			c->cputype = CPU_TX3927;
 			__cpu_name[cpu] = "TX3927";
 			c->tlbsize = 64;
 		} else {
-			switch (cpu_prid_rev()) {
+			switch (c->processor_id & PRID_REV_MASK) {
 			case PRID_REV_TX3912:
 				c->cputype = CPU_TX3912;
 				__cpu_name[cpu] = "TX3912";
@@ -493,7 +497,7 @@ static inline void cpu_probe_legacy(struct cpuinfo_mips *c, unsigned int cpu)
 		__cpu_name[cpu] = "R49XX";
 		set_isa(c, MIPS_CPU_ISA_III);
 		c->options = R4K_OPTS | MIPS_CPU_LLSC;
-		if (!(current_cpu_prid() & 0x08))
+		if (!(c->processor_id & 0x08))
 			c->options |= MIPS_CPU_FPU | MIPS_CPU_32FPR;
 		c->tlbsize = 48;
 		break;
@@ -652,7 +656,7 @@ static inline void cpu_probe_legacy(struct cpuinfo_mips *c, unsigned int cpu)
 static inline void cpu_probe_mips(struct cpuinfo_mips *c, unsigned int cpu)
 {
 	decode_configs(c);
-	switch (cpu_prid_imp()) {
+	switch (c->processor_id & PRID_IMP_MASK) {
 	case PRID_IMP_4KC:
 		c->cputype = CPU_4KC;
 		__cpu_name[cpu] = "MIPS 4Kc";
@@ -723,11 +727,11 @@ static inline void cpu_probe_mips(struct cpuinfo_mips *c, unsigned int cpu)
 static inline void cpu_probe_alchemy(struct cpuinfo_mips *c, unsigned int cpu)
 {
 	decode_configs(c);
-	switch (cpu_prid_imp()) {
+	switch (c->processor_id & PRID_IMP_MASK) {
 	case PRID_IMP_AU1_REV1:
 	case PRID_IMP_AU1_REV2:
 		c->cputype = CPU_ALCHEMY;
-		switch ((current_cpu_prid() >> 24) & 0xff) {
+		switch ((c->processor_id >> 24) & 0xff) {
 		case 0:
 			__cpu_name[cpu] = "Au1000";
 			break;
@@ -742,7 +746,7 @@ static inline void cpu_probe_alchemy(struct cpuinfo_mips *c, unsigned int cpu)
 			break;
 		case 4:
 			__cpu_name[cpu] = "Au1200";
-			if (cpu_prid_rev() == 2)
+			if ((c->processor_id & PRID_REV_MASK) == 2)
 				__cpu_name[cpu] = "Au1250";
 			break;
 		case 5:
@@ -760,12 +764,12 @@ static inline void cpu_probe_sibyte(struct cpuinfo_mips *c, unsigned int cpu)
 {
 	decode_configs(c);
 
-	switch (cpu_prid_imp()) {
+	switch (c->processor_id & PRID_IMP_MASK) {
 	case PRID_IMP_SB1:
 		c->cputype = CPU_SB1;
 		__cpu_name[cpu] = "SiByte SB1";
 		/* FPU in pass1 is known to have issues. */
-		if (cpu_prid_rev() < 0x02)
+		if ((c->processor_id & PRID_REV_MASK) < 0x02)
 			c->options &= ~(MIPS_CPU_FPU | MIPS_CPU_32FPR);
 		break;
 	case PRID_IMP_SB1A:
@@ -778,7 +782,7 @@ static inline void cpu_probe_sibyte(struct cpuinfo_mips *c, unsigned int cpu)
 static inline void cpu_probe_sandcraft(struct cpuinfo_mips *c, unsigned int cpu)
 {
 	decode_configs(c);
-	switch (cpu_prid_imp()) {
+	switch (c->processor_id & PRID_IMP_MASK) {
 	case PRID_IMP_SR71000:
 		c->cputype = CPU_SR71000;
 		__cpu_name[cpu] = "Sandcraft SR71000";
@@ -791,7 +795,7 @@ static inline void cpu_probe_sandcraft(struct cpuinfo_mips *c, unsigned int cpu)
 static inline void cpu_probe_nxp(struct cpuinfo_mips *c, unsigned int cpu)
 {
 	decode_configs(c);
-	switch (cpu_prid_imp()) {
+	switch (c->processor_id & PRID_IMP_MASK) {
 	case PRID_IMP_PR4450:
 		c->cputype = CPU_PR4450;
 		__cpu_name[cpu] = "Philips PR4450";
@@ -803,7 +807,7 @@ static inline void cpu_probe_nxp(struct cpuinfo_mips *c, unsigned int cpu)
 static inline void cpu_probe_broadcom(struct cpuinfo_mips *c, unsigned int cpu)
 {
 	decode_configs(c);
-	switch (cpu_prid_imp()) {
+	switch (c->processor_id & PRID_IMP_MASK) {
 	case PRID_IMP_BMIPS32_REV4:
 	case PRID_IMP_BMIPS32_REV8:
 		c->cputype = CPU_BMIPS32;
@@ -818,7 +822,7 @@ static inline void cpu_probe_broadcom(struct cpuinfo_mips *c, unsigned int cpu)
 		set_elf_platform(cpu, "bmips3300");
 		break;
 	case PRID_IMP_BMIPS43XX: {
-		int rev = cpu_prid_rev();
+		int rev = c->processor_id & PRID_REV_MASK;
 
 		if (rev >= PRID_REV_BMIPS4380_LO &&
 				rev <= PRID_REV_BMIPS4380_HI) {
@@ -844,7 +848,7 @@ static inline void cpu_probe_broadcom(struct cpuinfo_mips *c, unsigned int cpu)
 static inline void cpu_probe_cavium(struct cpuinfo_mips *c, unsigned int cpu)
 {
 	decode_configs(c);
-	switch (cpu_prid_imp()) {
+	switch (c->processor_id & PRID_IMP_MASK) {
 	case PRID_IMP_CAVIUM_CN38XX:
 	case PRID_IMP_CAVIUM_CN31XX:
 	case PRID_IMP_CAVIUM_CN30XX:
@@ -887,7 +891,7 @@ static inline void cpu_probe_ingenic(struct cpuinfo_mips *c, unsigned int cpu)
 	decode_configs(c);
 	/* JZRISC does not implement the CP0 counter. */
 	c->options &= ~MIPS_CPU_COUNTER;
-	switch (cpu_prid_imp()) {
+	switch (c->processor_id & PRID_IMP_MASK) {
 	case PRID_IMP_JZRISC:
 		c->cputype = CPU_JZRISC;
 		__cpu_name[cpu] = "Ingenic JZRISC";
@@ -996,7 +1000,7 @@ void cpu_probe(void)
 	c->cputype	= CPU_UNKNOWN;
 
 	c->processor_id = read_c0_prid();
-	switch (cpu_prid_comp()) {
+	switch (c->processor_id & PRID_COMP_MASK) {
 	case PRID_COMP_LEGACY:
 		cpu_probe_legacy(c, cpu);
 		break;
@@ -1076,7 +1080,7 @@ void cpu_report(void)
 	struct cpuinfo_mips *c = &current_cpu_data;
 
 	printk(KERN_INFO "CPU revision is: %08x (%s)\n",
-	       current_cpu_prid(), cpu_name_string());
+	       c->processor_id, cpu_name_string());
 	if (c->options & MIPS_CPU_FPU)
 		printk(KERN_INFO "FPU revision is: %08x\n", c->fpu_id);
 }
