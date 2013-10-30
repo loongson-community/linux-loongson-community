@@ -22,7 +22,6 @@
 #ifdef CONFIG_CS5536
 #include <cs5536/cs5536_pci.h>
 #include <cs5536/cs5536.h>
-#include <linux/export.h>
 #endif
 
 #define PCI_ACCESS_READ	 0

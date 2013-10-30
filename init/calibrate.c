@@ -297,7 +297,6 @@ void calibrate_delay(void)
 		lpj = calibrate_delay_converge();
 #endif	/* ARCH_HAS_PREPARED_LPJ */
 	}
-
 	per_cpu(cpu_loops_per_jiffy, this_cpu) = lpj;
 	if (!printed)
 		pr_cont("%lu.%02lu BogoMIPS (lpj=%lu)\n",

@@ -3,8 +3,6 @@
  *
  *  Copyright (C) 2008 Lemote Inc.
  *  Author: liujl <liujl@lemote.com>, 2008-03-14
- *  Copyright (C) 2009 Lemote Inc.
- *  Author: Wu Zhangjin <wuzhangjin@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,9 +21,6 @@ extern int ec_get_event_num(void);
 
 typedef int (*sci_handler) (int status);
 extern sci_handler yeeloong_report_lid_status;
-
-#define ON	1
-#define OFF	0
 
 #define SCI_IRQ_NUM 0x0A
 
@@ -116,6 +111,7 @@ extern sci_handler yeeloong_report_lid_status;
 #define BIT_BAT_POWER_ON		(1 << 1)
 #define BIT_BAT_POWER_ACIN		(1 << 0)
 
+/* other registers */
 /* Audio: rd/wr */
 #define REG_AUDIO_VOLUME	0xF46C
 #define REG_AUDIO_MUTE		0xF4E7
@@ -172,23 +168,21 @@ extern sci_handler yeeloong_report_lid_status;
 
 /* SCI Event Number from EC */
 enum {
-	EVENT_LID = 0x23,	/*  Turn on/off LID */
-	EVENT_SWITCHVIDEOMODE,	/*  Fn+F3 for display switch */
+	EVENT_LID = 0x23,	/*  LID open/close */
+	EVENT_DISPLAY_TOGGLE,	/*  Fn+F3 for display switch */
 	EVENT_SLEEP,		/*  Fn+F1 for entering sleep mode */
 	EVENT_OVERTEMP,		/*  Over-temperature happened */
 	EVENT_CRT_DETECT,	/*  CRT is connected */
 	EVENT_CAMERA,		/*  Camera on/off */
 	EVENT_USB_OC2,		/*  USB2 Over Current occurred */
 	EVENT_USB_OC0,		/*  USB0 Over Current occurred */
-	EVENT_DISPLAYTOGGLE,	/*  Fn+F2, Turn on/off backlight */
-	EVENT_AUDIO_MUTE,	/*  Fn+F4, Mute on/off */
-	EVENT_DISPLAY_BRIGHTNESS,/* Fn+^/V, LCD backlight brightness adjust */
+	EVENT_BLACK_SCREEN,	/*  Turn on/off backlight */
+	EVENT_AUDIO_MUTE,	/*  Mute on/off */
+	EVENT_DISPLAY_BRIGHTNESS,/* LCD backlight brightness adjust */
 	EVENT_AC_BAT,		/*  AC & Battery relative issue */
-	EVENT_AUDIO_VOLUME,	/*  Fn+<|>, Volume adjust */
+	EVENT_AUDIO_VOLUME,	/*  Volume adjust */
 	EVENT_WLAN,		/*  Wlan on/off */
+	EVENT_END
 };
-
-#define EVENT_START	EVENT_LID
-#define EVENT_END	EVENT_WLAN
 
 #endif /* !_EC_KB3310B_H */

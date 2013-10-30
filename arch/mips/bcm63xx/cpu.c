@@ -304,7 +304,7 @@ void __init bcm63xx_cpu_init(void)
 	/* soc registers location depends on cpu type */
 	chipid_reg = 0;
 
-	switch (current_cpu_type()) {
+	switch (c->cputype) {
 	case CPU_BMIPS3300:
 		if ((read_c0_prid() & PRID_IMP_MASK) != PRID_IMP_BMIPS3300_ALT)
 			__cpu_name[cpu] = "Broadcom BCM6338";

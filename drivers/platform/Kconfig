@@ -7,3 +7,4 @@ endif
 if MIPS
 source "drivers/platform/mips/Kconfig"
 endif
+
