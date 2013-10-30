@@ -44,8 +44,6 @@
 #define PRID_COMP_CAVIUM	0x0d0000
 #define PRID_COMP_INGENIC	0xd00000
 
-#define PRID_COMP_MASK		0xff0000
-
 /*
  * Assigned Processor ID (implementation) values for bits 15:8 of the PRId
  * register.  In order to detect a certain CPU type exactly eventually
@@ -90,7 +88,6 @@
 #define PRID_IMP_LOONGSON2	0x6300
 
 #define PRID_IMP_UNKNOWN	0xff00
-#define PRID_IMP_MASK		0xff00
 
 /*
  * These are the PRID's for when 23:16 == PRID_COMP_MIPS
@@ -227,13 +224,6 @@
 #define PRID_REV_LOONGSON1B	0x0020
 #define PRID_REV_LOONGSON2E	0x0002
 #define PRID_REV_LOONGSON2F	0x0003
-#define PRID_REV_LOONGSON1B	0x0020
-
-#define cpu_prid_comp()	 (current_cpu_prid() & PRID_COMP_MASK)
-#define cpu_prid_imp()	 (current_cpu_prid() & PRID_IMP_MASK)
-#define cpu_prid_rev()	 (current_cpu_prid() & PRID_REV_MASK)
-
-#define cpu_prid_encode(comp, imp, rev)	((comp) | (imp) | (rev))
 
 /*
  * Older processors used to encode processor version and revision in two

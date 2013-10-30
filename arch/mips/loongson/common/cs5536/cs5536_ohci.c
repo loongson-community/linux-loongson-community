@@ -18,7 +18,7 @@
 
 void pci_ohci_write_reg(int reg, u32 value)
 {
-	u32 hi, lo;
+	u32 hi = 0, lo = value;
 
 	switch (reg) {
 	case PCI_COMMAND:
@@ -73,72 +73,77 @@ void pci_ohci_write_reg(int reg, u32 value)
 
 u32 pci_ohci_read_reg(int reg)
 {
-	u32 cfg = 0;
+	u32 conf_data = 0;
 	u32 hi, lo;
 
 	switch (reg) {
 	case PCI_VENDOR_ID:
-	case PCI_SUBSYSTEM_VENDOR_ID:
-		cfg = CFG_PCI_VENDOR_ID(PCI_DEVICE_ID_AMD_CS5536_OHC,
-				PCI_VENDOR_ID_AMD);
+		conf_data =
+		    CFG_PCI_VENDOR_ID(CS5536_OHCI_DEVICE_ID, CS5536_VENDOR_ID);
 		break;
 	case PCI_COMMAND:
 		_rdmsr(USB_MSR_REG(USB_OHCI), &hi, &lo);
 		if (hi & PCI_COMMAND_MASTER)
-			cfg |= PCI_COMMAND_MASTER;
+			conf_data |= PCI_COMMAND_MASTER;
 		if (hi & PCI_COMMAND_MEMORY)
-			cfg |= PCI_COMMAND_MEMORY;
+			conf_data |= PCI_COMMAND_MEMORY;
 		break;
 	case PCI_STATUS:
-		cfg |= PCI_STATUS_66MHZ;
-		cfg |= PCI_STATUS_FAST_BACK;
+		conf_data |= PCI_STATUS_66MHZ;
+		conf_data |= PCI_STATUS_FAST_BACK;
 		_rdmsr(SB_MSR_REG(SB_ERROR), &hi, &lo);
 		if (lo & SB_PARE_ERR_FLAG)
-			cfg |= PCI_STATUS_PARITY;
-		cfg |= PCI_STATUS_DEVSEL_MEDIUM;
+			conf_data |= PCI_STATUS_PARITY;
+		conf_data |= PCI_STATUS_DEVSEL_MEDIUM;
 		break;
 	case PCI_CLASS_REVISION:
 		_rdmsr(USB_MSR_REG(USB_CAP), &hi, &lo);
-		cfg = lo & 0x000000ff;
-		cfg |= (CS5536_OHCI_CLASS_CODE << 8);
+		conf_data = lo & 0x000000ff;
+		conf_data |= (CS5536_OHCI_CLASS_CODE << 8);
 		break;
 	case PCI_CACHE_LINE_SIZE:
-		cfg = CFG_PCI_CACHE_LINE_SIZE(PCI_NORMAL_HEADER_TYPE,
-				PCI_NORMAL_LATENCY_TIMER);
+		conf_data =
+		    CFG_PCI_CACHE_LINE_SIZE(PCI_NORMAL_HEADER_TYPE,
+					    PCI_NORMAL_LATENCY_TIMER);
 		break;
 	case PCI_BAR0_REG:
 		_rdmsr(GLCP_MSR_REG(GLCP_SOFT_COM), &hi, &lo);
 		if (lo & SOFT_BAR_OHCI_FLAG) {
-			cfg = CS5536_OHCI_RANGE |
+			conf_data = CS5536_OHCI_RANGE |
 			    PCI_BASE_ADDRESS_SPACE_MEMORY;
 			lo &= ~SOFT_BAR_OHCI_FLAG;
 			_wrmsr(GLCP_MSR_REG(GLCP_SOFT_COM), hi, lo);
 		} else {
 			_rdmsr(USB_MSR_REG(USB_OHCI), &hi, &lo);
-			cfg = lo & 0xffffff00;
-			cfg &= ~0x0000000f;	/* 32bit mem */
+			conf_data = lo & 0xffffff00;
+			conf_data &= ~0x0000000f;	/* 32bit mem */
 		}
 		break;
 	case PCI_CARDBUS_CIS:
-		cfg = PCI_CARDBUS_CIS_POINTER;
+		conf_data = PCI_CARDBUS_CIS_POINTER;
+		break;
+	case PCI_SUBSYSTEM_VENDOR_ID:
+		conf_data =
+		    CFG_PCI_VENDOR_ID(CS5536_OHCI_SUB_ID, CS5536_SUB_VENDOR_ID);
 		break;
 	case PCI_ROM_ADDRESS:
-		cfg = PCI_EXPANSION_ROM_BAR;
+		conf_data = PCI_EXPANSION_ROM_BAR;
 		break;
 	case PCI_CAPABILITY_LIST:
-		cfg = PCI_CAPLIST_USB_POINTER;
+		conf_data = PCI_CAPLIST_USB_POINTER;
 		break;
 	case PCI_INTERRUPT_LINE:
-		cfg = CFG_PCI_INTERRUPT_LINE(PCI_DEFAULT_PIN, CS5536_USB_INTR);
+		conf_data =
+		    CFG_PCI_INTERRUPT_LINE(PCI_DEFAULT_PIN, CS5536_USB_INTR);
 		break;
 	case PCI_OHCI_INT_REG:
 		_rdmsr(DIVIL_MSR_REG(PIC_YSEL_LOW), &hi, &lo);
 		if ((lo & 0x00000f00) == CS5536_USB_INTR)
-			cfg = 1;
+			conf_data = 1;
 		break;
 	default:
 		break;
 	}
 
-	return cfg;
+	return conf_data;
 }
