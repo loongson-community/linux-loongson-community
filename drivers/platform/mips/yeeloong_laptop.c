@@ -31,6 +31,10 @@
 #include <loongson.h>		/* for loongson_cmdline */
 #include <ec_kb3310b.h>
 
+#define ON	1
+#define OFF	0
+#define EVENT_START EVENT_LID
+
 /* common function */
 #define EC_VER_LEN 64
 
@@ -788,8 +792,8 @@ static const struct key_entry yeeloong_keymap[] = {
 	{KE_SW, EVENT_LID, { SW_LID } },
 	{KE_KEY, EVENT_CAMERA, { KEY_CAMERA } }, /* Fn + ESC */
 	{KE_KEY, EVENT_SLEEP, { KEY_SLEEP } }, /* Fn + F1 */
-	{KE_KEY, EVENT_DISPLAYTOGGLE, { KEY_DISPLAYTOGGLE } }, /* Fn + F2 */
-	{KE_KEY, EVENT_SWITCHVIDEOMODE, { KEY_SWITCHVIDEOMODE } }, /* Fn + F3 */
+	{KE_KEY, EVENT_BLACK_SCREEN, { KEY_DISPLAYTOGGLE } }, /* Fn + F2 */
+	{KE_KEY, EVENT_DISPLAY_TOGGLE, { KEY_SWITCHVIDEOMODE } }, /* Fn + F3 */
 	{KE_KEY, EVENT_AUDIO_MUTE, { KEY_MUTE } }, /* Fn + F4 */
 	{KE_KEY, EVENT_WLAN, { KEY_WLAN } }, /* Fn + F5 */
 	{KE_KEY, EVENT_DISPLAY_BRIGHTNESS, { KEY_BRIGHTNESSUP } }, /* Fn + up */
@@ -964,10 +968,10 @@ static const struct sci_event se[] = {
 	[EVENT_AUDIO_VOLUME] = {REG_AUDIO_VOLUME, NULL},
 	[EVENT_CRT_DETECT] = {REG_CRT_DETECT, crt_detect_handler},
 	[EVENT_CAMERA] = {REG_CAMERA_STATUS, camera_handler},
-	[EVENT_DISPLAYTOGGLE] = {REG_DISPLAY_LCD, displaytoggle_handler},
+	[EVENT_BLACK_SCREEN] = {REG_DISPLAY_LCD, displaytoggle_handler},
 	[EVENT_DISPLAY_BRIGHTNESS] = {REG_DISPLAY_BRIGHTNESS, NULL},
 	[EVENT_LID] = {REG_LID_DETECT, NULL},
-	[EVENT_SWITCHVIDEOMODE] = {0, switchvideomode_handler},
+	[EVENT_DISPLAY_TOGGLE] = {0, switchvideomode_handler},
 	[EVENT_USB_OC0] = {REG_USB2_FLAG, usb0_handler},
 	[EVENT_USB_OC2] = {REG_USB2_FLAG, usb2_handler},
 };
