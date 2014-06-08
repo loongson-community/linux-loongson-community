@@ -21,3 +21,9 @@ obj-$(CONFIG_LEMOTE_MACH2F)  += lemote-2f/
 #
 
 obj-$(CONFIG_DEXXON_GDIUM)  += gdium/
+
+#
+# All Loongson-3 family machines
+#
+
+obj-$(CONFIG_CPU_LOONGSON3)  += loongson-3/

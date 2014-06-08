@@ -11,28 +11,85 @@
 #include <asm/bootinfo.h>
 
 #include <loongson.h>
+#include <boot_param.h>
 #include <mem.h>
 #include <pci.h>
 
-#define MB(x) ((x) << 20)
+#ifndef CONFIG_LEFI_FIRMWARE_INTERFACE
+
+u32 memsize, highmemsize;
 
 void __init prom_init_memory(void)
 {
-	add_memory_region(0x0, MB(memsize), BOOT_MEM_RAM);
-	add_memory_region(MB(memsize), LOONGSON_PCI_MEM_START - MB(memsize), BOOT_MEM_RESERVED);
+	add_memory_region(0x0, (memsize << 20), BOOT_MEM_RAM);
+
+	add_memory_region(memsize << 20, LOONGSON_PCI_MEM_START - (memsize <<
+				20), BOOT_MEM_RESERVED);
+
 #ifdef CONFIG_CPU_SUPPORTS_ADDRWINCFG
-	/* set cpu window3 to map CPU to DDR: 2G -> 0G */
-	LOONGSON_ADDRWIN_CPUTODDR(ADDRWIN_WIN3, 0x80000000ul, 0, MB(memsize + highmemsize));
-	mmiowb();
-#endif
+	{
+		int bit;
+
+		bit = fls(memsize + highmemsize);
+		if (bit != ffs(memsize + highmemsize))
+			bit += 20;
+		else
+			bit = bit + 20 - 1;
+
+		/* set cpu window3 to map CPU to DDR: 2G -> 2G */
+		LOONGSON_ADDRWIN_CPUTODDR(ADDRWIN_WIN3, 0x80000000ul,
+					  0x80000000ul, (1 << bit));
+		mmiowb();
+	}
+#endif /* !CONFIG_CPU_SUPPORTS_ADDRWINCFG */
 
 #ifdef CONFIG_64BIT
 	if (highmemsize > 0)
-		add_memory_region(LOONGSON_HIGHMEM_START, MB(highmemsize), BOOT_MEM_RAM);
+		add_memory_region(LOONGSON_HIGHMEM_START,
+				  highmemsize << 20, BOOT_MEM_RAM);
+
 	add_memory_region(LOONGSON_PCI_MEM_END + 1, LOONGSON_HIGHMEM_START -
-			LOONGSON_PCI_MEM_END - 1, BOOT_MEM_RESERVED);
-#endif
+			  LOONGSON_PCI_MEM_END - 1, BOOT_MEM_RESERVED);
+
+#endif /* !CONFIG_64BIT */
 }
+
+#else /* CONFIG_LEFI_FIRMWARE_INTERFACE */
+
+void __init prom_init_memory(void)
+{
+	int i;
+	u32 node_id;
+	u32 mem_type;
+
+	/* parse memory information */
+	for (i = 0; i < loongson_memmap->nr_map; i++) {
+		node_id = loongson_memmap->map[i].node_id;
+		mem_type = loongson_memmap->map[i].mem_type;
+
+		if (node_id == 0) {
+			switch (mem_type) {
+			case SYSTEM_RAM_LOW:
+				add_memory_region(loongson_memmap->map[i].mem_start,
+					(u64)loongson_memmap->map[i].mem_size << 20,
+					BOOT_MEM_RAM);
+				break;
+			case SYSTEM_RAM_HIGH:
+				add_memory_region(loongson_memmap->map[i].mem_start,
+					(u64)loongson_memmap->map[i].mem_size << 20,
+					BOOT_MEM_RAM);
+				break;
+			case MEM_RESERVED:
+				add_memory_region(loongson_memmap->map[i].mem_start,
+					(u64)loongson_memmap->map[i].mem_size << 20,
+					BOOT_MEM_RESERVED);
+				break;
+			}
+		}
+	}
+}
+
+#endif /* CONFIG_LEFI_FIRMWARE_INTERFACE */
 
 /* override of arch/mips/mm/cache.c: __uncached_access */
 int __uncached_access(struct file *file, unsigned long addr)

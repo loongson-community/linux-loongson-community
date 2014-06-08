@@ -37,6 +37,7 @@
 #define BYT_RATIOS		0x66a
 #define BYT_VIDS		0x66b
 #define BYT_TURBO_RATIOS	0x66c
+#define BYT_TURBO_VIDS		0x66d
 
 
 #define FRAC_BITS 6
@@ -70,8 +71,9 @@ struct pstate_data {
 };
 
 struct vid_data {
-	int32_t min;
-	int32_t max;
+	int min;
+	int max;
+	int turbo;
 	int32_t ratio;
 };
 
@@ -99,8 +101,7 @@ struct cpudata {
 	u64	prev_aperf;
 	u64	prev_mperf;
 	unsigned long long prev_tsc;
-	int	sample_ptr;
-	struct sample samples[SAMPLE_COUNT];
+	struct sample sample;
 };
 
 static struct cpudata **all_cpu_data;
@@ -154,7 +155,7 @@ static inline void pid_reset(struct _pid *pid, int setpoint, int busy,
 	pid->setpoint = setpoint;
 	pid->deadband  = deadband;
 	pid->integral  = int_tofp(integral);
-	pid->last_err  = setpoint - busy;
+	pid->last_err  = int_tofp(setpoint) - int_tofp(busy);
 }
 
 static inline void pid_p_gain_set(struct _pid *pid, int percent)
@@ -360,14 +361,14 @@ static int byt_get_min_pstate(void)
 {
 	u64 value;
 	rdmsrl(BYT_RATIOS, value);
-	return (value >> 8) & 0xFF;
+	return (value >> 8) & 0x3F;
 }
 
 static int byt_get_max_pstate(void)
 {
 	u64 value;
 	rdmsrl(BYT_RATIOS, value);
-	return (value >> 16) & 0xFF;
+	return (value >> 16) & 0x3F;
 }
 
 static int byt_get_turbo_pstate(void)
@@ -394,6 +395,9 @@ static void byt_set_pstate(struct cpudata *cpudata, int pstate)
 	vid_fp = clamp_t(int32_t, vid_fp, cpudata->vid.min, cpudata->vid.max);
 	vid = fp_toint(vid_fp);
 
+	if (pstate > cpudata->pstate.max_pstate)
+		vid = cpudata->vid.turbo;
+
 	val |= vid;
 
 	wrmsrl(MSR_IA32_PERF_CTL, val);
@@ -403,13 +407,17 @@ static void byt_get_vid(struct cpudata *cpudata)
 {
 	u64 value;
 
+
 	rdmsrl(BYT_VIDS, value);
-	cpudata->vid.min = int_tofp((value >> 8) & 0x7f);
-	cpudata->vid.max = int_tofp((value >> 16) & 0x7f);
+	cpudata->vid.min = int_tofp((value >> 8) & 0x3f);
+	cpudata->vid.max = int_tofp((value >> 16) & 0x3f);
 	cpudata->vid.ratio = div_fp(
 		cpudata->vid.max - cpudata->vid.min,
 		int_tofp(cpudata->pstate.max_pstate -
 			cpudata->pstate.min_pstate));
+
+	rdmsrl(BYT_TURBO_VIDS, value);
+	cpudata->vid.turbo = value & 0x7f;
 }
 
 
@@ -447,7 +455,7 @@ static void core_set_pstate(struct cpudata *cpudata, int pstate)
 	if (limits.no_turbo)
 		val |= (u64)1 << 32;
 
-	wrmsrl(MSR_IA32_PERF_CTL, val);
+	wrmsrl_on_cpu(cpudata->cpu, MSR_IA32_PERF_CTL, val);
 }
 
 static struct cpu_defaults core_params = {
@@ -546,12 +554,7 @@ static void intel_pstate_get_cpu_pstates(struct cpudata *cpu)
 
 	if (pstate_funcs.get_vid)
 		pstate_funcs.get_vid(cpu);
-
-	/*
-	 * goto max pstate so we don't slow up boot if we are built-in if we are
-	 * a module we will take care of it during normal operation
-	 */
-	intel_pstate_set_pstate(cpu, cpu->pstate.max_pstate);
+	intel_pstate_set_pstate(cpu, cpu->pstate.min_pstate);
 }
 
 static inline void intel_pstate_calc_busy(struct cpudata *cpu,
@@ -586,15 +589,14 @@ static inline void intel_pstate_sample(struct cpudata *cpu)
 	mperf = mperf >> FRAC_BITS;
 	tsc = tsc >> FRAC_BITS;
 
-	cpu->sample_ptr = (cpu->sample_ptr + 1) % SAMPLE_COUNT;
-	cpu->samples[cpu->sample_ptr].aperf = aperf;
-	cpu->samples[cpu->sample_ptr].mperf = mperf;
-	cpu->samples[cpu->sample_ptr].tsc = tsc;
-	cpu->samples[cpu->sample_ptr].aperf -= cpu->prev_aperf;
-	cpu->samples[cpu->sample_ptr].mperf -= cpu->prev_mperf;
-	cpu->samples[cpu->sample_ptr].tsc -= cpu->prev_tsc;
+	cpu->sample.aperf = aperf;
+	cpu->sample.mperf = mperf;
+	cpu->sample.tsc = tsc;
+	cpu->sample.aperf -= cpu->prev_aperf;
+	cpu->sample.mperf -= cpu->prev_mperf;
+	cpu->sample.tsc -= cpu->prev_tsc;
 
-	intel_pstate_calc_busy(cpu, &cpu->samples[cpu->sample_ptr]);
+	intel_pstate_calc_busy(cpu, &cpu->sample);
 
 	cpu->prev_aperf = aperf;
 	cpu->prev_mperf = mperf;
@@ -614,7 +616,7 @@ static inline int32_t intel_pstate_get_scaled_busy(struct cpudata *cpu)
 {
 	int32_t core_busy, max_pstate, current_pstate;
 
-	core_busy = cpu->samples[cpu->sample_ptr].core_pct_busy;
+	core_busy = cpu->sample.core_pct_busy;
 	max_pstate = int_tofp(cpu->pstate.max_pstate);
 	current_pstate = int_tofp(cpu->pstate.current_pstate);
 	core_busy = mul_fp(core_busy, div_fp(max_pstate, current_pstate));
@@ -648,7 +650,7 @@ static void intel_pstate_timer_func(unsigned long __data)
 
 	intel_pstate_sample(cpu);
 
-	sample = &cpu->samples[cpu->sample_ptr];
+	sample = &cpu->sample;
 
 	intel_pstate_adjust_busy_pstate(cpu);
 
@@ -697,11 +699,6 @@ static int intel_pstate_init_cpu(unsigned int cpunum)
 	cpu = all_cpu_data[cpunum];
 
 	intel_pstate_get_cpu_pstates(cpu);
-	if (!cpu->pstate.current_pstate) {
-		all_cpu_data[cpunum] = NULL;
-		kfree(cpu);
-		return -ENODATA;
-	}
 
 	cpu->cpu = cpunum;
 
@@ -712,7 +709,6 @@ static int intel_pstate_init_cpu(unsigned int cpunum)
 	cpu->timer.expires = jiffies + HZ/100;
 	intel_pstate_busy_pid_reset(cpu);
 	intel_pstate_sample(cpu);
-	intel_pstate_set_pstate(cpu, cpu->pstate.max_pstate);
 
 	add_timer_on(&cpu->timer, cpunum);
 
@@ -729,7 +725,7 @@ static unsigned int intel_pstate_get(unsigned int cpu_num)
 	cpu = all_cpu_data[cpu_num];
 	if (!cpu)
 		return 0;
-	sample = &cpu->samples[cpu->sample_ptr];
+	sample = &cpu->sample;
 	return sample->freq;
 }
 
@@ -773,14 +769,17 @@ static int intel_pstate_verify_policy(struct cpufreq_policy *policy)
 	return 0;
 }
 
-static int intel_pstate_cpu_exit(struct cpufreq_policy *policy)
+static void intel_pstate_stop_cpu(struct cpufreq_policy *policy)
 {
-	int cpu = policy->cpu;
+	int cpu_num = policy->cpu;
+	struct cpudata *cpu = all_cpu_data[cpu_num];
 
-	del_timer(&all_cpu_data[cpu]->timer);
-	kfree(all_cpu_data[cpu]);
-	all_cpu_data[cpu] = NULL;
-	return 0;
+	pr_info("intel_pstate CPU %d exiting\n", cpu_num);
+
+	del_timer_sync(&all_cpu_data[cpu_num]->timer);
+	intel_pstate_set_pstate(cpu, cpu->pstate.min_pstate);
+	kfree(all_cpu_data[cpu_num]);
+	all_cpu_data[cpu_num] = NULL;
 }
 
 static int intel_pstate_cpu_init(struct cpufreq_policy *policy)
@@ -818,7 +817,7 @@ static struct cpufreq_driver intel_pstate_driver = {
 	.setpolicy	= intel_pstate_set_policy,
 	.get		= intel_pstate_get,
 	.init		= intel_pstate_cpu_init,
-	.exit		= intel_pstate_cpu_exit,
+	.stop_cpu	= intel_pstate_stop_cpu,
 	.name		= "intel_pstate",
 };
 

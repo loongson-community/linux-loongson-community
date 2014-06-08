@@ -11,6 +11,7 @@
 
 #include <pci.h>
 #include <loongson.h>
+#include <boot_param.h>
 
 static struct resource loongson_pci_mem_resource = {
 	.name	= "pci memory space",
@@ -50,11 +51,11 @@ static void __init setup_pcimap(void)
 		LOONGSON_PCIMAP_WIN(0, 0);
 
 	/*
-	 * PCI-DMA to local mapping: [2G,4G] -> [0M,2G]
+	 * PCI-DMA to local mapping: [2G,2G+256M] -> [0M,256M]
 	 */
 	LOONGSON_PCIBASE0 = 0x80000000ul;   /* base: 2G -> mmap: 0M */
-	/* size: 2G, burst transmission, pre-fetch enable, 64bit */
-	LOONGSON_PCI_HIT0_SEL_L = 0x8000000cul;
+	/* size: 256M, burst transmission, pre-fetch enable, 64bit */
+	LOONGSON_PCI_HIT0_SEL_L = 0xc000000cul;
 	LOONGSON_PCI_HIT0_SEL_H = 0xfffffffful;
 	LOONGSON_PCI_HIT1_SEL_L = 0x00000006ul; /* set this BAR as invalid */
 	LOONGSON_PCI_HIT1_SEL_H = 0x00000000ul;
@@ -82,7 +83,10 @@ static int __init pcibios_init(void)
 	setup_pcimap();
 
 	loongson_pci_controller.io_map_base = mips_io_port_base;
-
+#ifdef CONFIG_LEFI_FIRMWARE_INTERFACE
+	loongson_pci_mem_resource.start = loongson_sysconf.pci_mem_start_addr;
+	loongson_pci_mem_resource.end = loongson_sysconf.pci_mem_end_addr;
+#endif
 	register_pci_controller(&loongson_pci_controller);
 
 	return 0;
