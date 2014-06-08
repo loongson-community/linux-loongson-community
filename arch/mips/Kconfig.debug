@@ -7,9 +7,9 @@ config TRACE_IRQFLAGS_SUPPORT
 source "lib/Kconfig.debug"
 
 config EARLY_PRINTK
-	bool "Early printk"
+	bool "Early printk" if EXPERT
 	depends on SYS_HAS_EARLY_PRINTK
-	default n 
+	default y
 	help
 	  This option enables special console drivers which allow the kernel
 	  to print messages very early in the bootup process.

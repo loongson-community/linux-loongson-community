@@ -115,27 +115,6 @@ config LEMOTE_MACH3A
 endchoice
 
 config CS5536
-	select CS5536_IDE if (PATA_AMD || BLK_DEV_AMD74XX || PATA_CS5536)
-	select CS5536_OHCI if USB_OHCI_HCD
-	select CS5536_EHCI if USB_EHCI_HCD
-	select CS5536_AUDIO if SND_CS5535AUDIO
-	select CS5536_ISA
-	bool
-
-config CS5536_ISA
-	select ISA
-	bool
-
-config CS5536_IDE
-	bool
-
-config CS5536_OHCI
-	bool
-
-config CS5536_EHCI
-	bool
-
-config CS5536_AUDIO
 	bool
 
 config CS5536_MFGPT
