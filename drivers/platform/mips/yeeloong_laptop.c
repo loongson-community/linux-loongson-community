@@ -845,7 +845,7 @@ static int ac_bat_handler(int status)
 static void do_event_action(int event)
 {
 	sci_handler handler;
-	int reg, status;
+	int reg, status = -1;
 	struct key_entry *ke;
 
 	reg = 0;
@@ -896,6 +896,11 @@ static void do_event_action(int event)
 
 	if (reg != 0)
 		status = ec_read(reg);
+
+	if (status == -1) {
+		/* ec_read hasn't been called, status is invalid */
+		return;
+	}
 
 	if (handler != NULL)
 		status = handler(status);
