@@ -970,6 +970,7 @@ static const struct sci_event se[] = {
 	[EVENT_SWITCHVIDEOMODE] = {0, switchvideomode_handler},
 	[EVENT_USB_OC0] = {REG_USB2_FLAG, usb0_handler},
 	[EVENT_USB_OC2] = {REG_USB2_FLAG, usb2_handler},
+	[EVENT_WLAN] = {REG_WLAN, NULL},
 };
 
 static void do_event_action(int event)
