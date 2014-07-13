@@ -890,6 +890,9 @@ static void do_event_action(int event)
 	case EVENT_AC_BAT:
 		handler = ac_bat_handler;
 		break;
+	case EVENT_WLAN:
+		reg = REG_WLAN;
+		break;
 	default:
 		break;
 	}
