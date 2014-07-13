@@ -974,7 +974,7 @@ static const struct sci_event se[] = {
 
 static void do_event_action(int event)
 {
-	int status;
+	int status = -1;
 	struct key_entry *ke;
 	struct sci_event *sep;
 
@@ -982,6 +982,11 @@ static void do_event_action(int event)
 
 	if (sep->reg != 0)
 		status = ec_read(sep->reg);
+
+	if (status == -1) {
+		/* ec_read hasn't been called, status is invalid */
+		return;
+	}
 
 	if (sep->handler != NULL)
 		status = sep->handler(status);
