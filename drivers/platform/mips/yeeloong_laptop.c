@@ -164,7 +164,7 @@ static inline bool is_bat_in(void)
 
 static int get_bat_temp(void)
 {
-	return get_bat_l(TEMPERATURE) * 1000;
+	return get_bat_l(TEMPERATURE) * 10;
 }
 
 static int get_bat_current(void)
