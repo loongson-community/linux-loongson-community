@@ -1,0 +1,7 @@
+TODO:
+- Dual head support
+- refine the code, convert more registers magic numbers to macros
+- Does it really works on Big Endian machines?
+
+Please send any patches to Greg Kroah-Hartman <greg@kroah.com> and
+Tom Li <biergaizi@member.fsf.org>.
