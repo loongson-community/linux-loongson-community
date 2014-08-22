@@ -162,20 +162,32 @@ static int __init cpufreq_init(void)
 	/* Register platform stuff */
 	ret = platform_driver_register(&platform_driver);
 	if (ret)
-		return ret;
+		goto err_return;
 
 	pr_info("cpufreq: Loongson-2F CPU frequency driver.\n");
 
-	cpufreq_register_notifier(&loongson2_cpufreq_notifier_block,
-				  CPUFREQ_TRANSITION_NOTIFIER);
+	ret = cpufreq_register_notifier(&loongson2_cpufreq_notifier_block,
+					CPUFREQ_TRANSITION_NOTIFIER);
+	if (ret)
+		goto err_platform_driver_unregister;
 
 	ret = cpufreq_register_driver(&loongson2_cpufreq_driver);
+	if (ret)
+		goto err_cpufreq_unregister_notifier;
 
-	if (!ret && !nowait) {
+	if (!nowait) {
 		saved_cpu_wait = cpu_wait;
 		cpu_wait = loongson2_cpu_wait;
 	}
 
+	return 0;
+
+ err_cpufreq_unregister_notifier:
+	cpufreq_unregister_notifier(&loongson2_cpufreq_notifier_block,
+				    CPUFREQ_TRANSITION_NOTIFIER);
+ err_platform_driver_unregister:
+	platform_driver_unregister(&platform_driver);
+ err_return:
 	return ret;
 }
 
