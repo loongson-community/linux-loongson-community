@@ -28,6 +28,7 @@ struct efi_memory_map_loongson *loongson_memmap;
 struct loongson_system_configuration loongson_sysconf;
 
 u64 loongson_chipcfg[MAX_PACKAGES] = {0xffffffffbfc00180};
+EXPORT_SYMBOL_GPL(loongson_chipcfg);
 u64 loongson_freqctrl[MAX_PACKAGES];
 
 unsigned long long smp_group[4];
