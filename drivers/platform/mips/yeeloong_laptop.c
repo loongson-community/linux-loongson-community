@@ -459,7 +459,7 @@ static ssize_t store_sys_hwmon(void (*set) (int), const char *buf, size_t count)
 	if (!count)
 		return 0;
 
-	ret = strict_strtoul(buf, 10, &value);
+	ret = kstrtoul(buf, 10, &value);
 	if (ret)
 		return ret;
 
