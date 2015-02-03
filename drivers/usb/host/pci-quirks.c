@@ -450,6 +450,25 @@ void usb_amd_dev_put(void)
 }
 EXPORT_SYMBOL_GPL(usb_amd_dev_put);
 
+#if defined(CONFIG_USB_UHCI_HCD) || defined(CONFIG_USB_UHCI_HCD_MODULE) \
+ || defined(CONFIG_USB_OHCI_HCD) || defined(CONFIG_USB_OHCI_HCD_MODULE) \
+ || defined(CONFIG_USB_EHCI_HCD) || defined(CONFIG_USB_EHCI_HCD_MODULE) \
+ || defined(CONFIG_USB_XHCI_HCD) || defined(CONFIG_USB_XHCI_HCD_MODULE)
+static inline int io_type_enabled(struct pci_dev *pdev, unsigned int mask)
+{
+	u16 cmd;
+	return !pci_read_config_word(pdev, PCI_COMMAND, &cmd) && (cmd & mask);
+}
+
+#define pio_enabled(dev) io_type_enabled(dev, PCI_COMMAND_IO)
+#define mmio_enabled(dev) io_type_enabled(dev, PCI_COMMAND_MEMORY)
+
+static int mmio_resource_enabled(struct pci_dev *pdev, int idx)
+{
+	return pci_resource_start(pdev, idx) && mmio_enabled(pdev);
+}
+#endif
+
 #if defined(CONFIG_USB_UHCI_HCD) || defined(CONFIG_USB_UHCI_HCD_MODULE)
 /*
  * Make sure the controller is completely inactive, unable to
@@ -532,15 +551,6 @@ reset_needed:
 }
 EXPORT_SYMBOL_GPL(uhci_check_and_reset_hc);
 
-static inline int io_type_enabled(struct pci_dev *pdev, unsigned int mask)
-{
-	u16 cmd;
-	return !pci_read_config_word(pdev, PCI_COMMAND, &cmd) && (cmd & mask);
-}
-
-#define pio_enabled(dev) io_type_enabled(dev, PCI_COMMAND_IO)
-#define mmio_enabled(dev) io_type_enabled(dev, PCI_COMMAND_MEMORY)
-
 static void quirk_usb_handoff_uhci(struct pci_dev *pdev)
 {
 	unsigned long base = 0;
@@ -561,11 +571,6 @@ static void quirk_usb_handoff_uhci(struct pci_dev *pdev)
 #else
 #define quirk_usb_handoff_uhci(x) do { } while (0)
 #endif /* CONFIG_USB_UHCI_HCD* */
-
-static int mmio_resource_enabled(struct pci_dev *pdev, int idx)
-{
-	return pci_resource_start(pdev, idx) && mmio_enabled(pdev);
-}
 
 #if defined(CONFIG_USB_OHCI_HCD) || defined(CONFIG_USB_OHCI_HCD_MODULE)
 static void quirk_usb_handoff_ohci(struct pci_dev *pdev)
