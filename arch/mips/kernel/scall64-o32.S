@@ -198,6 +198,7 @@ LEAF(sys32_syscall)
 	dsll	t1, t0, 3
 	beqz	v0, einval
 	ld	t2, sys32_call_table(t1)		# syscall routine
+	sd	a0, PT_R2(sp)		# call routine directly on restart
 
 	move	a0, a1			# shift argument registers
 	move	a1, a2
@@ -577,4 +578,5 @@ EXPORT(sys32_call_table)
 	PTR	sys_getrandom
 	PTR	sys_memfd_create
 	PTR	sys_bpf				/* 4355 */
+	PTR	compat_sys_execveat
 	.size	sys32_call_table,.-sys32_call_table
