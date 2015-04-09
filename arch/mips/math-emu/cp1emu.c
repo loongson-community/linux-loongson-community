@@ -51,6 +51,7 @@
 #include <asm/processor.h>
 #include <asm/fpu_emulator.h>
 #include <asm/fpu.h>
+#include <asm/mips-r2-to-r6-emul.h>
 
 #include "ieee754.h"
 
@@ -76,7 +77,7 @@ static int loongson_spec2_emu(struct pt_regs *,
 #define modeindex(v) ((v) & FPU_CSR_RM)
 
 /* convert condition code register number to csr bit */
-static const unsigned int fpucondbit[8] = {
+const unsigned int fpucondbit[8] = {
 	FPU_CSR_COND0,
 	FPU_CSR_COND1,
 	FPU_CSR_COND2,
@@ -456,6 +457,9 @@ static int isBranchInstr(struct pt_regs *regs, struct mm_decoded_insn dec_insn,
 				dec_insn.next_pc_inc;
 			/* Fall through */
 		case jr_op:
+			/* For R6, JR already emulated in jalr_op */
+			if (NO_R6EMU && insn.r_format.opcode == jr_op)
+				break;
 			*contpc = regs->regs[insn.r_format.rs];
 			return 1;
 		}
@@ -464,12 +468,18 @@ static int isBranchInstr(struct pt_regs *regs, struct mm_decoded_insn dec_insn,
 		switch (insn.i_format.rt) {
 		case bltzal_op:
 		case bltzall_op:
+			if (NO_R6EMU && (insn.i_format.rs ||
+			    insn.i_format.rt == bltzall_op))
+				break;
+
 			regs->regs[31] = regs->cp0_epc +
 				dec_insn.pc_inc +
 				dec_insn.next_pc_inc;
 			/* Fall through */
-		case bltz_op:
 		case bltzl_op:
+			if (NO_R6EMU)
+				break;
+		case bltz_op:
 			if ((long)regs->regs[insn.i_format.rs] < 0)
 				*contpc = regs->cp0_epc +
 					dec_insn.pc_inc +
@@ -481,12 +491,18 @@ static int isBranchInstr(struct pt_regs *regs, struct mm_decoded_insn dec_insn,
 			return 1;
 		case bgezal_op:
 		case bgezall_op:
+			if (NO_R6EMU && (insn.i_format.rs ||
+			    insn.i_format.rt == bgezall_op))
+				break;
+
 			regs->regs[31] = regs->cp0_epc +
 				dec_insn.pc_inc +
 				dec_insn.next_pc_inc;
 			/* Fall through */
-		case bgez_op:
 		case bgezl_op:
+			if (NO_R6EMU)
+				break;
+		case bgez_op:
 			if ((long)regs->regs[insn.i_format.rs] >= 0)
 				*contpc = regs->cp0_epc +
 					dec_insn.pc_inc +
@@ -513,8 +529,10 @@ static int isBranchInstr(struct pt_regs *regs, struct mm_decoded_insn dec_insn,
 		/* Set microMIPS mode bit: XOR for jalx. */
 		*contpc ^= bit;
 		return 1;
-	case beq_op:
 	case beql_op:
+		if (NO_R6EMU)
+			break;
+	case beq_op:
 		if (regs->regs[insn.i_format.rs] ==
 		    regs->regs[insn.i_format.rt])
 			*contpc = regs->cp0_epc +
@@ -525,8 +543,10 @@ static int isBranchInstr(struct pt_regs *regs, struct mm_decoded_insn dec_insn,
 				dec_insn.pc_inc +
 				dec_insn.next_pc_inc;
 		return 1;
-	case bne_op:
 	case bnel_op:
+		if (NO_R6EMU)
+			break;
+	case bne_op:
 		if (regs->regs[insn.i_format.rs] !=
 		    regs->regs[insn.i_format.rt])
 			*contpc = regs->cp0_epc +
@@ -537,8 +557,34 @@ static int isBranchInstr(struct pt_regs *regs, struct mm_decoded_insn dec_insn,
 				dec_insn.pc_inc +
 				dec_insn.next_pc_inc;
 		return 1;
-	case blez_op:
 	case blezl_op:
+		if (NO_R6EMU)
+			break;
+	case blez_op:
+
+		/*
+		 * Compact branches for R6 for the
+		 * blez and blezl opcodes.
+		 * BLEZ  | rs = 0 | rt != 0  == BLEZALC
+		 * BLEZ  | rs = rt != 0      == BGEZALC
+		 * BLEZ  | rs != 0 | rt != 0 == BGEUC
+		 * BLEZL | rs = 0 | rt != 0  == BLEZC
+		 * BLEZL | rs = rt != 0      == BGEZC
+		 * BLEZL | rs != 0 | rt != 0 == BGEC
+		 *
+		 * For real BLEZ{,L}, rt is always 0.
+		 */
+		if (cpu_has_mips_r6 && insn.i_format.rt) {
+			if ((insn.i_format.opcode == blez_op) &&
+			    ((!insn.i_format.rs && insn.i_format.rt) ||
+			     (insn.i_format.rs == insn.i_format.rt)))
+				regs->regs[31] = regs->cp0_epc +
+					dec_insn.pc_inc;
+			*contpc = regs->cp0_epc + dec_insn.pc_inc +
+				dec_insn.next_pc_inc;
+
+			return 1;
+		}
 		if ((long)regs->regs[insn.i_format.rs] <= 0)
 			*contpc = regs->cp0_epc +
 				dec_insn.pc_inc +
@@ -548,8 +594,35 @@ static int isBranchInstr(struct pt_regs *regs, struct mm_decoded_insn dec_insn,
 				dec_insn.pc_inc +
 				dec_insn.next_pc_inc;
 		return 1;
-	case bgtz_op:
 	case bgtzl_op:
+		if (NO_R6EMU)
+			break;
+	case bgtz_op:
+		/*
+		 * Compact branches for R6 for the
+		 * bgtz and bgtzl opcodes.
+		 * BGTZ  | rs = 0 | rt != 0  == BGTZALC
+		 * BGTZ  | rs = rt != 0      == BLTZALC
+		 * BGTZ  | rs != 0 | rt != 0 == BLTUC
+		 * BGTZL | rs = 0 | rt != 0  == BGTZC
+		 * BGTZL | rs = rt != 0      == BLTZC
+		 * BGTZL | rs != 0 | rt != 0 == BLTC
+		 *
+		 * *ZALC varint for BGTZ &&& rt != 0
+		 * For real GTZ{,L}, rt is always 0.
+		 */
+		if (cpu_has_mips_r6 && insn.i_format.rt) {
+			if ((insn.i_format.opcode == blez_op) &&
+			    ((!insn.i_format.rs && insn.i_format.rt) ||
+			     (insn.i_format.rs == insn.i_format.rt)))
+				regs->regs[31] = regs->cp0_epc +
+					dec_insn.pc_inc;
+			*contpc = regs->cp0_epc + dec_insn.pc_inc +
+				dec_insn.next_pc_inc;
+
+			return 1;
+		}
+
 		if ((long)regs->regs[insn.i_format.rs] > 0)
 			*contpc = regs->cp0_epc +
 				dec_insn.pc_inc +
@@ -558,6 +631,16 @@ static int isBranchInstr(struct pt_regs *regs, struct mm_decoded_insn dec_insn,
 			*contpc = regs->cp0_epc +
 				dec_insn.pc_inc +
 				dec_insn.next_pc_inc;
+		return 1;
+	case cbcond0_op:
+	case cbcond1_op:
+		if (!cpu_has_mips_r6)
+			break;
+		if (insn.i_format.rt && !insn.i_format.rs)
+			regs->regs[31] = regs->cp0_epc + 4;
+		*contpc = regs->cp0_epc + dec_insn.pc_inc +
+			dec_insn.next_pc_inc;
+
 		return 1;
 #ifdef CONFIG_CPU_CAVIUM_OCTEON
 	case lwc2_op: /* This is bbit0 on Octeon */
@@ -584,9 +667,73 @@ static int isBranchInstr(struct pt_regs *regs, struct mm_decoded_insn dec_insn,
 		else
 			*contpc = regs->cp0_epc + 8;
 		return 1;
+#else
+	case bc6_op:
+		/*
+		 * Only valid for MIPS R6 but we can still end up
+		 * here from a broken userland so just tell emulator
+		 * this is not a branch and let it break later on.
+		 */
+		if  (!cpu_has_mips_r6)
+			break;
+		*contpc = regs->cp0_epc + dec_insn.pc_inc +
+			dec_insn.next_pc_inc;
+
+		return 1;
+	case balc6_op:
+		if (!cpu_has_mips_r6)
+			break;
+		regs->regs[31] = regs->cp0_epc + 4;
+		*contpc = regs->cp0_epc + dec_insn.pc_inc +
+			dec_insn.next_pc_inc;
+
+		return 1;
+	case beqzcjic_op:
+		if (!cpu_has_mips_r6)
+			break;
+		*contpc = regs->cp0_epc + dec_insn.pc_inc +
+			dec_insn.next_pc_inc;
+
+		return 1;
+	case bnezcjialc_op:
+		if (!cpu_has_mips_r6)
+			break;
+		if (!insn.i_format.rs)
+			regs->regs[31] = regs->cp0_epc + 4;
+		*contpc = regs->cp0_epc + dec_insn.pc_inc +
+			dec_insn.next_pc_inc;
+
+		return 1;
 #endif
 	case cop0_op:
 	case cop1_op:
+		/* Need to check for R6 bc1nez and bc1eqz branches */
+		if (cpu_has_mips_r6 &&
+		    ((insn.i_format.rs == bc1eqz_op) ||
+		     (insn.i_format.rs == bc1nez_op))) {
+			bit = 0;
+			switch (insn.i_format.rs) {
+			case bc1eqz_op:
+				if (get_fpr32(&current->thread.fpu.fpr[insn.i_format.rt], 0) & 0x1)
+				    bit = 1;
+				break;
+			case bc1nez_op:
+				if (!(get_fpr32(&current->thread.fpu.fpr[insn.i_format.rt], 0) & 0x1))
+				    bit = 1;
+				break;
+			}
+			if (bit)
+				*contpc = regs->cp0_epc +
+					dec_insn.pc_inc +
+					(insn.i_format.simmediate << 2);
+			else
+				*contpc = regs->cp0_epc +
+					dec_insn.pc_inc +
+					dec_insn.next_pc_inc;
+
+			return 1;
+		}
+		/* R2/R6 compatible cop1 instruction. Fall through */
 	case cop2_op:
 	case cop1x_op:
 		if (insn.i_format.rs == bc_op) {
@@ -1616,14 +1763,14 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
 		 * achieve full IEEE-754 accuracy - however this emulator does.
 		 */
 		case frsqrt_op:
-			if (!cpu_has_mips_4_5_r2)
+			if (!cpu_has_mips_4_5_r2_r6)
 				return SIGILL;
 
 			handler.u = fpemu_sp_rsqrt;
 			goto scopuop;
 
 		case frecip_op:
-			if (!cpu_has_mips_4_5_r2)
+			if (!cpu_has_mips_4_5_r2_r6)
 				return SIGILL;
 
 			handler.u = fpemu_sp_recip;
@@ -1818,13 +1965,13 @@ copcsr:
 		 * achieve full IEEE-754 accuracy - however this emulator does.
 		 */
 		case frsqrt_op:
-			if (!cpu_has_mips_4_5_r2)
+			if (!cpu_has_mips_4_5_r2_r6)
 				return SIGILL;
 
 			handler.u = fpemu_dp_rsqrt;
 			goto dcopuop;
 		case frecip_op:
-			if (!cpu_has_mips_4_5_r2)
+			if (!cpu_has_mips_4_5_r2_r6)
 				return SIGILL;
 
 			handler.u = fpemu_dp_recip;
