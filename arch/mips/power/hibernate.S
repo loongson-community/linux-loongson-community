@@ -30,6 +30,10 @@ LEAF(swsusp_arch_suspend)
 END(swsusp_arch_suspend)
 
 LEAF(swsusp_arch_resume)
+#if !defined(CONFIG_MACH_LOONGSON) || !defined(CONFIG_CPU_LOONGSON2)	/* Commit 771004298d broke Loongson2.  */
+	/* Avoid TLB mismatch during and after kernel resume */
+	jal local_flush_tlb_all
+#endif
 	PTR_L t0, restore_pblist
 0:
 	PTR_L t1, PBE_ADDRESS(t0)   /* source */
@@ -43,9 +47,6 @@ LEAF(swsusp_arch_resume)
 	bne t1, t3, 1b
 	PTR_L t0, PBE_NEXT(t0)
 	bnez t0, 0b
-#if !defined(CONFIG_MACH_LOONGSON) || !defined(CONFIG_CPU_LOONGSON2)	/* Commit 771004298d broke Loongson2.  */
-	jal local_flush_tlb_all /* Avoid TLB mismatch after kernel resume */
-#endif
 	PTR_LA t0, saved_regs
 	PTR_L ra, PT_R31(t0)
 	PTR_L sp, PT_R29(t0)
