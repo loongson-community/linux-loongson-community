@@ -32,8 +32,8 @@ extern unsigned char __image_begin, __image_end;
 extern void puts(const char *s);
 extern void puthex(unsigned long long val);
 #else
-#define puts(s)
-#define puthex(val)
+#define puts(s) do {} while (0)
+#define puthex(val) do {} while (0)
 #endif
 
 void error(char *x)

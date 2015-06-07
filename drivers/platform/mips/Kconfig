@@ -7,8 +7,9 @@ menuconfig MIPS_PLATFORM_DEVICES
 	default y
 	help
 	  Say Y here to get to see options for device drivers of various
-	  MIPS platforms, including vendor-specific netbook/laptop/pc extension
-	  drivers.  This option alone does not add any kernel code.
+	  MIPS platforms, including vendor-specific netbook/laptop/desktop
+	  extension and hardware monitor drivers. This option itself does
+	  not add any kernel code.
 
 	  If you say N, all options in this submenu will be skipped and disabled.
 
@@ -56,5 +57,17 @@ config GDIUM_LAPTOP
 	help
 	  This mini-driver drives the ST7 chipset present in the Gdium laptops.
 	  This gives battery support, wlan rfkill.
+
+config MIPS_ACPI
+	bool
+	default y if LOONGSON_MACH3X
+
+config CPU_HWMON
+	tristate "Loongson CPU HWMon Driver"
+	depends on LOONGSON_MACH3X
+	select HWMON
+	default y
+	help
+	  Loongson-3A/3B CPU Hwmon (temperature sensor) driver.
 
 endif # MIPS_PLATFORM_DEVICES
