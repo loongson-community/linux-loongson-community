@@ -126,7 +126,7 @@ static void yeeloong_backlight_exit(void)
 
 /* AC & Battery subdriver */
 
-static struct power_supply yeeloong_ac, yeeloong_bat;
+static struct power_supply_desc yeeloong_ac_desc, yeeloong_bat_desc;
 
 #define RET (val->intval)
 
@@ -153,7 +153,7 @@ static enum power_supply_property yeeloong_ac_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
 };
 
-static struct power_supply yeeloong_ac = {
+static struct power_supply_desc yeeloong_ac_desc = {
 	.name = "yeeloong-ac",
 	.type = POWER_SUPPLY_TYPE_MAINS,
 	.properties = yeeloong_ac_props,
@@ -328,7 +328,7 @@ static enum power_supply_property yeeloong_bat_props[] = {
 	POWER_SUPPLY_PROP_MANUFACTURER,
 };
 
-static struct power_supply yeeloong_bat = {
+static struct power_supply_desc yeeloong_bat_desc = {
 	.name = "yeeloong-bat",
 	.type = POWER_SUPPLY_TYPE_BATTERY,
 	.properties = yeeloong_bat_props,
@@ -336,31 +336,39 @@ static struct power_supply yeeloong_bat = {
 	.get_property = yeeloong_get_bat_props,
 };
 
-static int ac_bat_initialized;
+static struct power_supply *yeeloong_ac, *yeeloong_bat;
 
 static int yeeloong_bat_init(void)
 {
-	int ret;
+	struct power_supply *ac, *bat;
 
-	ret = power_supply_register(NULL, &yeeloong_ac);
-	if (ret)
-		return ret;
-	ret = power_supply_register(NULL, &yeeloong_bat);
-	if (ret) {
-		power_supply_unregister(&yeeloong_ac);
-		return ret;
+	ac = power_supply_register(NULL, &yeeloong_ac_desc, NULL);
+	if (IS_ERR(ac))
+		return PTR_ERR(ac);
+	
+	bat = power_supply_register(NULL, &yeeloong_bat_desc, NULL);
+	if (IS_ERR(bat)) {
+		power_supply_unregister(ac);
+		return PTR_ERR(bat);
 	}
-	ac_bat_initialized = 1;
+
+	yeeloong_ac = ac;
+	yeeloong_bat = bat;
 
 	return 0;
 }
 
 static void yeeloong_bat_exit(void)
 {
-	ac_bat_initialized = 0;
+	struct power_supply *temp;
 
-	power_supply_unregister(&yeeloong_ac);
-	power_supply_unregister(&yeeloong_bat);
+	temp = yeeloong_ac;
+	yeeloong_ac = NULL;
+	power_supply_unregister(temp);
+
+	temp = yeeloong_bat;
+	yeeloong_bat = NULL;
+	power_supply_unregister(temp);
 }
 /* hwmon subdriver */
 
@@ -949,10 +957,10 @@ static int usb0_handler(int status)
 
 static int ac_bat_handler(int status)
 {
-	if (ac_bat_initialized) {
-		power_supply_changed(&yeeloong_ac);
-		power_supply_changed(&yeeloong_bat);
-	}
+	if (yeeloong_ac)
+		power_supply_changed(yeeloong_ac);
+	if (yeeloong_bat)
+		power_supply_changed(yeeloong_bat);
 
 	return status;
 }
