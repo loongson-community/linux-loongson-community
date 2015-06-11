@@ -2450,19 +2450,6 @@ config FB_SIMPLE
 	  Configuration re: surface address, size, and format must be provided
 	  through device tree, or plain old platform data.
 
-config FB_SM712
-	tristate "Silicon Motion SM712 framebuffer support"
-	depends on FB && PCI
-	select FB_CFB_FILLRECT
-	select FB_CFB_COPYAREA
-	select FB_CFB_IMAGEBLIT
-	help
-	  Frame buffer driver for the Silicon Motion SM712 chip.
-
-	  This driver is also available as a module. The module will be
-	  called sm712fb. If you want to compile it as a module, say M
-	  here and read <file:Documentation/kbuild/modules.txt>.
-
 source "drivers/video/fbdev/omap/Kconfig"
 source "drivers/video/fbdev/omap2/Kconfig"
 source "drivers/video/fbdev/exynos/Kconfig"
